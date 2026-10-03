@@ -1,6 +1,6 @@
 import { SCATTER_CORNERS } from './layout';
 import { DIR_VEC, REVERSE } from './maze';
-import { occupiedTile, type DecisionPoint, type GameState } from './sim';
+import { occupiedTile, optionsAt, type DecisionPoint, type GameState, type Ghost } from './sim';
 import { GHOST_IDS, sameTile, type ActorId, type Dir, type GhostId, type Tile } from './types';
 
 export type GoalKind = 'pacman' | 'ambush' | 'flank' | 'corner' | 'flee' | 'eat' | 'hunt';
@@ -26,7 +26,7 @@ export interface OptionFeatures {
   nearestFrightenedGhost: number | null;
   fruitDistance: number | null;
   nearestPowerPellet: number | null;
-  /** Whether the nearest dangerous ghost on this route is moving toward it. */
+  /** Whether the nearest dangerous ghost on this route is moving toward the actor (closer to where the route starts from). */
   dangerApproaching: boolean;
   /** Dangerous ghosts within NEARBY_STEPS via this route. */
   dangerNearby: number;
@@ -114,11 +114,10 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
       if (d >= 0 && (junctionGhost === null || d < junctionGhost.steps)) junctionGhost = { id: g.id, steps: d };
     }
     const dangerSteps = danger
-      .map((g) => ({ g, tile: occupiedTile(state, g), steps: steps(occupiedTile(state, g)) }))
-      .filter((x): x is { g: (typeof danger)[number]; tile: Tile; steps: number } => x.steps !== null)
+      .map((g) => ({ g, steps: steps(occupiedTile(state, g)) }))
+      .filter((x): x is { g: (typeof danger)[number]; steps: number } => x.steps !== null)
       .sort((a, b) => a.steps - b.steps);
     const closest = dangerSteps[0];
-    const closestNext = closest ? steps(maze.neighbor(closest.tile, closest.g.dir)) : null;
     const nearestPellet = nearest(pelletTiles);
     const nearestFrightenedGhost = nearest(frightened.map((g) => occupiedTile(state, g)));
     const goalDistance = goal.target
@@ -137,12 +136,24 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
       nearestFrightenedGhost,
       fruitDistance: state.fruit ? steps(state.fruit.tile) : null,
       nearestPowerPellet: nearest(powerTiles),
-      dangerApproaching: closest !== undefined && closestNext !== null && closestNext < closest.steps,
+      dangerApproaching: closest !== undefined && movingToward(state, closest.g, origin),
       dangerNearby: dangerSteps.filter((x) => x.steps <= NEARBY_STEPS).length,
       // Ghost steps are counted from where the ghosts are now, so count Pac-Man's walk to the decision point too.
       junctionSteps: point.distance + corridor.length,
       junctionGhost,
     };
+  });
+}
+
+/** Whether ghost `g`'s next move takes it closer to `to` (for a ghost waiting at a junction: any move it may take). */
+function movingToward(state: GameState, g: Ghost, to: Tile): boolean {
+  const { maze } = state;
+  const dist = maze.distanceMap(to);
+  const here = dist[maze.key(g.tile)];
+  const moves = g.waiting ? optionsAt(state, g.id, g.tile, g.dir) : [g.dir];
+  return moves.some((d) => {
+    const next = dist[maze.key(maze.neighbor(g.tile, d))];
+    return next >= 0 && next < here;
   });
 }
 

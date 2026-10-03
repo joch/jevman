@@ -119,6 +119,27 @@ describe('optionFeatures danger awareness', () => {
     expect(byDir(optionFeatures(s, nextDecisionPoint(s, 'pacman')!)).left.dangerApproaching).toBe(false);
   });
 
+  it('counts a ghost heading into the junction itself as coming toward the route', () => {
+    const s = setup();
+    // Pac-Man is about to reach junction (12,23); Blinky is just left of it, moving right into it.
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 11, y: 23 }, dir: 'right', progress: 0 });
+    const f = byDir(optionFeatures(s, nextDecisionPoint(s, 'pacman')!));
+    expect(f.left.nearestDangerGhost).toBe(1);
+    expect(f.left.dangerApproaching).toBe(true);
+  });
+
+  it('counts a ghost rounding a corner toward the route as coming toward it', () => {
+    const s = setup();
+    Object.assign(s.pacman, { tile: { x: 7, y: 29 }, dir: 'right', progress: 0 });
+    // Clyde is coming down into the corner (1,29) and will turn right along row 29, toward junction (12,29).
+    Object.assign(s.ghosts.clyde, { state: 'normal', tile: { x: 1, y: 28 }, dir: 'down', progress: 0.6 });
+    const f = byDir(optionFeatures(s, nextDecisionPoint(s, 'pacman')!));
+    expect(f.left.nearestDangerGhost).toBe(11);
+    expect(f.left.dangerApproaching).toBe(true);
+    Object.assign(s.ghosts.clyde, { tile: { x: 1, y: 29 }, dir: 'up', progress: 0.6 });
+    expect(byDir(optionFeatures(s, nextDecisionPoint(s, 'pacman')!)).left.dangerApproaching).toBe(false);
+  });
+
   it('counts dangerous ghosts nearby and detects a ghost winning the race to the next junction', () => {
     const s = setup();
     Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 10, y: 23 }, dir: 'right', progress: 0 });
@@ -189,6 +210,7 @@ describe('optionFeatures for escape questions', () => {
     const f = byDir(optionFeatures(s, point));
     expect(f.right.nearestDangerGhost).toBe(1);
     expect(f.right.dangerInCorridor).toEqual(['pinky']);
+    expect(f.right.dangerApproaching).toBe(true);
     expect(f.left.dangerInCorridor).toEqual(['blinky']);
   });
 });
