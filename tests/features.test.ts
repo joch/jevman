@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { goalFor, greedyChoice, optionFeatures, type OptionFeatures } from '../src/features';
+import { goalFor, greedyChoice, isTrap, optionFeatures, type OptionFeatures } from '../src/features';
 import { FRUIT_TILE, SCATTER_CORNERS } from '../src/layout';
 import { createGame, escapePoint, nextDecisionPoint, type GameState } from '../src/sim';
 import { GHOST_IDS, type Dir } from '../src/types';
@@ -127,10 +127,24 @@ describe('optionFeatures danger awareness', () => {
     const feats = optionFeatures(s, point);
     const f = byDir(feats);
     expect(f.left.dangerNearby).toBe(2);
-    expect(f.left.junctionSteps).toBe(3);
+    expect(f.left.junctionSteps).toBe(4); // 1 step to junction (12,23), then 3 along the corridor
     expect(f.left.junctionGhost).toEqual({ id: 'blinky', steps: 1 });
     expect(f.right.junctionGhost!.steps).toBeGreaterThan(f.right.junctionSteps);
     expect(greedyChoice(s, point, feats)).not.toBe('left');
+  });
+
+  it('counts the steps Pac-Man still needs to reach the junction in the race', () => {
+    const s = setup();
+    // Asked 7 tiles before junction (12,29); going right from there, the corridor to (15,29) is 3 more.
+    Object.assign(s.pacman, { tile: { x: 5, y: 29 }, dir: 'right', progress: 0 });
+    Object.assign(s.ghosts.pinky, { state: 'normal', tile: { x: 18, y: 26 }, dir: 'left', progress: 0 });
+    const point = nextDecisionPoint(s, 'pacman')!;
+    expect(point.tile).toEqual({ x: 12, y: 29 });
+    expect(point.distance).toBe(7);
+    const f = byDir(optionFeatures(s, point));
+    expect(f.right.junctionGhost).toEqual({ id: 'pinky', steps: 6 });
+    expect(f.right.junctionSteps).toBe(10);
+    expect(isTrap(f.right)).toBe(true);
   });
 
   it('flags a trap even when no ghost is in the corridor itself', () => {

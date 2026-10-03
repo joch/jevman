@@ -30,7 +30,7 @@ export interface OptionFeatures {
   dangerApproaching: boolean;
   /** Dangerous ghosts within NEARBY_STEPS via this route. */
   dangerNearby: number;
-  /** Steps to the junction where this option's corridor ends. */
+  /** Steps from where the actor is now to the junction where this option's corridor ends. */
   junctionSteps: number;
   /** The dangerous ghost that can reach that junction fastest, and how many steps it needs. */
   junctionGhost: { id: GhostId; steps: number } | null;
@@ -139,7 +139,8 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
       nearestPowerPellet: nearest(powerTiles),
       dangerApproaching: closest !== undefined && closestNext !== null && closestNext < closest.steps,
       dangerNearby: dangerSteps.filter((x) => x.steps <= NEARBY_STEPS).length,
-      junctionSteps: corridor.length,
+      // Ghost steps are counted from where the ghosts are now, so count Pac-Man's walk to the decision point too.
+      junctionSteps: point.distance + corridor.length,
       junctionGhost,
     };
   });

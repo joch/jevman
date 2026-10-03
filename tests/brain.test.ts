@@ -47,8 +47,8 @@ describe('Pac-Man danger criteria', () => {
     expect(criteria.left).toMatch(/power pellet 17 steps away/);
     expect(criteria.left).toMatch(/nearest dangerous ghost \d+ steps away, coming toward you/);
     expect(criteria.left).toMatch(/2 dangerous ghosts within 8 steps/);
-    expect(criteria.left).toMatch(/TRAP: Pinky can reach the next junction in 3 steps, you need 3/);
-    expect(criteria.right).toMatch(/you reach the next junction in 3 steps, \d+ steps before any ghost/);
+    expect(criteria.left).toMatch(/TRAP: Pinky can reach the next junction in 3 steps, you need 4/);
+    expect(criteria.right).toMatch(/you reach the next junction in 4 steps, \d+ steps before any ghost/);
   });
 });
 

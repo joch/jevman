@@ -65,6 +65,8 @@ export interface DecisionPoint {
   heading: Dir;
   options: Dir[];
   key: string;
+  /** Steps the actor still has to walk to `tile` (0 when it is already there, and for escape questions). */
+  distance: number;
   /** Mid-corridor "keep going or turn back?" question; the actor never waits for it. */
   escape?: boolean;
   /** For escape questions: the dangerous ghosts in the corridor ahead. */
@@ -224,6 +226,7 @@ export function decisionPointAt(state: GameState, id: ActorId, tile: Tile, headi
     heading,
     options: optionsAt(state, id, tile, heading),
     key: decisionKey(state, id, tile, heading),
+    distance: 0,
   };
 }
 
@@ -236,7 +239,7 @@ export function nextDecisionPoint(state: GameState, id: ActorId): DecisionPoint 
   let heading = a.dir;
   for (let i = 0; i < state.maze.width * state.maze.height; i++) {
     const point = decisionPointAt(state, id, tile, heading);
-    if (point) return point;
+    if (point) return { ...point, distance: i + 1 };
     heading = forcedDir(state, tile, heading)!;
     tile = state.maze.neighbor(tile, heading);
   }
@@ -281,6 +284,7 @@ export function escapePoint(state: GameState): DecisionPoint | null {
     heading: a.dir,
     options: [a.dir, REVERSE[a.dir]],
     key: `pacman~${junction.x},${junction.y}#${a.epoch}:${mood}:${threats.join('+')}`,
+    distance: 0,
     escape: true,
     threats,
   };

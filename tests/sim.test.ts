@@ -107,6 +107,7 @@ describe('movement', () => {
     step(s, 0.5, never);
     expect(s.pacman.tile).toEqual({ x: 12, y: 23 });
     expect(s.pacman.waiting).toBe(true);
+    expect(nextDecisionPoint(s, 'pacman')).toMatchObject({ tile: { x: 12, y: 23 }, distance: 0 });
     const upAt12: Controls = { decide: (p) => (p.tile.x === 12 && p.tile.y === 23 ? 'up' : null) };
     step(s, 0.1, upAt12);
     expect(s.pacman.waiting).toBe(false);
@@ -131,6 +132,7 @@ describe('decision points', () => {
     const pac = nextDecisionPoint(s, 'pacman')!;
     expect(pac.tile).toEqual({ x: 12, y: 23 });
     expect(pac.heading).toBe('left');
+    expect(pac.distance).toBe(1);
     expect([...pac.options].sort()).toEqual(['left', 'right', 'up']);
     const blinky = nextDecisionPoint(s, 'blinky')!;
     expect(blinky.tile).toEqual({ x: 12, y: 11 });
@@ -303,7 +305,7 @@ describe('escape points', () => {
   it('offers keep-going or turn-back while a dangerous ghost is in the corridor ahead', () => {
     const s = corridorWithGhostAhead();
     const p = escapePoint(s)!;
-    expect(p).toMatchObject({ actor: 'pacman', escape: true, heading: 'left', options: ['left', 'right'] });
+    expect(p).toMatchObject({ actor: 'pacman', escape: true, heading: 'left', options: ['left', 'right'], distance: 0 });
     expect(decisionPoints(s, 'pacman').map((x) => !!x.escape)).toEqual([true, false]);
     s.ghosts.blinky.state = 'frightened';
     expect(escapePoint(s)).toBeNull();
