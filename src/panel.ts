@@ -117,6 +117,7 @@ export class Panel {
     this.addLog(
       `${ACTOR_NAMES[d.actor]} @(${d.tile.x},${d.tile.y}) ${ARROWS[d.choice]} ${d.choice}` +
         (p !== undefined ? ` ${Math.round(p * 100)}%` : '') +
+        (d.escape ? ' · escape (mid-corridor)' : '') +
         (d.source === 'fallback' ? ` · FALLBACK (${d.reason})` : '') +
         (e.fruitOnBoard ? ' · fruit on board' : ''),
       d.source === 'fallback' ? 'fallback' : d.actor,
