@@ -77,10 +77,10 @@ export class Scheduler implements Controls {
     const d = this.ready.get(point.key);
     if (!d) return null;
     this.ready.delete(point.key);
+    if (!point.escape) return d.choice;
     this.consumed.add(point.key);
     // Escape answers mean "keep going" or "turn back"; Pac-Man may have rounded a corner since.
-    if (point.escape) return d.choice === d.options[0] ? point.options[0] : point.options[1];
-    return d.choice;
+    return d.choice === d.options[0] ? point.options[0] : point.options[1];
   }
 
   reset(): void {

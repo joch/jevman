@@ -72,6 +72,20 @@ describe('Scheduler', () => {
     expect(ofType(events, 'call')[0]).toMatchObject({ costUsd: 0.00002, usage: { input_tokens: 100 } });
   });
 
+  it('only remembers answered escape questions, not junctions, as consumed', async () => {
+    const { calls, scheduler } = harness({ actors: ['blinky'] });
+    const s = createGame();
+    scheduler.update(s);
+    calls[0].resolve(answerAll(calls[0].body));
+    await flush();
+    const point = nextDecisionPoint(s, 'blinky')!;
+    expect(scheduler.decide(point)).toBe(point.options[0]);
+    // A junction answer is not remembered once handed out: if the same junction is still ahead, it is asked again.
+    scheduler.update(s);
+    expect(calls).toHaveLength(2);
+    expect(Object.keys(calls[1].body.questions)).toEqual(['blinky']);
+  });
+
   it('limits batches in flight and sends queued questions later', async () => {
     const { calls, scheduler } = harness({ maxInFlight: 1 });
     const s = createGame();
