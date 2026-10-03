@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DecideResponse, SystemOneRequest } from '../src/brain';
 import { Scheduler, type SchedulerEvent, type Transport } from '../src/scheduler';
 import { createGame, nextDecisionPoint } from '../src/sim';
+import type { ActorId } from '../src/types';
 
 interface Call {
   body: SystemOneRequest;
@@ -9,7 +10,7 @@ interface Call {
   reject: (e: Error) => void;
 }
 
-function harness(opts: { maxInFlight?: number } = {}) {
+function harness(opts: { maxInFlight?: number; actors?: readonly ActorId[] } = {}) {
   const calls: Call[] = [];
   const events: SchedulerEvent[] = [];
   const clock = { now: 0 };
@@ -133,6 +134,12 @@ describe('Scheduler', () => {
     await flush();
     expect(ofType(events, 'stale').map((e) => e.actor)).toEqual(['pacman']);
     expect(ofType(events, 'decision').map((e) => e.decision.actor)).toEqual(['blinky']);
+  });
+
+  it('only asks about the actors it is limited to', () => {
+    const { calls, scheduler } = harness({ actors: ['pacman'] });
+    scheduler.update(createGame());
+    expect(Object.keys(calls[0].body.questions)).toEqual(['pacman']);
   });
 
   it('stops asking about Pac-Man in keyboard mode', () => {

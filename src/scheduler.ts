@@ -17,6 +17,8 @@ export interface SchedulerDeps {
   onEvent: (e: SchedulerEvent) => void;
   timeoutMs?: number;
   maxInFlight?: number;
+  /** Actors this scheduler asks jev about (default: all). */
+  actors?: readonly ActorId[];
 }
 
 interface Pending {
@@ -35,16 +37,18 @@ export class Scheduler implements Controls {
   private inFlight = 0;
   private readonly timeoutMs: number;
   private readonly maxInFlight: number;
+  private readonly actors: readonly ActorId[];
 
   constructor(private readonly deps: SchedulerDeps) {
     this.timeoutMs = deps.timeoutMs ?? 2000;
     this.maxInFlight = deps.maxInFlight ?? 3;
+    this.actors = deps.actors ?? ACTOR_IDS;
   }
 
   update(state: GameState): void {
     const now = this.deps.now();
     const live = new Set<string>();
-    for (const id of ACTOR_IDS) {
+    for (const id of this.actors) {
       const point = nextDecisionPoint(state, id);
       if (!point) continue;
       live.add(point.key);
