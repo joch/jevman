@@ -55,7 +55,10 @@ function deathContext(state: ReturnType<typeof createGame>): string | null {
   const p = state.pacman;
   if (p.waiting) return 'waiting at junction';
   if (escapePoint(state)) return 'ghost ahead in corridor';
-  const back = { ...p, dir: REVERSE[p.dir] };
+  // The same position, facing the other way.
+  const back = p.progress > 0
+    ? { ...p, tile: state.maze.neighbor(p.tile, p.dir), dir: REVERSE[p.dir], progress: 1 - p.progress }
+    : { ...p, dir: REVERSE[p.dir] };
   const behind = escapePoint({ ...state, pacman: back });
   if (behind) return 'ghost from behind';
   return 'at/near junction';
@@ -81,9 +84,22 @@ async function playOne(): Promise<Result> {
       }
     },
   });
+  // Like the scheduler, answer each escape question once; afterwards Pac-Man just keeps going.
+  const answeredEscapes = new Set<string>();
   const ctl: Controls = {
-    decide: (point) =>
-      jevActors.includes(point.actor) ? scheduler.decide(point) : greedyChoice(state, point, optionFeatures(state, point)),
+    decide: (point) => {
+      if (jevActors.includes(point.actor)) return scheduler.decide(point);
+      if (point.escape) {
+        if (answeredEscapes.has(point.key)) return null;
+        answeredEscapes.add(point.key);
+      }
+      const choice = greedyChoice(state, point, optionFeatures(state, point));
+      if (point.escape) {
+        r.escapes += 1;
+        if (choice === point.options[1]) r.turnBacks += 1;
+      }
+      return choice;
+    },
   };
   let lives = state.lives;
   let pelletsEaten = 0;
@@ -101,8 +117,10 @@ async function playOne(): Promise<Result> {
     const before = deathContext(state);
     step(state, dt, ctl);
     for (const a of [state.pacman, ...GHOST_IDS.map((id) => state.ghosts[id])]) {
-      if (a.progress === 0 && !state.maze.isWalkable(a.tile) && !(a.id !== 'pacman' && state.ghosts[a.id].state === 'house')) {
-        throw new Error(`${a.id} left the maze at (${a.tile.x},${a.tile.y})`);
+      if (a.id !== 'pacman' && state.ghosts[a.id].state === 'house') continue;
+      const into = state.maze.neighbor(a.tile, a.dir);
+      if (!state.maze.isWalkable(a.tile) || (a.progress > 0 && !state.maze.isWalkable(into))) {
+        throw new Error(`${a.id} left the maze at (${a.tile.x},${a.tile.y}) heading ${a.dir}, progress ${a.progress.toFixed(2)}`);
       }
     }
     if (state.status === 'dying' && before) {
