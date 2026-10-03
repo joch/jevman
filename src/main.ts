@@ -57,6 +57,7 @@ speedIn.addEventListener('input', () => {
   speedOut.textContent = `${speed.toFixed(2)}×`;
 });
 window.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
   const dir = KEYS[e.key] ?? KEYS[e.key.toLowerCase()];
   if (dir) {
     state.keyDir = dir;

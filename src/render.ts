@@ -52,12 +52,17 @@ function drawMaze(ctx: CanvasRenderingContext2D, state: GameState, t: number): v
         ctx.fillStyle = '#ffb8ff';
         ctx.fillRect(x * TILE, y * TILE + TILE / 2 - 2, TILE, 4);
       }
+    }
+  }
+  ctx.stroke();
+  // Pellets are a separate pass: dot() calls beginPath(), which would discard the wall path above.
+  for (let y = 0; y < maze.height; y++) {
+    for (let x = 0; x < maze.width; x++) {
       const k = maze.key({ x, y });
       if (maze.pellets.has(k)) dot(ctx, x, y, 2);
       else if (maze.powerPellets.has(k) && Math.floor(t * 4) % 2 === 0) dot(ctx, x, y, 6);
     }
   }
-  ctx.stroke();
 }
 
 function dot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
