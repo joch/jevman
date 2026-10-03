@@ -245,14 +245,14 @@ export function nextDecisionPoint(state: GameState, id: ActorId): DecisionPoint 
 
 /**
  * While jev Pac-Man runs through a corridor toward a junction that a dangerous ghost is already
- * in front of (inside the corridor, or able to reach the junction no later than he can): keep
+ * in front of (inside the corridor, or able to reach the junction, without passing him, no later than he can): keep
  * going, or turn back now? One question per situation (target junction, ghosts, mood), stable
  * around corners; options are [keep going, turn back] in his current heading. Pac-Man keeps
  * moving while it is open.
  */
 export function escapePoint(state: GameState): DecisionPoint | null {
   const a = state.pacman;
-  if (state.pacmanControl !== 'jev' || a.waiting || !canTurnBack(state, a)) return null;
+  if (state.status !== 'playing' || state.pacmanControl !== 'jev' || a.waiting || !canTurnBack(state, a)) return null;
   const ahead: Tile[] = [];
   let tile = state.maze.neighbor(a.tile, a.dir);
   let heading = a.dir;
@@ -264,7 +264,8 @@ export function escapePoint(state: GameState): DecisionPoint | null {
     tile = state.maze.neighbor(tile, heading);
   }
   const junction = ahead[ahead.length - 1];
-  const toJunction = state.maze.distanceMap(junction);
+  // Blocking Pac-Man's tile means a ghost behind him only counts if it can get round to the junction.
+  const toJunction = state.maze.distances(junction, a.tile);
   const threats = GHOST_IDS.filter((id) => {
     const g = state.ghosts[id];
     if (g.state !== 'normal') return false;

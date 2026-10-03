@@ -346,6 +346,29 @@ describe('escape points', () => {
     expect(s.maze.isWalkable(s.pacman.tile)).toBe(true);
   });
 
+  it('ignores a dangerous ghost right behind Pac-Man', () => {
+    const s = playing('jev');
+    parkGhosts(s);
+    Object.assign(s.pacman, { tile: { x: 9, y: 29 }, dir: 'left', progress: 0.6 });
+    // Blinky follows on Pac-Man's own tile: it can only reach the junction ahead through him.
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 10, y: 29 }, dir: 'left', progress: 0.6 });
+    expect(escapePoint(s)).toBeNull();
+    // One tile further behind.
+    Object.assign(s.ghosts.blinky, { tile: { x: 10, y: 29 }, progress: 0 });
+    expect(escapePoint(s)).toBeNull();
+    // A ghost ahead still opens the question, and the one behind is not listed as a threat.
+    Object.assign(s.ghosts.pinky, { state: 'normal', tile: { x: 5, y: 29 }, dir: 'right', progress: 0 });
+    expect(escapePoint(s)).toMatchObject({ escape: true, threats: ['pinky'] });
+  });
+
+  it('only asks escape questions while playing', () => {
+    const s = corridorWithGhostAhead();
+    s.status = 'ready';
+    expect(escapePoint(s)).toBeNull();
+    s.status = 'dying';
+    expect(escapePoint(s)).toBeNull();
+  });
+
   it('turns Pac-Man back mid-tile when the answer is to turn back', () => {
     const s = corridorWithGhostAhead();
     step(s, 1 / 60, { decide: (p) => (p.escape ? 'right' : null) });
