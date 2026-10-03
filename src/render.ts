@@ -11,7 +11,7 @@ export const FRUIT_EMOJI: Record<string, string> = {
 const ANGLE: Record<Dir, number> = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
 const px = (tileCoord: number) => (tileCoord + 0.5) * TILE;
 
-export function drawGame(ctx: CanvasRenderingContext2D, state: GameState, t: number): void {
+export function drawGame(ctx: CanvasRenderingContext2D, state: GameState, t: number, paused = false): void {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
   drawMaze(ctx, state, t);
@@ -28,6 +28,7 @@ export function drawGame(ctx: CanvasRenderingContext2D, state: GameState, t: num
     const [text, color] = banner[state.status as keyof typeof banner];
     drawText(ctx, text, FRUIT_TILE.x + 0.5, FRUIT_TILE.y, color, 16);
   }
+  if (paused) drawText(ctx, 'PAUSED', FRUIT_TILE.x + 0.5, FRUIT_TILE.y - 3, '#ffffff', 16);
 }
 
 function drawMaze(ctx: CanvasRenderingContext2D, state: GameState, t: number): void {

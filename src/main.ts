@@ -35,13 +35,12 @@ function togglePacman(): void {
   state.pacmanControl = state.pacmanControl === 'jev' ? 'keyboard' : 'jev';
   state.keyDir = null;
   toggleBtn.textContent = `Pac-Man: ${state.pacmanControl}`;
-  toggleBtn.blur();
+  toggleBtn.setAttribute('aria-pressed', String(state.pacmanControl === 'jev'));
 }
 
 function togglePause(): void {
   paused = !paused;
   pauseBtn.textContent = paused ? 'Resume' : 'Pause';
-  pauseBtn.blur();
 }
 
 function restart(): void {
@@ -57,13 +56,15 @@ speedIn.addEventListener('input', () => {
   speedOut.textContent = `${speed.toFixed(2)}×`;
 });
 window.addEventListener('keydown', (e) => {
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.metaKey || e.ctrlKey || e.altKey || typeof e.key !== 'string') return;
+  if (e.target instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
   const dir = KEYS[e.key] ?? KEYS[e.key.toLowerCase()];
   if (dir) {
     state.keyDir = dir;
     e.preventDefault();
     return;
   }
+  if (e.repeat) return;
   const k = e.key.toLowerCase();
   if (k === 'j') togglePacman();
   else if (k === 'p') togglePause();
@@ -83,14 +84,14 @@ function updateHud(): void {
 }
 
 function frame(now: number): void {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000));
   last = now;
   if (!paused) {
     clockMs += dt * 1000;
     scheduler.update(state);
     step(state, dt * speed, scheduler);
   }
-  drawGame(ctx, state, now / 1000);
+  drawGame(ctx, state, now / 1000, paused);
   panel.updateActors(state);
   updateHud();
   requestAnimationFrame(frame);

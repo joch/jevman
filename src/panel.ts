@@ -9,6 +9,7 @@ const ARROWS: Record<Dir, string> = { up: '↑', left: '←', down: '↓', right
 const LOG_LIMIT = 80;
 
 interface Card {
+  el: HTMLElement;
   status: HTMLElement;
   meta: HTMLElement;
   bars: Record<Dir, { row: HTMLElement; fill: HTMLElement; pct: HTMLElement }>;
@@ -22,7 +23,7 @@ export class Panel {
   private readonly totals = { calls: 0, decisions: 0, fallbacks: 0, stale: 0, inputTokens: 0, outputTokens: 0, cost: 0, latencyMs: 0 };
 
   constructor(root: HTMLElement) {
-    root.innerHTML = `<h2>jev decisions</h2><div class="banner" hidden></div><div class="totals"></div><div class="cards"></div><h3>Decision log</h3><ol class="log"></ol>`;
+    root.innerHTML = `<h2>jev decisions</h2><div class="banner" role="alert" hidden></div><div class="totals"></div><div class="cards"></div><h3>Decision log</h3><ol class="log"></ol>`;
     this.banner = root.querySelector<HTMLElement>('.banner')!;
     this.totalsEl = root.querySelector<HTMLElement>('.totals')!;
     this.log = root.querySelector<HTMLElement>('.log')!;
@@ -42,7 +43,7 @@ export class Panel {
           return [d, { row, fill: row.querySelector<HTMLElement>('.fill')!, pct: row.querySelector<HTMLElement>('.pct')! }];
         }),
       ) as Card['bars'];
-      this.cards.set(id, { status: el.querySelector<HTMLElement>('.status')!, meta: el.querySelector<HTMLElement>('.meta')!, bars });
+      this.cards.set(id, { el, status: el.querySelector<HTMLElement>('.status')!, meta: el.querySelector<HTMLElement>('.meta')!, bars });
     }
     this.renderTotals();
   }
@@ -51,10 +52,10 @@ export class Panel {
     switch (e.type) {
       case 'call':
         this.totals.calls += 1;
-        this.totals.inputTokens += e.usage.input_tokens;
-        this.totals.outputTokens += e.usage.output_tokens;
-        this.totals.cost += e.costUsd ?? 0;
-        this.totals.latencyMs += e.latencyMs;
+        if (Number.isFinite(e.usage.input_tokens)) this.totals.inputTokens += e.usage.input_tokens;
+        if (Number.isFinite(e.usage.output_tokens)) this.totals.outputTokens += e.usage.output_tokens;
+        if (e.costUsd !== null && Number.isFinite(e.costUsd)) this.totals.cost += e.costUsd;
+        if (Number.isFinite(e.latencyMs)) this.totals.latencyMs += e.latencyMs;
         this.banner.hidden = true;
         break;
       case 'error':
@@ -104,13 +105,14 @@ export class Panel {
       bar.row.classList.toggle('chosen', dir === d.choice);
       const width = p ?? (dir === d.choice ? 1 : 0);
       bar.fill.style.width = `${Math.round(width * 100)}%`;
-      bar.pct.textContent = !offered ? '' : p === undefined ? (dir === d.choice ? 'pick' : '–') : `${Math.round(p * 100)}%`;
+      bar.pct.textContent = !offered ? '' : p === undefined ? (dir === d.choice ? 'fallback' : '–') : `${Math.round(p * 100)}%`;
     }
     card.meta.textContent =
       d.source === 'jev'
         ? `jev · confidence ${d.confidence === null ? '?' : d.confidence.toFixed(2)} · ${e.latencyMs ?? '?'} ms`
         : `FALLBACK (${d.reason}) · greedy rule, not jev`;
     card.meta.classList.toggle('fallback', d.source === 'fallback');
+    card.el.classList.toggle('fallback', d.source === 'fallback');
     const p = d.probabilities[d.choice];
     this.addLog(
       `${ACTOR_NAMES[d.actor]} @(${d.tile.x},${d.tile.y}) ${ARROWS[d.choice]} ${d.choice}` +
@@ -142,6 +144,14 @@ export class Panel {
       ['cost', `$${t.cost.toFixed(5)}`],
       ['mean latency', `${mean} ms`],
     ];
-    this.totalsEl.innerHTML = cells.map(([label, value]) => `<div><span>${label}</span>${value}</div>`).join('');
+    this.totalsEl.replaceChildren(
+      ...cells.map(([label, value]) => {
+        const cell = document.createElement('div');
+        const name = document.createElement('span');
+        name.textContent = label;
+        cell.append(name, value);
+        return cell;
+      }),
+    );
   }
 }
