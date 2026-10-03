@@ -1,4 +1,4 @@
-import { goalFor, greedyChoice, type OptionFeatures } from './features';
+import { goalFor, greedyChoice, isTrap, NEARBY_STEPS, type OptionFeatures } from './features';
 import { occupiedTile, type DecisionPoint, type GameState } from './sim';
 import { GHOST_IDS, type ActorId, type Dir, type GhostId, type Tile } from './types';
 
@@ -111,7 +111,7 @@ export function instructionsFor(state: GameState, point: DecisionPoint): string 
       : '';
     return state.frightLeft > 0
       ? `You are Pac-Man. A power pellet is active for ${round1(state.frightLeft)} more seconds: frightened ghosts (lowercase letters) are worth 200, 400, 800 and 1600 points in a row. Hunt the nearest frightened ghost if you can reach it in time, but never run into a normal ghost. ${fruit}${at}`
-      : `You are Pac-Man. Clear the maze by eating every pellet while staying away from the ghosts; touching a non-frightened ghost costs a life. Power pellets (o) make ghosts frightened and edible, so take one when ghosts are closing in. ${fruit}${at}`;
+      : `You are Pac-Man. Clear the maze by eating every pellet while staying away from the ghosts; touching a non-frightened ghost costs a life. Power pellets (o) make ghosts frightened and edible, so take one when ghosts are closing in. Never pick a route marked DANGER or TRAP unless every route is; prefer routes where ghosts are moving away. ${fruit}${at}`;
   }
   const ghost = state.ghosts[point.actor];
   if (ghost.state === 'frightened') {
@@ -123,7 +123,8 @@ export function instructionsFor(state: GameState, point: DecisionPoint): string 
   return `${PERSONA[point.actor]} ${at}`;
 }
 
-const steps = (n: number | null, what: string) => (n === null ? `${what} not reachable this way` : `${what} ${n} steps away`);
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const steps = (n: number | null, what: string) => (n === null ? `${what} not reachable this way` : `${what} ${plural(n, 'step')} away`);
 
 export function criteriaFor(state: GameState, point: DecisionPoint, feats: OptionFeatures[]): Record<string, string> {
   const goal = goalFor(state, point.actor);
@@ -133,11 +134,22 @@ export function criteriaFor(state: GameState, point: DecisionPoint, feats: Optio
       const parts: string[] = [];
       if (point.actor === 'pacman') {
         parts.push(steps(f.nearestPellet, 'nearest pellet'));
-        parts.push(`${f.corridorPellets} pellets in the next corridor`);
-        parts.push(f.nearestDangerGhost === null ? 'no dangerous ghost reachable this way' : `nearest dangerous ghost ${f.nearestDangerGhost} steps away`);
+        parts.push(`${plural(f.corridorPellets, 'pellet')} in the next corridor`);
+        parts.push(
+          f.nearestDangerGhost === null
+            ? 'no dangerous ghost reachable this way'
+            : `${steps(f.nearestDangerGhost, 'nearest dangerous ghost')}, ${f.dangerApproaching ? 'coming toward you' : 'moving away'}`,
+        );
+        if (f.dangerNearby >= 2) parts.push(`${f.dangerNearby} dangerous ghosts within ${NEARBY_STEPS} steps`);
         if (f.dangerInCorridor.length) parts.push(`DANGER: ${names(f.dangerInCorridor)} in this corridor`);
-        if (state.frightLeft > 0 && f.nearestFrightenedGhost !== null) parts.push(`frightened ghost ${f.nearestFrightenedGhost} steps away`);
-        if (state.fruit && f.fruitDistance !== null) parts.push(`${state.fruit.kind} (${state.fruit.points} pts) ${f.fruitDistance} steps away`);
+        if (f.junctionGhost && isTrap(f)) {
+          parts.push(`TRAP: ${ACTOR_NAMES[f.junctionGhost.id]} can reach the next junction in ${plural(f.junctionGhost.steps, 'step')}, you need ${f.junctionSteps}`);
+        } else if (f.junctionGhost) {
+          parts.push(`you reach the next junction in ${plural(f.junctionSteps, 'step')}, ${plural(f.junctionGhost.steps - f.junctionSteps, 'step')} before any ghost`);
+        }
+        if (state.frightLeft === 0 && f.nearestPowerPellet !== null) parts.push(steps(f.nearestPowerPellet, 'power pellet'));
+        if (state.frightLeft > 0 && f.nearestFrightenedGhost !== null) parts.push(steps(f.nearestFrightenedGhost, 'frightened ghost'));
+        if (state.fruit && f.fruitDistance !== null) parts.push(steps(f.fruitDistance, `${state.fruit.kind} (${state.fruit.points} pts)`));
       } else if (goal.kind === 'flee') {
         parts.push(`${steps(f.pacmanDistance, 'Pac-Man')} via this route (farther is safer)`);
       } else {

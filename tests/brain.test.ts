@@ -19,7 +19,7 @@ describe('buildRequest', () => {
     expect(Object.keys(body.questions.pacman.criteria).sort()).toEqual(['left', 'right', 'up']);
     expect(Object.keys(body.questions.blinky.criteria).sort()).toEqual(['left', 'up']);
     expect(body.questions.blinky.criteria.left).toMatch(/^Go left: Pac-Man \d+ steps away via this route/);
-    expect(body.questions.pacman.criteria.left).toMatch(/nearest pellet 1 steps away/);
+    expect(body.questions.pacman.criteria.left).toMatch(/nearest pellet 1 step away/);
   });
 
   it('summarises the board for jev', () => {
@@ -33,6 +33,22 @@ describe('buildRequest', () => {
     expect(summary.maze[1][1]).toBe(' ');
     expect(summary.pellets_left).toBe(243);
     expect(summary.fruit).toBeNull();
+  });
+});
+
+describe('Pac-Man danger criteria', () => {
+  it('describes power pellets, approaching ghosts, crowds and traps', () => {
+    const s = createGame();
+    for (const id of ['pinky', 'inky', 'clyde'] as const) s.ghosts[id].releaseAt = Infinity;
+    s.ghosts.blinky.state = 'house';
+    Object.assign(s.ghosts.pinky, { state: 'normal', tile: { x: 9, y: 26 }, dir: 'up', progress: 0 });
+    Object.assign(s.ghosts.inky, { state: 'normal', tile: { x: 6, y: 21 }, dir: 'down', progress: 0 });
+    const { criteria } = buildRequest(s, [pending(s, 'pacman')]).questions.pacman;
+    expect(criteria.left).toMatch(/power pellet 17 steps away/);
+    expect(criteria.left).toMatch(/nearest dangerous ghost \d+ steps away, coming toward you/);
+    expect(criteria.left).toMatch(/2 dangerous ghosts within 8 steps/);
+    expect(criteria.left).toMatch(/TRAP: Pinky can reach the next junction in 3 steps, you need 3/);
+    expect(criteria.right).toMatch(/you reach the next junction in 3 steps, \d+ steps before any ghost/);
   });
 });
 

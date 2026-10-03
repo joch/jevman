@@ -103,3 +103,45 @@ describe('ghost goals', () => {
     expect(greedyChoice(s, point, feats)).toBe(best.dir);
   });
 });
+
+describe('optionFeatures danger awareness', () => {
+  it('reports the nearest power pellet via each option', () => {
+    const s = setup();
+    const f = byDir(optionFeatures(s, nextDecisionPoint(s, 'pacman')!));
+    expect(f.left.nearestPowerPellet).toBe(17);
+  });
+
+  it('tells whether the nearest dangerous ghost is coming toward the route', () => {
+    const s = setup();
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 10, y: 23 }, dir: 'right', progress: 0 });
+    expect(byDir(optionFeatures(s, nextDecisionPoint(s, 'pacman')!)).left.dangerApproaching).toBe(true);
+    s.ghosts.blinky.dir = 'left';
+    expect(byDir(optionFeatures(s, nextDecisionPoint(s, 'pacman')!)).left.dangerApproaching).toBe(false);
+  });
+
+  it('counts dangerous ghosts nearby and detects a ghost winning the race to the next junction', () => {
+    const s = setup();
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 10, y: 23 }, dir: 'right', progress: 0 });
+    Object.assign(s.ghosts.pinky, { state: 'normal', tile: { x: 9, y: 26 }, dir: 'up', progress: 0 });
+    const point = nextDecisionPoint(s, 'pacman')!;
+    const feats = optionFeatures(s, point);
+    const f = byDir(feats);
+    expect(f.left.dangerNearby).toBe(2);
+    expect(f.left.junctionSteps).toBe(3);
+    expect(f.left.junctionGhost).toEqual({ id: 'blinky', steps: 1 });
+    expect(f.right.junctionGhost!.steps).toBeGreaterThan(f.right.junctionSteps);
+    expect(greedyChoice(s, point, feats)).not.toBe('left');
+  });
+
+  it('flags a trap even when no ghost is in the corridor itself', () => {
+    const s = setup();
+    Object.assign(s.ghosts.pinky, { state: 'normal', tile: { x: 9, y: 26 }, dir: 'up', progress: 0 });
+    const point = nextDecisionPoint(s, 'pacman')!;
+    const feats = optionFeatures(s, point);
+    const f = byDir(feats);
+    expect(f.left.dangerInCorridor).toEqual([]);
+    expect(f.left.junctionGhost).toEqual({ id: 'pinky', steps: 3 });
+    // Without the trap check, left (pellet 1 step away) would beat right (3 steps).
+    expect(greedyChoice(s, point, feats.filter((x) => x.dir !== 'up'))).toBe('right');
+  });
+});

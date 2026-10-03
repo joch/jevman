@@ -25,10 +25,23 @@ export interface OptionFeatures {
   dangerInCorridor: GhostId[];
   nearestFrightenedGhost: number | null;
   fruitDistance: number | null;
+  nearestPowerPellet: number | null;
+  /** Whether the nearest dangerous ghost on this route is moving toward it. */
+  dangerApproaching: boolean;
+  /** Dangerous ghosts within NEARBY_STEPS via this route. */
+  dangerNearby: number;
+  /** Steps to the junction where this option's corridor ends. */
+  junctionSteps: number;
+  /** The dangerous ghost that can reach that junction fastest, and how many steps it needs. */
+  junctionGhost: { id: GhostId; steps: number } | null;
 }
 
 const CORRIDOR_LIMIT = 40;
 const CLYDE_SHY_DISTANCE = 8;
+export const NEARBY_STEPS = 8;
+
+/** A ghost can get to the end of this route's corridor no later than Pac-Man. */
+export const isTrap = (f: OptionFeatures): boolean => f.junctionGhost !== null && f.junctionGhost.steps <= f.junctionSteps;
 
 export function goalFor(state: GameState, id: ActorId): Goal {
   if (id === 'pacman') {
@@ -75,6 +88,7 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
   const danger = others.filter((g) => g.state === 'normal');
   const frightened = others.filter((g) => g.state === 'frightened');
   const pelletTiles = [...maze.pellets, ...maze.powerPellets].map((k) => maze.fromKey(k));
+  const powerTiles = [...maze.powerPellets].map((k) => maze.fromKey(k));
 
   return point.options.map((dir) => {
     const start = maze.neighbor(point.tile, dir);
@@ -92,6 +106,19 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
       return best;
     };
     const corridor = corridorFrom(state, start, dir);
+    const junction = corridor[corridor.length - 1];
+    const toJunction = maze.distanceMap(junction);
+    let junctionGhost: OptionFeatures['junctionGhost'] = null;
+    for (const g of danger) {
+      const d = toJunction[maze.key(occupiedTile(state, g))];
+      if (d >= 0 && (junctionGhost === null || d < junctionGhost.steps)) junctionGhost = { id: g.id, steps: d };
+    }
+    const dangerSteps = danger
+      .map((g) => ({ g, tile: occupiedTile(state, g), steps: steps(occupiedTile(state, g)) }))
+      .filter((x): x is { g: (typeof danger)[number]; tile: Tile; steps: number } => x.steps !== null)
+      .sort((a, b) => a.steps - b.steps);
+    const closest = dangerSteps[0];
+    const closestNext = closest ? steps(maze.neighbor(closest.tile, closest.g.dir)) : null;
     const nearestPellet = nearest(pelletTiles);
     const nearestFrightenedGhost = nearest(frightened.map((g) => occupiedTile(state, g)));
     const goalDistance = goal.target
@@ -109,6 +136,11 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
       dangerInCorridor: danger.filter((g) => corridor.some((t) => sameTile(t, occupiedTile(state, g)))).map((g) => g.id),
       nearestFrightenedGhost,
       fruitDistance: state.fruit ? steps(state.fruit.tile) : null,
+      nearestPowerPellet: nearest(powerTiles),
+      dangerApproaching: closest !== undefined && closestNext !== null && closestNext < closest.steps,
+      dangerNearby: dangerSteps.filter((x) => x.steps <= NEARBY_STEPS).length,
+      junctionSteps: corridor.length,
+      junctionGhost,
     };
   });
 }
@@ -138,7 +170,7 @@ export function greedyChoice(state: GameState, point: DecisionPoint, feats: Opti
       ? lowest(feats, (f) => -or(f.pacmanDistance, 999))
       : lowest(feats, (f) => or(f.goalDistance, 999));
   }
-  const safe = feats.filter((f) => f.dangerInCorridor.length === 0 && or(f.nearestDangerGhost, 999) > 2);
+  const safe = feats.filter((f) => f.dangerInCorridor.length === 0 && or(f.nearestDangerGhost, 999) > 2 && !isTrap(f));
   const pool = safe.length ? safe : feats;
   if (state.frightLeft > 0 && pool.some((f) => f.nearestFrightenedGhost !== null)) {
     return lowest(pool, (f) => or(f.nearestFrightenedGhost, 999));
