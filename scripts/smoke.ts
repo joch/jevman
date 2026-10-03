@@ -16,9 +16,14 @@ const batch = ACTOR_IDS.flatMap((id) => {
   return point ? [{ point, features: optionFeatures(state, point) }] : [];
 });
 
+if (batch.length !== 5) {
+  console.error(`smoke failed: expected 5 decision points, got ${batch.length}`);
+  process.exit(1);
+}
+
 const result = await handleDecide(buildRequest(state, batch), {
   apiKey: process.env.OPPER_API_KEY,
-  baseUrl: process.env.OPPER_BASE_URL ?? 'https://api.opper.ai',
+  baseUrl: process.env.OPPER_BASE_URL || 'https://api.opper.ai',
   fetch,
   now: () => performance.now(),
   timeoutMs: 5000,

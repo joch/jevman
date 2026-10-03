@@ -38,7 +38,10 @@ function upstreamMessage(text: string): string {
 }
 
 export async function handleDecide(input: unknown, deps: DecideDeps): Promise<DecideResult> {
-  const log = deps.log ?? (() => {});
+  const apiKey = deps.apiKey;
+  const redact = (s: string): string => (apiKey ? s.split(apiKey).join('[redacted]') : s);
+  const rawLog = deps.log ?? (() => {});
+  const log = (line: string): void => rawLog(redact(line));
   const timeoutMs = deps.timeoutMs ?? 2000;
   if (!deps.apiKey) return { status: 500, body: { error: 'No OPPER_API_KEY in .env — all decisions are fallbacks' } };
   if (!isDecideInput(input)) return { status: 400, body: { error: 'Expected { state, questions } with at least one question' } };
@@ -59,7 +62,7 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
     const text = await res.text();
     const latencyMs = Math.round(deps.now() - started);
     if (!res.ok) {
-      const error = `jev returned HTTP ${res.status}: ${upstreamMessage(text)}`;
+      const error = redact(`jev returned HTTP ${res.status}: ${upstreamMessage(text)}`);
       log(`[jev] ${actors} failed after ${latencyMs} ms — ${error}`);
       return { status: 502, body: { error } };
     }
@@ -80,7 +83,7 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
   } catch (err) {
     const e = err as Error;
     const timedOut = e?.name === 'TimeoutError' || e?.name === 'AbortError';
-    const error = timedOut ? `jev timed out after ${timeoutMs} ms` : `jev request failed: ${e?.message ?? String(err)}`;
+    const error = timedOut ? `jev timed out after ${timeoutMs} ms` : redact(`jev request failed: ${e?.message ?? String(err)}`);
     log(`[jev] ${actors} ${error}`);
     return { status: timedOut ? 504 : 502, body: { error } };
   }
@@ -91,7 +94,7 @@ export function jevPlugin(env: Record<string, string>): Plugin {
   return {
     name: 'jev-decide',
     configureServer(server) {
-      if (!env.OPPER_API_KEY) server.config.logger.warn('[jev] OPPER_API_KEY is not set in .env — all decisions will be fallbacks');
+      if (!env.OPPER_API_KEY && !process.env.VITEST) server.config.logger.warn('[jev] OPPER_API_KEY is not set in .env — all decisions will be fallbacks');
       server.middlewares.use('/api/decide', (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;
@@ -99,24 +102,40 @@ export function jevPlugin(env: Record<string, string>): Plugin {
           return;
         }
         let raw = '';
+        const fail = (error: string): void => {
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error }));
+          } else {
+            res.end();
+          }
+        };
+        req.on('error', (err) => fail(`request failed: ${err.message}`));
         req.on('data', (chunk) => (raw += chunk));
         req.on('end', async () => {
-          let input: unknown = null;
           try {
-            input = JSON.parse(raw);
-          } catch {
-            // handled as a 400 by handleDecide
+            let input: unknown = null;
+            try {
+              input = JSON.parse(raw);
+            } catch {
+              // handled as a 400 by handleDecide
+            }
+            const result = await handleDecide(input, {
+              apiKey: env.OPPER_API_KEY,
+              baseUrl: env.OPPER_BASE_URL || 'https://api.opper.ai',
+              fetch,
+              now: () => performance.now(),
+              log: (line) => server.config.logger.info(line, { timestamp: true }),
+            });
+            res.statusCode = result.status;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(result.body));
+          } catch (err) {
+            const message = (err as Error)?.message ?? String(err);
+            server.config.logger.error(`[jev] middleware failure: ${env.OPPER_API_KEY ? message.split(env.OPPER_API_KEY).join('[redacted]') : message}`);
+            fail('internal error in /api/decide');
           }
-          const result = await handleDecide(input, {
-            apiKey: env.OPPER_API_KEY,
-            baseUrl: env.OPPER_BASE_URL || 'https://api.opper.ai',
-            fetch,
-            now: () => performance.now(),
-            log: (line) => server.config.logger.info(line, { timestamp: true }),
-          });
-          res.statusCode = result.status;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify(result.body));
         });
       });
     },
