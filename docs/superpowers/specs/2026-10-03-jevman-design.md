@@ -21,7 +21,7 @@ each one.
 
 - Hosting, multi-user access, rate limiting or key protection beyond keeping
   the key server-side.
-- Sound, intermission cut-scenes, fruit bonuses, high-score persistence.
+- Sound, intermission cut-scenes, high-score persistence.
 - Pixel-perfect arcade fidelity (ghost speed tables, cornering rules, etc.).
 
 ## The jev model
@@ -83,7 +83,7 @@ Each unit is a focused module with a small interface and no hidden coupling.
 | Module | Responsibility | Depends on |
 |---|---|---|
 | `maze.ts` | Parse the classic 28×31 layout; walls, pellets, power pellets, ghost house, tunnel wrap; `openDirs(tile)`, `isJunction(tile, heading)`, BFS distances. | — |
-| `sim.ts` | Pure game simulation stepped by `step(state, dtMs, intents)`: movement on the grid, pellet/power-pellet eating, frightened timer, scatter/chase mode timer, collisions, lives, score, level clear/reset. Never awaits the network. | `maze` |
+| `sim.ts` | Pure game simulation stepped by `step(state, dtMs, intents)`: movement on the grid, pellet/power-pellet/fruit eating, fruit spawn and expiry, frightened timer, scatter/chase mode timer, collisions, lives, score, level clear/reset. Never awaits the network. | `maze` |
 | `features.ts` | For a character at its upcoming junction, compute per-option facts: BFS distance to Pac-Man (or to the ghost's personality target), nearest pellet distance, pellets along the next corridor, nearest ghost distance / whether the corridor passes a ghost, distance to the nearest frightened ghost. | `maze`, `sim` types |
 | `brain.ts` | Build one System One request for a batch of pending decisions (one `choice` question per character), and parse the response back into `Decision { actor, choice, probabilities, confidence, source: "jev" }`. Rejects choices that are not one of the offered options. | `features` |
 | `scheduler.ts` | Decide *when* to ask. When a character commits to a corridor, its next junction is known; a decision for it is requested immediately. Decisions requested in the same frame are batched (≤3 batches in flight). If the character reaches the junction before the answer, it waits there (“thinking”). After 2 s, or on error/invalid answer, it falls back to a greedy rule and the decision is tagged `source: "fallback"`. | `brain`, injectable clock + transport |
@@ -158,7 +158,7 @@ Question names are the actor ids: `pacman`, `blinky`, `pinky`, `inky`, `clyde`.
 | Pinky | Ambush: aim ~4 tiles ahead of Pac-Man's heading. | Flee. |
 | Inky | Flank: approach Pac-Man from the side opposite Blinky. | Flee. |
 | Clyde | Chase when >8 tiles from Pac-Man; otherwise retreat to bottom-left corner. | Flee. |
-| Pac-Man | Eat pellets, avoid ghosts, take power pellets when ghosts are near. | Hunt frightened ghosts while time remains. |
+| Pac-Man | Eat pellets, avoid ghosts, take power pellets when ghosts are near, detour for fruit when it is reachable safely in time. | Hunt frightened ghosts while time remains. |
 
 During **scatter** mode, ghost instructions switch to "head to your home
 corner" (classic corners). Feature strings include the distance relevant to
@@ -176,6 +176,22 @@ personality's criteria carry the numbers it needs.
   smoothness against how often waits happen.
 - Answers are applied only if still relevant (same actor, same junction, actor
   not eaten/reset since). Stale answers are logged to the panel and dropped.
+
+### Fruit
+
+- Classic rule: a bonus fruit appears just below the ghost house (tile 13.5,17
+  → we use tile (13,17)) after **70** and again after **170** pellets eaten in
+  a level, and disappears after **9.5 s** if not eaten.
+- Fruit by level: 1 cherry 100, 2 strawberry 300, 3–4 orange 500,
+  5–6 apple 700, 7–8 melon 1000, 9–10 galaxian 2000, 11–12 bell 3000,
+  13+ key 5000.
+- Eating it scores the points and shows the value briefly at the fruit tile.
+- jev sees it: `state.fruit = { kind, points, x, y, seconds_left } | null`, and
+  Pac-Man's per-option criteria include "fruit N steps away (P points, S s left)"
+  while it is present. Pac-Man's instructions say fruit is a bonus worth
+  detouring for only if it can be reached in time without passing a ghost.
+- The HUD shows the current level's fruit and the score; the panel log marks
+  decisions taken while fruit was on the board.
 
 ### Error handling
 
@@ -206,7 +222,7 @@ TDD with Vitest for all logic modules.
 - `sim`: pellet / power-pellet eating, frightened timer and expiry, ghost
   eaten → eyes → house, Pac-Man death and life loss, level clear and reset,
   scatter/chase switching.
-- `features`: per-option values on fixture mazes.
+- `features`: per-option values on fixture mazes, including fruit distance when present and absent.
 - `brain`: request building (questions per actor, only legal options,
   personality/mode instructions), response parsing including malformed
   answers and out-of-set choices.
