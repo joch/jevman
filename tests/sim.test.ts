@@ -152,6 +152,18 @@ describe('decision points', () => {
     s.frightLeft = 3;
     expect(decisionKey(s, 'pacman', { x: 12, y: 23 }, 'left')).not.toBe(p1);
   });
+
+  it("keeps Pac-Man's decision key across a scatter/chase flip while a ghost's key changes", () => {
+    const s = createGame();
+    s.mode = 'scatter';
+    const pTile = { x: 12, y: 23 };
+    const gTile = { x: 12, y: 11 };
+    const pKey = decisionKey(s, 'pacman', pTile, 'left');
+    const gKey = decisionKey(s, 'blinky', gTile, 'left');
+    s.mode = 'chase';
+    expect(decisionKey(s, 'pacman', pTile, 'left')).toBe(pKey);
+    expect(decisionKey(s, 'blinky', gTile, 'left')).not.toBe(gKey);
+  });
 });
 
 describe('rules', () => {

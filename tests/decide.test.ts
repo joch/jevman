@@ -114,7 +114,7 @@ describe('handleDecide', () => {
 
 describe('jevPlugin middleware', () => {
   function mount(logger: { info: () => void; warn: () => void; error: () => void }) {
-    let handler!: (req: EventEmitter & { method: string }, res: unknown) => void;
+    let handler!: (req: EventEmitter & { method: string; headers: Record<string, string> }, res: unknown) => void;
     const plugin = jevPlugin({ OPPER_API_KEY: 'test-key', OPPER_BASE_URL: 'https://api.opper.ai' });
     (plugin.configureServer as (s: unknown) => void)({
       config: { logger },
@@ -142,7 +142,7 @@ describe('jevPlugin middleware', () => {
       setHeader: (k: string, v: string) => (headers[k] = v),
       end: vi.fn((_chunk?: string) => (res.headersSent = true)),
     };
-    const req = Object.assign(new EventEmitter(), { method: 'POST' });
+    const req = Object.assign(new EventEmitter(), { method: 'POST', headers: { 'content-type': 'application/json' } });
     handler(req, res);
     req.emit('data', JSON.stringify(body));
     req.emit('end');
@@ -156,8 +156,22 @@ describe('jevPlugin middleware', () => {
   it('answers 405 to non-POST requests', () => {
     const handler = mount({ info: () => {}, warn: () => {}, error: () => {} });
     const res = { statusCode: 200, end: vi.fn() };
-    handler(Object.assign(new EventEmitter(), { method: 'GET' }), res);
+    handler(Object.assign(new EventEmitter(), { method: 'GET', headers: {} }), res);
     expect(res.statusCode).toBe(405);
     expect(res.end).toHaveBeenCalled();
+  });
+
+  it.each([['text/plain'], [undefined]])('answers 415 without calling jev for Content-Type %s (CSRF guard)', (contentType) => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const handler = mount({ info: () => {}, warn: () => {}, error: () => {} });
+    const headers: Record<string, string> = {};
+    const res = { statusCode: 200, setHeader: (k: string, v: string) => (headers[k] = v), end: vi.fn() };
+    const req = Object.assign(new EventEmitter(), { method: 'POST', headers: (contentType ? { 'content-type': contentType } : {}) as Record<string, string> });
+    handler(req, res);
+    vi.unstubAllGlobals();
+    expect(res.statusCode).toBe(415);
+    expect(JSON.parse(res.end.mock.calls[0][0] as string)).toEqual({ error: 'Expected application/json' });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

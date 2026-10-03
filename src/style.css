@@ -35,7 +35,7 @@ button:hover { border-color: var(--accent); }
 .card .name { color: var(--actor); font-weight: 600; }
 .card .status { color: var(--muted); }
 .card .status[data-state='thinking…'] { color: var(--accent); }
-.bar { display: grid; grid-template-columns: 14px 1fr 40px; gap: 6px; align-items: center; height: 16px; }
+.bar { display: grid; grid-template-columns: 14px 1fr 64px; gap: 6px; align-items: center; height: 16px; }
 .bar.disabled { opacity: 0.25; }
 .bar.chosen .arrow, .bar.chosen .pct { color: var(--actor); font-weight: 700; }
 .card.fallback .fill { background: var(--danger); }

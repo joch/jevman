@@ -203,10 +203,12 @@ export function optionsAt(state: GameState, id: ActorId, tile: Tile, heading: Di
   return id === 'pacman' ? open : open.filter((d) => d !== REVERSE[heading]);
 }
 
-/** Identifies one decision in one situation. Any change of epoch, mood or mode makes old answers stale. */
+/** Identifies one decision in one situation. Any change of epoch, mood or (for ghosts) mode makes old answers stale. */
 export function decisionKey(state: GameState, id: ActorId, tile: Tile, heading: Dir): string {
   const mood = id === 'pacman' ? (state.frightLeft > 0 ? 'hunt' : 'eat') : state.ghosts[id].state;
-  return `${id}@${tile.x},${tile.y}>${heading}#${actorOf(state, id).epoch}:${mood}:${state.mode}`;
+  // Scatter/chase only changes ghost targets; Pac-Man's question is the same, so his key omits the mode.
+  const mode = id === 'pacman' ? '' : `:${state.mode}`;
+  return `${id}@${tile.x},${tile.y}>${heading}#${actorOf(state, id).epoch}:${mood}${mode}`;
 }
 
 export function decisionPointAt(state: GameState, id: ActorId, tile: Tile, heading: Dir): DecisionPoint | null {

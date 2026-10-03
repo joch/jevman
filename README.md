@@ -3,9 +3,11 @@
 Pac-Man where the characters are driven by Opper's decision model `typesafe/jev-1.13.0`.
 Ghosts are always jev; Pac-Man toggles between keyboard and jev. The side panel shows each
 decision's probabilities, confidence, latency and running cost. Red entries are greedy fallbacks
-used when jev could not answer in time — never jev's own choice.
+used when jev could not answer (timeout, error, invalid answer or missing key) — never jev's own choice.
 
 ## Run
+
+Requires Node ≥ 20.6 (developed on Node 26).
 
 ```bash
 cp .env.example .env   # then set OPPER_API_KEY to a project-scoped Opper key
@@ -21,7 +23,7 @@ Arrows/WASD steer (keyboard mode) · `J` toggle Pac-Man jev/keyboard · `P` paus
 
 ## Cost
 
-Each jev call costs roughly $0.00005; a game typically makes 1–3 calls per second.
+With jev controlling Pac-Man the game makes about 3–4 jev calls per second (fewer in keyboard mode or at a lower speed). Each call costs roughly $0.00005, so about $0.6 per hour of play.
 
 ## How decisions work
 

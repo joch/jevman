@@ -101,6 +101,13 @@ export function jevPlugin(env: Record<string, string>): Plugin {
           res.end();
           return;
         }
+        // A cross-site form can send text/plain without a CORS preflight; require JSON so only our own page can spend credit.
+        if (!String(req.headers['content-type'] ?? '').toLowerCase().startsWith('application/json')) {
+          res.statusCode = 415;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Expected application/json' }));
+          return;
+        }
         let raw = '';
         const fail = (error: string): void => {
           if (!res.headersSent) {

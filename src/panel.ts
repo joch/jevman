@@ -81,7 +81,7 @@ export class Panel {
         id === 'pacman' && state.pacmanControl === 'keyboard' ? 'keyboard'
         : ghost?.state === 'house' ? 'in house'
         : ghost?.state === 'eaten' ? 'eyes → home'
-        : actor.waiting ? 'thinking…'
+        : state.status === 'playing' && actor.waiting ? 'thinking…'
         : ghost?.state === 'frightened' ? 'frightened'
         : 'moving';
       const status = this.cards.get(id)!.status;
@@ -105,7 +105,7 @@ export class Panel {
       bar.row.classList.toggle('chosen', dir === d.choice);
       const width = p ?? (dir === d.choice ? 1 : 0);
       bar.fill.style.width = `${Math.round(width * 100)}%`;
-      bar.pct.textContent = !offered ? '' : p === undefined ? (dir === d.choice ? 'fallback' : '–') : `${Math.round(p * 100)}%`;
+      bar.pct.textContent = !offered ? '' : p === undefined ? (dir !== d.choice ? '–' : d.source === 'fallback' ? 'fallback' : 'pick') : `${Math.round(p * 100)}%`;
     }
     card.meta.textContent =
       d.source === 'jev'

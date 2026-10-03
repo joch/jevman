@@ -20,13 +20,14 @@ export function drawGame(ctx: CanvasRenderingContext2D, state: GameState, t: num
   if (state.status !== 'gameover') drawPacman(ctx, state, t);
   for (const id of ACTOR_IDS) {
     const a = id === 'pacman' ? state.pacman : state.ghosts[id];
-    if (a.waiting && isJevDriven(state, id)) drawThinking(ctx, a, t);
+    if (state.status === 'playing' && a.waiting && isJevDriven(state, id)) drawThinking(ctx, a, t);
   }
   for (const p of state.popups) drawText(ctx, p.text, p.tile.x, p.tile.y, '#00ffff', 11);
   const banner = { ready: ['READY!', '#ffd800'], gameover: ['GAME OVER', '#ff0000'], levelclear: ['LEVEL CLEAR', '#ffffff'] } as const;
   if (state.status in banner) {
     const [text, color] = banner[state.status as keyof typeof banner];
     drawText(ctx, text, FRUIT_TILE.x + 0.5, FRUIT_TILE.y, color, 16);
+    if (state.status === 'gameover') drawText(ctx, 'press R to restart', FRUIT_TILE.x + 0.5, FRUIT_TILE.y + 1.5, '#ffffff', 10);
   }
   if (paused) drawText(ctx, 'PAUSED', FRUIT_TILE.x + 0.5, FRUIT_TILE.y - 3, '#ffffff', 16);
 }
