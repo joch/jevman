@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DecideResponse, SystemOneRequest } from '../src/brain';
 import { Scheduler, type SchedulerEvent, type Transport } from '../src/scheduler';
-import { createGame, nextDecisionPoint } from '../src/sim';
+import { createGame, escapePoint, nextDecisionPoint } from '../src/sim';
 import type { ActorId } from '../src/types';
 
 interface Call {
@@ -134,6 +134,35 @@ describe('Scheduler', () => {
     await flush();
     expect(ofType(events, 'stale').map((e) => e.actor)).toEqual(['pacman']);
     expect(ofType(events, 'decision').map((e) => e.decision.actor)).toEqual(['blinky']);
+  });
+
+  it('asks escape questions next to the junction question and never re-asks an answered one', async () => {
+    const { calls, scheduler } = harness({ actors: ['pacman'] });
+    const s = createGame();
+    s.status = 'playing';
+    Object.assign(s.pacman, { tile: { x: 10, y: 29 }, dir: 'left', progress: 0.5 });
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 5, y: 29 }, dir: 'right', progress: 0 });
+    scheduler.update(s);
+    expect(Object.keys(calls[0].body.questions).sort()).toEqual(['pacman', 'pacman_escape']);
+    calls[0].resolve(answerAll(calls[0].body));
+    await flush();
+    const escape = escapePoint(s)!;
+    expect(scheduler.decide(escape)).toBe('left');
+    scheduler.update(s);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('translates a turn-back answer to Pac-Man\'s heading after a corner', async () => {
+    const { calls, scheduler } = harness({ actors: ['pacman'] });
+    const s = createGame();
+    s.status = 'playing';
+    Object.assign(s.pacman, { tile: { x: 2, y: 29 }, dir: 'left', progress: 0 });
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 1, y: 27 }, dir: 'down', progress: 0 });
+    scheduler.update(s);
+    calls[0].resolve(answerAll(calls[0].body, (actor, o) => (actor === 'pacman_escape' ? 'right' : o[0])));
+    await flush();
+    Object.assign(s.pacman, { tile: { x: 1, y: 28 }, dir: 'up', progress: 0 });
+    expect(scheduler.decide(escapePoint(s)!)).toBe('down');
   });
 
   it('only asks about the actors it is limited to', () => {

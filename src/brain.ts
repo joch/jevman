@@ -54,7 +54,12 @@ export interface Decision {
   confidence: number | null;
   source: 'jev' | 'fallback';
   reason?: string;
+  /** Answer to a mid-corridor escape question rather than a junction choice. */
+  escape?: boolean;
 }
+
+/** Name of a point's question in the System One request (Pac-Man can have two open at once). */
+export const questionName = (point: DecisionPoint): string => (point.escape ? `${point.actor}_escape` : point.actor);
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -104,7 +109,10 @@ export function summarizeState(state: GameState): Record<string, unknown> {
 }
 
 export function instructionsFor(state: GameState, point: DecisionPoint): string {
-  const at = `You are approaching junction (${point.tile.x},${point.tile.y}) heading ${point.heading}. Pick the direction to take there.`;
+  const back = point.options.find((d) => d !== point.heading);
+  const at = point.escape
+    ? `You are running ${point.heading} through a corridor and ${(point.threats ?? []).map((id) => ACTOR_NAMES[id]).join(' and ')} ${point.threats?.length === 1 ? 'is' : 'are'} in the corridor ahead or can block the junction at its end before you get there. Keep going ${point.heading}, or turn back ${back} right now?`
+    : `You are approaching junction (${point.tile.x},${point.tile.y}) heading ${point.heading}. Pick the direction to take there.`;
   if (point.actor === 'pacman') {
     const fruit = state.fruit
       ? `A ${state.fruit.kind} worth ${state.fruit.points} points is on the board for ${round1(state.fruit.secondsLeft)} more seconds; it is worth a detour only if you can reach it in time without passing a ghost. `
@@ -167,7 +175,7 @@ export function buildRequest(state: GameState, batch: PendingQuestion[]): System
     state: summarizeState(state),
     questions: Object.fromEntries(
       batch.map(({ point, features }) => [
-        point.actor,
+        questionName(point),
         { type: 'choice', instructions: instructionsFor(state, point), criteria: criteriaFor(state, point, features) },
       ]),
     ),
@@ -192,6 +200,7 @@ export function parseAnswer(answer: unknown, q: PendingQuestion): Decision | nul
     probabilities,
     confidence: typeof a.confidence === 'number' ? a.confidence : null,
     source: 'jev',
+    ...(q.point.escape ? { escape: true } : {}),
   };
 }
 
@@ -206,5 +215,6 @@ export function fallbackDecision(state: GameState, q: PendingQuestion, reason: s
     confidence: null,
     source: 'fallback',
     reason,
+    ...(q.point.escape ? { escape: true } : {}),
   };
 }

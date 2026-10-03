@@ -65,6 +65,10 @@ export interface DecisionPoint {
   heading: Dir;
   options: Dir[];
   key: string;
+  /** Mid-corridor "keep going or turn back?" question; the actor never waits for it. */
+  escape?: boolean;
+  /** For escape questions: the dangerous ghosts in the corridor ahead. */
+  threats?: GhostId[];
 }
 
 export interface Controls {
@@ -89,6 +93,7 @@ const FRUITS: readonly [maxLevel: number, kind: string, points: number][] = [
 ];
 const SUBSTEP = 1 / 60;
 const COLLISION_DISTANCE = 0.6;
+const CORRIDOR_LIMIT = 40;
 const EPSILON = 1e-9;
 
 export function modeAt(seconds: number): Mode {
@@ -238,6 +243,55 @@ export function nextDecisionPoint(state: GameState, id: ActorId): DecisionPoint 
   return null;
 }
 
+/**
+ * While jev Pac-Man runs through a corridor toward a junction that a dangerous ghost is already
+ * in front of (inside the corridor, or able to reach the junction no later than he can): keep
+ * going, or turn back now? One question per situation (target junction, ghosts, mood), stable
+ * around corners; options are [keep going, turn back] in his current heading. Pac-Man keeps
+ * moving while it is open.
+ */
+export function escapePoint(state: GameState): DecisionPoint | null {
+  const a = state.pacman;
+  if (state.pacmanControl !== 'jev' || a.waiting || !canTurnBack(state, a)) return null;
+  const ahead: Tile[] = [];
+  let tile = state.maze.neighbor(a.tile, a.dir);
+  let heading = a.dir;
+  for (let i = 0; i < CORRIDOR_LIMIT; i++) {
+    ahead.push(tile);
+    const next = forcedDir(state, tile, heading);
+    if (next === null) break;
+    heading = next;
+    tile = state.maze.neighbor(tile, heading);
+  }
+  const junction = ahead[ahead.length - 1];
+  const toJunction = state.maze.distanceMap(junction);
+  const threats = GHOST_IDS.filter((id) => {
+    const g = state.ghosts[id];
+    if (g.state !== 'normal') return false;
+    const at = occupiedTile(state, g);
+    const d = toJunction[state.maze.key(at)];
+    return ahead.some((t) => sameTile(t, at)) || (d >= 0 && d <= ahead.length);
+  });
+  if (!threats.length) return null;
+  const mood = state.frightLeft > 0 ? 'hunt' : 'eat';
+  return {
+    actor: 'pacman',
+    tile: { ...a.tile },
+    heading: a.dir,
+    options: [a.dir, REVERSE[a.dir]],
+    key: `pacman~${junction.x},${junction.y}#${a.epoch}:${mood}:${threats.join('+')}`,
+    escape: true,
+    threats,
+  };
+}
+
+/** Every open question for an actor: an escape question (Pac-Man only) and the next junction. */
+export function decisionPoints(state: GameState, id: ActorId): DecisionPoint[] {
+  const escape = id === 'pacman' ? escapePoint(state) : null;
+  const junction = nextDecisionPoint(state, id);
+  return [escape, junction].filter((p): p is DecisionPoint => p !== null);
+}
+
 export function step(state: GameState, dt: number, ctl: Controls): void {
   state.popups = state.popups.filter((p) => (p.ttl -= dt) > 0);
   if (state.status === 'gameover') return;
@@ -301,12 +355,29 @@ function speedOf(a: Actor): number {
   return s === 'eaten' ? SPEED.eaten : s === 'frightened' ? SPEED.frightened : SPEED.ghost;
 }
 
+/** Mid-tile an actor can always go back the way it came; on a tile centre only if that way is open. */
+function canTurnBack(state: GameState, a: Actor): boolean {
+  return a.progress > 0 || state.maze.isWalkable(state.maze.neighbor(a.tile, REVERSE[a.dir]));
+}
+
+/** Turn around on the spot, keeping the continuous position. */
+function turnBack(state: GameState, a: Actor): void {
+  if (!canTurnBack(state, a)) return;
+  if (a.progress > 0) {
+    a.tile = state.maze.neighbor(a.tile, a.dir);
+    a.progress = 1 - a.progress;
+  }
+  a.dir = REVERSE[a.dir];
+}
+
 function moveActor(state: GameState, a: Actor, h: number, ctl: Controls): void {
   if (a.waiting && !chooseAt(state, a, ctl)) return;
   if (a.id === 'pacman' && state.pacmanControl === 'keyboard' && state.keyDir === REVERSE[a.dir] && a.progress > 0) {
-    a.tile = state.maze.neighbor(a.tile, a.dir);
-    a.dir = state.keyDir;
-    a.progress = 1 - a.progress;
+    turnBack(state, a);
+  }
+  if (a.id === 'pacman' && state.pacmanControl === 'jev') {
+    const escape = escapePoint(state);
+    if (escape && ctl.decide(escape) === REVERSE[a.dir]) turnBack(state, a);
   }
   a.progress += speedOf(a) * h;
   while (a.progress >= 1) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildRequest, fallbackDecision, instructionsFor, parseAnswer, summarizeState, type PendingQuestion } from '../src/brain';
+import { buildRequest, fallbackDecision, instructionsFor, parseAnswer, questionName, summarizeState, type PendingQuestion } from '../src/brain';
 import { optionFeatures } from '../src/features';
-import { createGame, nextDecisionPoint, type GameState } from '../src/sim';
+import { createGame, escapePoint, nextDecisionPoint, type GameState } from '../src/sim';
 import type { ActorId } from '../src/types';
 
 const pending = (s: GameState, id: ActorId): PendingQuestion => {
@@ -49,6 +49,24 @@ describe('Pac-Man danger criteria', () => {
     expect(criteria.left).toMatch(/2 dangerous ghosts within 8 steps/);
     expect(criteria.left).toMatch(/TRAP: Pinky can reach the next junction in 3 steps, you need 3/);
     expect(criteria.right).toMatch(/you reach the next junction in 3 steps, \d+ steps before any ghost/);
+  });
+});
+
+describe('escape questions', () => {
+  it('asks a separately named turn-back question and tags the decision as an escape', () => {
+    const s = createGame();
+    s.status = 'playing';
+    Object.assign(s.pacman, { tile: { x: 10, y: 29 }, dir: 'left', progress: 0.5 });
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 5, y: 29 }, dir: 'right', progress: 0 });
+    const point = escapePoint(s)!;
+    const q = { point, features: optionFeatures(s, point) };
+    expect(questionName(point)).toBe('pacman_escape');
+    const body = buildRequest(s, [q]);
+    expect(Object.keys(body.questions)).toEqual(['pacman_escape']);
+    expect(body.questions.pacman_escape.instructions).toMatch(/Blinky is in the corridor ahead or can block the junction.*turn back right/);
+    const d = parseAnswer({ type: 'choice', choice: 'right', confidence: 0.9, probabilities: { right: 0.9, left: 0.1 } }, q)!;
+    expect(d).toMatchObject({ choice: 'right', escape: true });
+    expect(fallbackDecision(s, q, 'timeout').escape).toBe(true);
   });
 });
 

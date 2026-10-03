@@ -3,7 +3,8 @@
 import { parseArgs } from 'node:util';
 import { greedyChoice, optionFeatures } from '../src/features';
 import { Scheduler, type Transport } from '../src/scheduler';
-import { createGame, step, type Controls } from '../src/sim';
+import { createGame, escapePoint, step, type Controls } from '../src/sim';
+import { REVERSE } from '../src/maze';
 import type { DecideResponse } from '../src/brain';
 import { GHOST_IDS, type ActorId } from '../src/types';
 import { handleDecide } from '../server/decide';
@@ -34,6 +35,10 @@ const transport: Transport = async (body) => {
 };
 
 interface Result {
+  /** What Pac-Man was doing when each life was lost. */
+  deathsBy: Record<string, number>;
+  escapes: number;
+  turnBacks: number;
   survived: number;
   score: number;
   pellets: number;
@@ -44,9 +49,21 @@ interface Result {
   cost: number;
 }
 
+/** Classifies Pac-Man's situation in the frame before a death. */
+function deathContext(state: ReturnType<typeof createGame>): string | null {
+  if (state.status !== 'playing') return null;
+  const p = state.pacman;
+  if (p.waiting) return 'waiting at junction';
+  if (escapePoint(state)) return 'ghost ahead in corridor';
+  const back = { ...p, dir: REVERSE[p.dir] };
+  const behind = escapePoint({ ...state, pacman: back });
+  if (behind) return 'ghost from behind';
+  return 'at/near junction';
+}
+
 async function playOne(): Promise<Result> {
   const state = createGame();
-  const r: Result = { survived: 0, score: 0, pellets: 0, deaths: 0, level: 1, calls: 0, fallbacks: 0, cost: 0 };
+  const r: Result = { deathsBy: {}, escapes: 0, turnBacks: 0, survived: 0, score: 0, pellets: 0, deaths: 0, level: 1, calls: 0, fallbacks: 0, cost: 0 };
   const scheduler = new Scheduler({
     transport,
     now: () => performance.now(),
@@ -55,7 +72,13 @@ async function playOne(): Promise<Result> {
       if (e.type === 'call') {
         r.calls += 1;
         r.cost += e.costUsd ?? 0;
-      } else if (e.type === 'decision' && e.decision.source === 'fallback') r.fallbacks += 1;
+      } else if (e.type === 'decision') {
+        if (e.decision.source === 'fallback') r.fallbacks += 1;
+        if (e.decision.escape) {
+          r.escapes += 1;
+          if (e.decision.choice === e.decision.options[1]) r.turnBacks += 1;
+        }
+      }
     },
   });
   const ctl: Controls = {
@@ -75,7 +98,16 @@ async function playOne(): Promise<Result> {
       last = now;
     }
     scheduler.update(state);
+    const before = deathContext(state);
     step(state, dt, ctl);
+    for (const a of [state.pacman, ...GHOST_IDS.map((id) => state.ghosts[id])]) {
+      if (a.progress === 0 && !state.maze.isWalkable(a.tile) && !(a.id !== 'pacman' && state.ghosts[a.id].state === 'house')) {
+        throw new Error(`${a.id} left the maze at (${a.tile.x},${a.tile.y})`);
+      }
+    }
+    if (state.status === 'dying' && before) {
+      r.deathsBy[before] = (r.deathsBy[before] ?? 0) + 1;
+    }
     if (state.status === 'playing') r.survived += dt;
     if (state.pelletsEaten !== lastPellets) {
       pelletsEaten += Math.max(0, state.pelletsEaten - lastPellets);
@@ -97,8 +129,11 @@ console.log(`bench ${label}: ${games} games, cap ${maxSeconds}s${realTime ? ' (r
 const results = await Promise.all(Array.from({ length: games }, playOne));
 const mean = (f: (r: Result) => number) => results.reduce((a, r) => a + f(r), 0) / results.length;
 for (const [i, r] of results.entries()) {
-  console.log(`  game ${i + 1}: survived ${r.survived.toFixed(1)}s, score ${r.score}, pellets ${r.pellets}, deaths ${r.deaths}, level ${r.level}, calls ${r.calls}, fallbacks ${r.fallbacks}, $${r.cost.toFixed(4)}`);
+  console.log(`  game ${i + 1}: survived ${r.survived.toFixed(1)}s, score ${r.score}, pellets ${r.pellets}, deaths ${r.deaths}, level ${r.level}, calls ${r.calls}, fallbacks ${r.fallbacks}, escapes ${r.escapes} (turned back ${r.turnBacks}), $${r.cost.toFixed(4)}`);
 }
+const deathsBy: Record<string, number> = {};
+for (const r of results) for (const [k, v] of Object.entries(r.deathsBy)) deathsBy[k] = (deathsBy[k] ?? 0) + v;
+console.log(`deaths by situation: ${JSON.stringify(deathsBy)}`);
 console.log(
   `MEAN ${label}: survived ${mean((r) => r.survived).toFixed(1)}s, score ${mean((r) => r.score).toFixed(0)}, pellets ${mean((r) => r.pellets).toFixed(0)}, pellets/life ${mean((r) => r.pellets / Math.max(1, r.deaths)).toFixed(0)}, fallbacks ${mean((r) => r.fallbacks).toFixed(1)}, cost $${mean((r) => r.cost).toFixed(4)}/game`,
 );

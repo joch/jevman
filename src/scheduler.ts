@@ -1,6 +1,6 @@
-import { buildRequest, fallbackDecision, parseAnswer, type DecideResponse, type Decision, type PendingQuestion, type SystemOneRequest } from './brain';
+import { buildRequest, fallbackDecision, parseAnswer, questionName, type DecideResponse, type Decision, type PendingQuestion, type SystemOneRequest } from './brain';
 import { optionFeatures } from './features';
-import { nextDecisionPoint, type Controls, type DecisionPoint, type GameState } from './sim';
+import { decisionPoints, type Controls, type DecisionPoint, type GameState } from './sim';
 import { ACTOR_IDS, type ActorId, type Dir } from './types';
 
 export type Transport = (body: SystemOneRequest) => Promise<DecideResponse>;
@@ -34,6 +34,8 @@ interface Pending {
 export class Scheduler implements Controls {
   private readonly pending = new Map<string, Pending>();
   private readonly ready = new Map<string, Decision>();
+  /** Answers already handed to the sim whose question is still open (escape questions); never re-asked. */
+  private readonly consumed = new Set<string>();
   private inFlight = 0;
   private readonly timeoutMs: number;
   private readonly maxInFlight: number;
@@ -49,18 +51,19 @@ export class Scheduler implements Controls {
     const now = this.deps.now();
     const live = new Set<string>();
     for (const id of this.actors) {
-      const point = nextDecisionPoint(state, id);
-      if (!point) continue;
-      live.add(point.key);
-      if (this.pending.has(point.key) || this.ready.has(point.key)) continue;
-      this.pending.set(point.key, {
-        q: { point, features: optionFeatures(state, point) },
-        sentAt: null,
-        fruitOnBoard: state.fruit !== null,
-      });
+      for (const point of decisionPoints(state, id)) {
+        live.add(point.key);
+        if (this.pending.has(point.key) || this.ready.has(point.key) || this.consumed.has(point.key)) continue;
+        this.pending.set(point.key, {
+          q: { point, features: optionFeatures(state, point) },
+          sentAt: null,
+          fruitOnBoard: state.fruit !== null,
+        });
+      }
     }
     for (const key of [...this.pending.keys()]) if (!live.has(key)) this.pending.delete(key);
     for (const key of [...this.ready.keys()]) if (!live.has(key)) this.ready.delete(key);
+    for (const key of [...this.consumed]) if (!live.has(key)) this.consumed.delete(key);
 
     for (const [key, p] of [...this.pending]) {
       if (p.sentAt !== null && now - p.sentAt > this.timeoutMs) this.resolve(key, fallbackDecision(state, p.q, 'timeout'), null);
@@ -74,12 +77,16 @@ export class Scheduler implements Controls {
     const d = this.ready.get(point.key);
     if (!d) return null;
     this.ready.delete(point.key);
+    this.consumed.add(point.key);
+    // Escape answers mean "keep going" or "turn back"; Pac-Man may have rounded a corner since.
+    if (point.escape) return d.choice === d.options[0] ? point.options[0] : point.options[1];
     return d.choice;
   }
 
   reset(): void {
     this.pending.clear();
     this.ready.clear();
+    this.consumed.clear();
   }
 
   private send(state: GameState, batch: Pending[], now: number): void {
@@ -103,7 +110,7 @@ export class Scheduler implements Controls {
               this.deps.onEvent({ type: 'stale', actor: p.q.point.actor, key: p.q.point.key });
               continue;
             }
-            const decision = parseAnswer(res.answers[p.q.point.actor], p.q) ?? fallbackDecision(state, p.q, 'invalid answer');
+            const decision = parseAnswer(res.answers[questionName(p.q.point)], p.q) ?? fallbackDecision(state, p.q, 'invalid answer');
             this.resolve(p.q.point.key, decision, res.latencyMs);
           }
         },

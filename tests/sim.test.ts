@@ -3,6 +3,8 @@ import { FRUIT_TILE, GHOST_DOOR_EXIT, PACMAN_START } from '../src/layout';
 import {
   createGame,
   decisionKey,
+  decisionPoints,
+  escapePoint,
   DYING_SECONDS,
   fruitForLevel,
   LEVELCLEAR_SECONDS,
@@ -286,5 +288,77 @@ describe('rules', () => {
     expect(s.maze.pellets.size).toBe(240);
     expect(s.status).toBe('ready');
     expect(s.ghosts.blinky.tile).toEqual(GHOST_DOOR_EXIT);
+  });
+});
+
+describe('escape points', () => {
+  function corridorWithGhostAhead(): GameState {
+    const s = playing('jev');
+    parkGhosts(s);
+    Object.assign(s.pacman, { tile: { x: 10, y: 29 }, dir: 'left', progress: 0.5 });
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 5, y: 29 }, dir: 'right', progress: 0 });
+    return s;
+  }
+
+  it('offers keep-going or turn-back while a dangerous ghost is in the corridor ahead', () => {
+    const s = corridorWithGhostAhead();
+    const p = escapePoint(s)!;
+    expect(p).toMatchObject({ actor: 'pacman', escape: true, heading: 'left', options: ['left', 'right'] });
+    expect(decisionPoints(s, 'pacman').map((x) => !!x.escape)).toEqual([true, false]);
+    s.ghosts.blinky.state = 'frightened';
+    expect(escapePoint(s)).toBeNull();
+    s.ghosts.blinky.state = 'normal';
+    s.pacmanControl = 'keyboard';
+    expect(escapePoint(s)).toBeNull();
+  });
+
+  it('asks early when a ghost can reach the junction ahead before Pac-Man', () => {
+    const s = playing('jev');
+    parkGhosts(s);
+    Object.assign(s.pacman, { tile: { x: 7, y: 29 }, dir: 'right', progress: 0 });
+    // Clyde is not in the corridor (8..12,29) but is 2 steps from its end junction (12,29); Pac-Man needs 5.
+    Object.assign(s.ghosts.clyde, { state: 'normal', tile: { x: 12, y: 27 }, dir: 'down', progress: 0 });
+    expect(escapePoint(s)).toMatchObject({ escape: true, threats: ['clyde'] });
+    s.ghosts.clyde.tile = { x: 12, y: 20 };
+    expect(escapePoint(s)).toBeNull();
+  });
+
+  it('keeps the escape question the same around a corner', () => {
+    const s = playing('jev');
+    parkGhosts(s);
+    Object.assign(s.pacman, { tile: { x: 2, y: 29 }, dir: 'left', progress: 0 });
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 1, y: 27 }, dir: 'down', progress: 0 });
+    const before = escapePoint(s)!;
+    Object.assign(s.pacman, { tile: { x: 1, y: 28 }, dir: 'up', progress: 0 });
+    const after = escapePoint(s)!;
+    expect(after.key).toBe(before.key);
+    expect(after.options).toEqual(['up', 'down']);
+  });
+
+  it('never offers to turn back into a wall right after a corner', () => {
+    const s = playing('jev');
+    parkGhosts(s);
+    // Just turned the corner at (1,29): moving up, and "down" from (1,29) is the outer wall.
+    Object.assign(s.pacman, { tile: { x: 1, y: 29 }, dir: 'up', progress: 0 });
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 1, y: 27 }, dir: 'down', progress: 0 });
+    expect(escapePoint(s)).toBeNull();
+    step(s, 0.5, { decide: (p) => (p.escape ? 'down' : null) });
+    expect(s.maze.isWalkable(s.pacman.tile)).toBe(true);
+  });
+
+  it('turns Pac-Man back mid-tile when the answer is to turn back', () => {
+    const s = corridorWithGhostAhead();
+    step(s, 1 / 60, { decide: (p) => (p.escape ? 'right' : null) });
+    expect(s.pacman.dir).toBe('right');
+    expect(s.pacman.tile).toEqual({ x: 9, y: 29 });
+    expect(s.pacman.waiting).toBe(false);
+  });
+
+  it('never makes Pac-Man wait for an escape answer', () => {
+    const s = corridorWithGhostAhead();
+    step(s, 0.2, never);
+    expect(s.pacman.dir).toBe('left');
+    expect(s.pacman.waiting).toBe(false);
+    expect(s.pacman.tile.x).toBeLessThan(10);
   });
 });
