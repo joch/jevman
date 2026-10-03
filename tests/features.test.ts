@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { goalFor, greedyChoice, optionFeatures, type OptionFeatures } from '../src/features';
 import { FRUIT_TILE, SCATTER_CORNERS } from '../src/layout';
-import { createGame, nextDecisionPoint, type GameState } from '../src/sim';
+import { createGame, escapePoint, nextDecisionPoint, type GameState } from '../src/sim';
 import { GHOST_IDS, type Dir } from '../src/types';
 
 function setup(): GameState {
@@ -143,5 +143,38 @@ describe('optionFeatures danger awareness', () => {
     expect(f.left.junctionGhost).toEqual({ id: 'pinky', steps: 3 });
     // Without the trap check, left (pellet 1 step away) would beat right (3 steps).
     expect(greedyChoice(s, point, feats.filter((x) => x.dir !== 'up'))).toBe('right');
+  });
+});
+
+describe('optionFeatures for escape questions', () => {
+  it('starts the turn-back route on the tile Pac-Man is leaving, not inside the wall behind it', () => {
+    const s = setup();
+    // Just rounded the corner at (1,29), 0.3 of the way up; (1,30) is the outer wall.
+    Object.assign(s.pacman, { tile: { x: 1, y: 29 }, dir: 'up', progress: 0.3 });
+    s.maze.pellets.delete(s.maze.key({ x: 1, y: 29 }));
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 1, y: 27 }, dir: 'down', progress: 0 });
+    const point = escapePoint(s)!;
+    expect(point.options).toEqual(['up', 'down']);
+    const f = byDir(optionFeatures(s, point));
+    expect(f.down.nearestPellet).toBe(2);
+    expect(f.down.corridorPellets).toBe(11);
+    expect(f.down.junctionSteps).toBe(12);
+    expect(f.down.dangerInCorridor).toEqual([]);
+    expect(f.up.nearestDangerGhost).toBe(2);
+    expect(f.up.dangerInCorridor).toEqual(['blinky']);
+  });
+
+  it('sees a ghost right behind Pac-Man on the turn-back route', () => {
+    const s = setup();
+    Object.assign(s.pacman, { tile: { x: 9, y: 29 }, dir: 'left', progress: 0.6 });
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 5, y: 29 }, dir: 'right', progress: 0 });
+    // Pinky follows on Pac-Man's own tile.
+    Object.assign(s.ghosts.pinky, { state: 'normal', tile: { x: 10, y: 29 }, dir: 'left', progress: 0.6 });
+    const point = escapePoint(s)!;
+    expect(point.threats).toEqual(['blinky']);
+    const f = byDir(optionFeatures(s, point));
+    expect(f.right.nearestDangerGhost).toBe(1);
+    expect(f.right.dangerInCorridor).toEqual(['pinky']);
+    expect(f.left.dangerInCorridor).toEqual(['blinky']);
   });
 });

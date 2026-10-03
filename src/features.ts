@@ -91,8 +91,8 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
   const powerTiles = [...maze.powerPellets].map((k) => maze.fromKey(k));
 
   return point.options.map((dir) => {
-    const start = maze.neighbor(point.tile, dir);
-    const dist = maze.distances(start, point.tile);
+    const { start, origin } = routeOf(state, point, dir);
+    const dist = maze.distances(start, origin);
     const steps = (t: Tile): number | null => {
       const v = dist[maze.key(t)];
       return v < 0 ? null : v + 1;
@@ -143,6 +143,17 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
       junctionGhost,
     };
   });
+}
+
+/**
+ * Where an option's route starts, and the tile behind it (where the actor is) that it never passes back through.
+ * Turning back mid-tile leads onto the tile Pac-Man is leaving, with the tile he was heading into behind him.
+ */
+function routeOf(state: GameState, point: DecisionPoint, dir: Dir): { start: Tile; origin: Tile } {
+  if (point.escape && dir !== point.heading && state.pacman.progress > 0) {
+    return { start: point.tile, origin: state.maze.neighbor(point.tile, point.heading) };
+  }
+  return { start: state.maze.neighbor(point.tile, dir), origin: point.tile };
 }
 
 function corridorFrom(state: GameState, start: Tile, heading: Dir): Tile[] {
