@@ -217,6 +217,31 @@ export function fruitRoute(state: GameState, point: DecisionPoint, feats: Option
   return ok.length ? ok.reduce((best, f) => (f.fruitDistance! < best.fruitDistance! ? f : best)).dir : null;
 }
 
+/** A route Pac-Man should not take: a ghost in its corridor, one about to touch him, or one that cuts off its junction. */
+export const isUnsafe = (f: OptionFeatures): boolean => f.dangerInCorridor.length > 0 || (f.nearestDangerGhost ?? 999) <= 2 || isTrap(f);
+
+/** How many steps Pac-Man reaches the route's junction ahead of the fastest ghost (negative: the ghost is first). */
+const junctionMargin = (f: OptionFeatures): number => (f.junctionGhost ? f.junctionGhost.steps - f.junctionSteps : 99);
+
+/**
+ * jev answers from a snapshot taken before Pac-Man reached the junction; ghosts have moved since. When its pick has
+ * become unsafe, return the safe route jev itself rated highest. When every route is unsafe, return the least bad one
+ * (no ghost in the corridor, then the junction he reaches most ahead of the ghosts) if jev's pick is clearly worse.
+ * Otherwise null: keep jev's pick.
+ */
+export function saferChoice(choice: Dir, probabilities: Partial<Record<Dir, number>>, feats: OptionFeatures[]): Dir | null {
+  const picked = feats.find((f) => f.dir === choice);
+  if (!picked || !isUnsafe(picked)) return null;
+  const safe = feats.filter((f) => !isUnsafe(f));
+  if (safe.length) return safe.reduce((best, f) => ((probabilities[f.dir] ?? 0) > (probabilities[best.dir] ?? 0) ? f : best)).dir;
+  const blocked = (f: OptionFeatures) => f.dangerInCorridor.length > 0;
+  const better = (a: OptionFeatures, b: OptionFeatures) =>
+    blocked(a) !== blocked(b) ? !blocked(a) : junctionMargin(a) !== junctionMargin(b) ? junctionMargin(a) > junctionMargin(b) : (a.nearestDangerGhost ?? 999) > (b.nearestDangerGhost ?? 999);
+  const best = feats.reduce((b, f) => (better(f, b) ? f : b));
+  const clearlyWorse = blocked(picked) !== blocked(best) || junctionMargin(best) - junctionMargin(picked) >= 2;
+  return best.dir !== choice && clearlyWorse ? best.dir : null;
+}
+
 /** Deterministic stand-in used when jev cannot answer in time. */
 export function greedyChoice(state: GameState, point: DecisionPoint, feats: OptionFeatures[]): Dir {
   const lowest = (pool: OptionFeatures[], score: (f: OptionFeatures) => number) =>

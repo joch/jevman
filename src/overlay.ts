@@ -21,6 +21,7 @@ export function summaryRows(s: GameSummary): { game: Row[]; jev: Row[] } {
       ['Calls', String(j.calls)],
       ['Decisions', String(j.decisions)],
       ['Fallbacks', String(j.fallbacks)],
+      ['Safety overrides', String(j.overrides)],
       ['Mean latency', j.meanLatencyMs === null ? '–' : `${j.meanLatencyMs} ms`],
       ['Avg confidence', j.meanConfidence === null ? '–' : `${Math.round(j.meanConfidence * 100)}%`],
       ['Cost', j.costUsd === null ? '–' : `${j.costEstimated ? '≈' : ''}$${j.costUsd.toFixed(4)}`],
@@ -65,7 +66,20 @@ export function hideOverlay(root: HTMLElement): void {
  * Before a live game: nothing runs (and nothing is billed) until the player presses Play. Returns what
  * Space/Enter should do. Without any key (signed out, demo unavailable) it offers sign-in instead.
  */
-export function showPlay(root: HTMLElement, me: Me, onPlay: () => void): () => void {
+export type PlayMode = 'jev' | 'keyboard';
+
+export interface PlayCard {
+  /** What Space/Enter does: play, or sign in. */
+  action: () => void;
+  /** Show `mode` as chosen (e.g. after J was pressed). */
+  select: (mode: PlayMode) => void;
+}
+
+/**
+ * The card before the first game. Signed in (or with a local key) the player picks a mode, watching jev play Pac-Man
+ * by default, and `onSelect` reports each pick so the game can show it; `onPlay` starts the game.
+ */
+export function showPlay(root: HTMLElement, me: Me, opts: { mode: PlayMode; onSelect: (mode: PlayMode) => void; onPlay: () => void }): PlayCard {
   const card = el('div', undefined, 'card');
   if (me.mode === 'none') {
     card.append(el('h2', 'Sign in to play'));
@@ -80,21 +94,50 @@ export function showPlay(root: HTMLElement, me: Me, onPlay: () => void): () => v
     }
     card.append(button);
     show(root, card, button);
-    return me.loginAvailable ? signIn : () => {};
+    return { action: me.loginAvailable ? signIn : () => {}, select: () => {} };
   }
+  card.classList.add('wide');
   card.append(el('h2', 'Ready when you are'));
-  card.append(el('p', 'jev drives the ghosts, and Pac-Man too unless you press J to steer him yourself.'));
-  card.append(el('p', me.mode === 'player'
-    ? 'A game usually costs about $0.02–0.03 from your Opper wallet.'
-    : me.devProvider === 'typesafe' ? 'Calls use your TypeSafe key from .env.' : 'Calls use the local key from .env.', 'muted'));
+  card.append(el('p', 'jev plays one side at a time, so every choice in the decision panel is its own.'));
+  const modes = el('div', undefined, 'modes');
+  modes.setAttribute('role', 'radiogroup');
+  modes.setAttribute('aria-label', 'Mode');
+  const choices: [PlayMode, string, string, string][] = [
+    ['jev', 'Watch jev play', 'default', 'jev steers Pac-Man; the ghosts follow the classic arcade rules.'],
+    ['keyboard', 'Play against jev', 'you steer', 'You steer Pac-Man (arrows or WASD) and jev steers the four ghosts.'],
+  ];
   const play = el('button', undefined, 'primary');
+  const buttons = new Map<PlayMode, HTMLButtonElement>();
+  const select = (mode: PlayMode) => {
+    for (const [m, b] of buttons) b.setAttribute('aria-checked', String(m === mode));
+  };
+  for (const [mode, title, hint, text] of choices) {
+    const b = el('button', undefined, 'mode');
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    const head = el('span', title, 'title');
+    head.append(el('span', hint, 'hint'));
+    b.append(head, el('span', text, 'text'));
+    b.addEventListener('click', () => {
+      select(mode);
+      opts.onSelect(mode);
+      play.focus({ preventScroll: true }); // so Space/Enter now starts the game
+    });
+    buttons.set(mode, b);
+    modes.append(b);
+  }
+  select(opts.mode);
+  card.append(modes, el('p', 'Switch any time during a game with J or the Pac-Man button.', 'muted small'));
+  card.append(el('p', me.mode === 'player'
+    ? 'A game usually costs about $0.01 from your Opper wallet, a little more when jev plays the ghosts.'
+    : me.devProvider === 'typesafe' ? 'Calls use your TypeSafe key from .env.' : 'Calls use the local key from .env.', 'muted'));
   const icon = el('span', '▶ ');
   icon.setAttribute('aria-hidden', 'true');
   play.append(icon, 'Play');
-  play.addEventListener('click', onPlay);
+  play.addEventListener('click', opts.onPlay);
   card.append(play, el('p', 'or press Space / Enter', 'muted small'));
   show(root, card, play);
-  return onPlay;
+  return { action: opts.onPlay, select };
 }
 
 export function showGameOver(root: HTMLElement, summary: GameSummary, onPlayAgain: () => void): void {

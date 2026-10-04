@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit",
     "smoke": "node --env-file=.env --import tsx scripts/smoke.ts",
     "bench": "node --env-file=.env --import tsx scripts/bench.ts",
+    "deaths": "node --import tsx scripts/deaths.mts",
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/main.ts"

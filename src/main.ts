@@ -4,8 +4,9 @@ import { DemoPlayer, loadRecording } from './demo';
 import { hideOverlay, showGameOver, showPlay } from './overlay';
 import { Panel } from './panel';
 import { drawGame, FRUIT_EMOJI, TILE } from './render';
+import { greedyChoice, optionFeatures } from './features';
 import { Scheduler } from './scheduler';
-import { createGame, fruitForLevel, step, type GameState } from './sim';
+import { createGame, fruitForLevel, jevActors, step, type Controls, type GameState } from './sim';
 import { GameStats } from './stats';
 import { createHttpTransport } from './transport';
 import type { Dir } from './types';
@@ -61,6 +62,8 @@ const overlayEl = $('#overlay');
 const keyActions = new Map<string, () => void>([['p', togglePause]]);
 /** What Space/Enter does while an overlay is open (Play, Play again). */
 let overlayAction: (() => void) | null = null;
+/** Mirrors J presses into the Play card's mode choice until the first game starts. */
+let selectPlayMode: ((mode: 'jev' | 'keyboard') => void) | null = null;
 let steer: ((dir: Dir) => void) | null = null;
 let tick: (dt: number) => void;
 
@@ -103,6 +106,7 @@ if (rec) {
     new Scheduler({
       transport,
       slots,
+      actors: jevActors,
       now: () => clockMs,
       onEvent: (e) => {
         if (gameStats !== stats) return;
@@ -113,22 +117,29 @@ if (rec) {
       },
     });
   let scheduler = newScheduler(stats);
+  // jev plays one side; the other side's characters follow the scripted rules.
+  const controls: Controls = {
+    decide: (point, s) => (jevActors(s).includes(point.actor) ? scheduler.decide(point, s) : greedyChoice(s, point, optionFeatures(s, point))),
+  };
   // Nothing runs, and no jev call is made, until the player presses Play.
   let started = false;
   let gameOverShown = false;
   const begin = (): void => {
     started = true;
+    selectPlayMode = null;
     restartBtn.disabled = false;
     overlayAction = null;
     hideOverlay(overlayEl);
   };
 
-  const togglePacman = (): void => {
-    state.pacmanControl = state.pacmanControl === 'jev' ? 'keyboard' : 'jev';
+  const setPacmanControl = (control: 'jev' | 'keyboard'): void => {
+    state.pacmanControl = control;
     state.keyDir = null;
-    toggleBtn.textContent = `Pac-Man: ${state.pacmanControl}`;
-    toggleBtn.setAttribute('aria-pressed', String(state.pacmanControl === 'jev'));
+    toggleBtn.textContent = `Pac-Man: ${control}`;
+    toggleBtn.setAttribute('aria-pressed', String(control === 'jev'));
+    selectPlayMode?.(control);
   };
+  const togglePacman = (): void => setPacmanControl(state.pacmanControl === 'jev' ? 'keyboard' : 'jev');
   const restart = (): void => {
     if (!started) return; // Restart / R must not skip the Play card
     state = createGame({ pacmanControl: state.pacmanControl });
@@ -142,7 +153,9 @@ if (rec) {
     begin();
   };
   restartBtn.disabled = true;
-  overlayAction = showPlay(overlayEl, me, begin);
+  const playCard = showPlay(overlayEl, me, { mode: state.pacmanControl, onSelect: setPacmanControl, onPlay: begin });
+  overlayAction = playCard.action;
+  selectPlayMode = playCard.select;
   toggleBtn.addEventListener('click', togglePacman);
   restartBtn.addEventListener('click', restart);
   speedIn.addEventListener('input', () => {
@@ -158,7 +171,7 @@ if (rec) {
     clockMs += dt * 1000;
     scheduler.update(state);
     stats.beforeStep(state);
-    step(state, dt * speed, scheduler);
+    step(state, dt * speed, controls);
     stats.afterStep(state, dt * speed);
     if (state.status === 'gameover' && !gameOverShown) {
       gameOverShown = true;

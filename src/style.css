@@ -74,6 +74,18 @@ button:disabled:hover { border-color: #3a3a5a; }
 .overlay p { margin: 0; }
 .overlay .muted { color: var(--muted); }
 .overlay .small { font-size: 12px; }
+.overlay .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; }
+.overlay .mode { display: flex; flex-direction: column; gap: 4px; text-align: left; font: inherit; font-size: 13px; color: var(--text); background: transparent; border: 1px solid #2a2a40; border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+.overlay .mode:hover { border-color: #4a4a70; }
+.overlay .mode[aria-checked='true'] { border-color: var(--accent); background: rgba(255, 215, 0, 0.06); }
+.overlay .mode .title { color: var(--accent); font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.overlay .mode[aria-checked='false'] .title { color: inherit; }
+.overlay .mode .hint { color: var(--muted); font-size: 11px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.04em; }
+@media (max-width: 520px) {
+  .overlay .card { padding: 14px 16px; gap: 8px; }
+  .overlay .modes { grid-template-columns: 1fr; gap: 6px; }
+  .overlay .mode { padding: 6px 10px; font-size: 12px; }
+}
 .overlay .score { font-size: 28px; font-weight: 700; color: var(--accent); font-family: ui-monospace, monospace; }
 .overlay .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; }
 .overlay dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; font-size: 13px; }

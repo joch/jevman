@@ -1,7 +1,7 @@
-import { ACTOR_NAMES } from './brain';
+import { ACTOR_NAMES, type Decision } from './brain';
 import { GHOST_COLORS } from './render';
 import type { SchedulerEvent } from './scheduler';
-import type { GameState } from './sim';
+import { jevActors, type GameState } from './sim';
 import { ACTOR_IDS, DIRS, type ActorId, type Dir } from './types';
 
 const COLORS: Record<ActorId, string> = { pacman: '#ffd800', ...GHOST_COLORS };
@@ -17,10 +17,12 @@ interface Card {
 
 export class Panel {
   private readonly cards = new Map<ActorId, Card>();
+  /** Whether jev played each character at the last updateActors. */
+  private readonly played = new Map<ActorId, boolean>();
   private readonly banner: HTMLElement;
   private readonly totalsEl: HTMLElement;
   private readonly log: HTMLElement;
-  private readonly totals = { calls: 0, decisions: 0, fallbacks: 0, stale: 0, inputTokens: 0, outputTokens: 0, cost: 0, costEstimated: false, latencyMs: 0 };
+  private readonly totals = { calls: 0, decisions: 0, fallbacks: 0, overrides: 0, stale: 0, inputTokens: 0, outputTokens: 0, cost: 0, costEstimated: false, latencyMs: 0 };
 
   /** `caption` labels the panel, e.g. "recorded game" so demo totals don't read as the visitor's own spend. */
   constructor(root: HTMLElement, opts: { caption?: string } = {}) {
@@ -75,7 +77,8 @@ export class Panel {
         this.addLog(`${ACTOR_NAMES[e.actor]}: late answer dropped (situation changed)`, 'stale');
         break;
       case 'decision':
-        this.showDecision(e);
+        if (e.decision.vetoed) this.showOverride(e.decision);
+        else this.showDecision(e);
         break;
       case 'superseded':
         this.totals.decisions -= 1;
@@ -95,22 +98,71 @@ export class Panel {
         id === 'pacman' && state.pacmanControl === 'keyboard' ? 'keyboard'
         : ghost?.state === 'house' ? 'in house'
         : ghost?.state === 'eaten' ? 'eyes → home'
+        : ghost && !jevActors(state).includes(id) ? (ghost.state === 'frightened' ? 'scripted · frightened' : 'scripted')
         : state.status === 'playing' && actor.waiting ? 'thinking…'
         : ghost?.state === 'frightened' ? 'frightened'
         : 'moving';
-      const status = this.cards.get(id)!.status;
-      if (status.textContent !== text) {
-        status.textContent = text;
-        status.dataset.state = text;
+      const card = this.cards.get(id)!;
+      if (card.status.textContent !== text) {
+        card.status.textContent = text;
+        card.status.dataset.state = text;
+      }
+      // A character jev doesn't play shows who steers it instead of a stale jev decision.
+      const played = jevActors(state).includes(id);
+      if (played !== this.played.get(id)) {
+        this.played.set(id, played);
+        this.clearCard(id, played ? 'no decision yet' : ghost ? 'classic ghost rules, not jev' : 'steered by you, not jev');
       }
     }
   }
 
+  /** Empty bars and a note on who steers: for a character jev stopped playing (or never played this game). */
+  private clearCard(id: ActorId, meta: string): void {
+    const card = this.cards.get(id)!;
+    for (const dir of DIRS) {
+      const bar = card.bars[dir];
+      bar.row.classList.remove('chosen', 'disabled');
+      bar.fill.style.width = '0%';
+      bar.pct.textContent = '–';
+    }
+    card.meta.textContent = meta;
+    card.meta.classList.remove('fallback');
+    card.el.classList.remove('fallback');
+  }
+
+  private showOverride(d: Decision): void {
+    this.totals.overrides += 1;
+    this.drawCard(d, `jev · safety override: ${d.vetoed} → ${d.choice}`, true);
+    this.addLog(
+      `${ACTOR_NAMES[d.actor]} @(${d.tile.x},${d.tile.y}) ${ARROWS[d.choice]} ${d.choice} · SAFETY OVERRIDE of jev's ${ARROWS[d.vetoed!]} ${d.vetoed} (unsafe by then)`,
+      'fallback',
+    );
+  }
+
   private showDecision(e: Extract<SchedulerEvent, { type: 'decision' }>): void {
     const d = e.decision;
-    const card = this.cards.get(d.actor)!;
     this.totals.decisions += 1;
     if (d.source === 'fallback') this.totals.fallbacks += 1;
+    this.drawCard(
+      d,
+      d.source === 'jev'
+        ? `jev · confidence ${d.confidence === null ? '?' : d.confidence.toFixed(2)} · ${e.latencyMs ?? '?'} ms`
+        : `FALLBACK (${d.reason}) · greedy rule, not jev`,
+      d.source === 'fallback',
+    );
+    const p = d.probabilities[d.choice];
+    this.addLog(
+      `${ACTOR_NAMES[d.actor]} @(${d.tile.x},${d.tile.y}) ${ARROWS[d.choice]} ${d.choice}` +
+        (p !== undefined ? ` ${Math.round(p * 100)}%` : '') +
+        (d.escape ? ' · escape (mid-corridor)' : '') +
+        (d.source === 'fallback' ? ` · FALLBACK (${d.reason})` : '') +
+        (e.fruitOnBoard ? ' · fruit on board' : ''),
+      d.source === 'fallback' ? 'fallback' : d.actor,
+    );
+  }
+
+  private drawCard(d: Decision, meta: string, flagged: boolean): void {
+    const card = this.cards.get(d.actor)!;
     for (const dir of DIRS) {
       const bar = card.bars[dir];
       const offered = d.options.includes(dir);
@@ -121,21 +173,9 @@ export class Panel {
       bar.fill.style.width = `${Math.round(width * 100)}%`;
       bar.pct.textContent = !offered ? '' : p === undefined ? (dir !== d.choice ? '–' : d.source === 'fallback' ? 'fallback' : 'pick') : `${Math.round(p * 100)}%`;
     }
-    card.meta.textContent =
-      d.source === 'jev'
-        ? `jev · confidence ${d.confidence === null ? '?' : d.confidence.toFixed(2)} · ${e.latencyMs ?? '?'} ms`
-        : `FALLBACK (${d.reason}) · greedy rule, not jev`;
-    card.meta.classList.toggle('fallback', d.source === 'fallback');
-    card.el.classList.toggle('fallback', d.source === 'fallback');
-    const p = d.probabilities[d.choice];
-    this.addLog(
-      `${ACTOR_NAMES[d.actor]} @(${d.tile.x},${d.tile.y}) ${ARROWS[d.choice]} ${d.choice}` +
-        (p !== undefined ? ` ${Math.round(p * 100)}%` : '') +
-        (d.escape ? ' · escape (mid-corridor)' : '') +
-        (d.source === 'fallback' ? ` · FALLBACK (${d.reason})` : '') +
-        (e.fruitOnBoard ? ' · fruit on board' : ''),
-      d.source === 'fallback' ? 'fallback' : d.actor,
-    );
+    card.meta.textContent = meta;
+    card.meta.classList.toggle('fallback', flagged);
+    card.el.classList.toggle('fallback', flagged);
   }
 
   private addLog(text: string, cls: string): void {
@@ -153,6 +193,7 @@ export class Panel {
       ['calls', String(t.calls)],
       ['decisions', String(t.decisions)],
       ['fallbacks', String(t.fallbacks)],
+      ['overrides', String(t.overrides)],
       ['stale', String(t.stale)],
       ['tokens in', String(t.inputTokens)],
       ['tokens out', String(t.outputTokens)],

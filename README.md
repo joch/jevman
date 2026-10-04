@@ -1,7 +1,8 @@
 # jevman
 
 Pac-Man where the characters are driven by Opper's decision model `typesafe/jev-1.13.0`.
-Ghosts are always jev; Pac-Man toggles between keyboard and jev. The side panel shows each
+jev plays one side at a time: with Pac-Man on jev, the ghosts follow the classic scripted rules;
+steer Pac-Man yourself (`J`) and jev plays the ghosts instead. The side panel shows each
 decision's probabilities, confidence, latency and running cost. Red entries are greedy fallbacks
 used when jev could not answer (timeout, error, invalid answer or missing key) — never jev's own choice.
 
@@ -65,8 +66,10 @@ precedence over `.env`. The account bar above the game says which one is in use.
   fallbacks, escape questions and cost. Paid whenever jev drives a character. Flags: `--games 4`
   (played in parallel), `--pacman jev|greedy`, `--ghosts greedy|jev`, `--max 120` (seconds per game),
   `--record path.json` (with `--games 1`: save the game for replay). The demo was recorded with
-  `npm run bench -- --games 1 --pacman jev --ghosts jev --max 90 --record public/demo/jev-demo.json`;
+  `npm run bench -- --games 1 --pacman jev --ghosts greedy --max 120 --record public/demo/jev-demo.json`;
   re-record it if a change to the game rules makes the replay test fail.
+- `npm run deaths -- game.json` — replays a recorded game and prints, for each of Pac-Man's deaths,
+  his last few junction decisions with the routes as jev saw them.
 
 ## Controls
 
@@ -74,10 +77,11 @@ Arrows/WASD steer (keyboard mode) · `J` toggle Pac-Man jev/keyboard · `P` paus
 
 ## Cost
 
-Each jev call costs about **$0.00005**, through Opper or straight from TypeSafe. With jev driving all five characters a game makes roughly
-5–6 calls per second, so a typical game (about 1–1.5 minutes until Pac-Man runs out of lives)
-costs **about $0.02–0.03**, or **about $1 per hour** of continuous play. Steering Pac-Man yourself
-or lowering the speed makes fewer calls. `npm run bench` reports the exact cost per game.
+Each jev call costs about **$0.00005**, through Opper or straight from TypeSafe. With jev playing
+Pac-Man a game makes about 1–2 calls per second, so a typical game (two to three minutes until he
+runs out of lives) costs **about $0.01**, or **about $0.35 per hour** of continuous play. When you
+steer Pac-Man and jev plays the four ghosts it makes about 4 calls per second, **about $0.75 per
+hour**. Lowering the speed makes fewer calls. `npm run bench` reports the exact cost per game.
 
 ## How decisions work
 
@@ -92,3 +96,13 @@ Pac-Man can also get a second question mid-corridor: when a dangerous ghost is i
 ahead, or can reach the junction at its end before he does, jev is asked whether to keep going or
 turn back right now (`pacman_escape`). Pac-Man keeps moving while it is open, and each situation is
 asked once.
+
+jev answers from a snapshot taken when the question was asked, often a whole corridor before Pac-Man
+reaches the junction, and the ghosts keep moving. So when Pac-Man takes jev's answer, a **safety
+check** looks at the board again. If jev's pick now leads into a ghost, a trap or a ghost about to
+touch him, he takes the safe route jev rated highest instead. If every route is unsafe, he takes the
+least bad one when jev's pick is clearly worse. The panel and the game-over card count these as
+**safety overrides**. An escape question is only asked when the way ahead is already dangerous, so
+there the check turns Pac-Man back whenever that is safe, and jev's answer decides only when both
+ways are risky. Against the scripted ghosts the safety check roughly doubled how long jev Pac-Man
+survives.
