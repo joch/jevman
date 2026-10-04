@@ -1,0 +1,169 @@
+import { ACTOR_NAMES } from './brain';
+import { REVERSE } from './maze';
+import type { SchedulerEvent } from './scheduler';
+import { actorPosition, escapePoint, type GameState } from './sim';
+import { GHOST_IDS, type GhostId } from './types';
+
+export type DeathContext = 'waiting at junction' | 'ghost ahead in corridor' | 'ghost from behind' | 'at/near junction';
+
+export interface Death {
+  ghost: GhostId | null;
+  context: DeathContext;
+  /** Seconds of play when it happened. */
+  seconds: number;
+}
+
+export interface GameSummary {
+  score: number;
+  level: number;
+  seconds: number;
+  pellets: number;
+  ghostsEaten: number;
+  fruit: { kind: string; points: number }[];
+  deaths: Death[];
+  jev: {
+    calls: number;
+    decisions: number;
+    fallbacks: number;
+    meanLatencyMs: number | null;
+    meanConfidence: number | null;
+    costUsd: number;
+    costEstimated: boolean;
+  };
+}
+
+/** What Pac-Man was doing in the frame before he was caught (for keyboard or jev play alike). */
+export function deathContext(state: GameState): DeathContext | null {
+  if (state.status !== 'playing') return null;
+  const p = state.pacman;
+  if (p.waiting) return 'waiting at junction';
+  const asJev = { ...state, pacmanControl: 'jev' as const };
+  if (escapePoint(asJev)) return 'ghost ahead in corridor';
+  // The same position, facing the other way.
+  const back = p.progress > 0
+    ? { ...p, tile: state.maze.neighbor(p.tile, p.dir), dir: REVERSE[p.dir], progress: 1 - p.progress }
+    : { ...p, dir: REVERSE[p.dir] };
+  if (escapePoint({ ...asJev, pacman: back })) return 'ghost from behind';
+  return 'at/near junction';
+}
+
+export function deathLabel(d: Death): string {
+  const who = d.ghost ? ACTOR_NAMES[d.ghost] : 'a ghost';
+  switch (d.context) {
+    case 'waiting at junction':
+      return `caught by ${who} while waiting for jev at a junction`;
+    case 'ghost ahead in corridor':
+      return `ran into ${who} in a corridor`;
+    case 'ghost from behind':
+      return `${who} caught up from behind`;
+    case 'at/near junction':
+      return `caught by ${who} at a junction`;
+  }
+}
+
+/** The normal ghost nearest Pac-Man: the one that just caught him. */
+function nearestGhost(state: GameState): GhostId | null {
+  const p = actorPosition(state.pacman);
+  let best: { id: GhostId; d: number } | null = null;
+  for (const id of GHOST_IDS) {
+    const g = state.ghosts[id];
+    if (g.state !== 'normal') continue;
+    const q = actorPosition(g);
+    const dx = Math.abs(p.x - q.x);
+    const d = Math.min(dx, state.maze.width - dx) + Math.abs(p.y - q.y);
+    if (!best || d < best.d) best = { id, d };
+  }
+  return best?.id ?? null;
+}
+
+/**
+ * Per-game statistics for the game-over screen. The game loop calls beforeStep/afterStep around each
+ * sim step and forwards scheduler events; nothing here changes the game.
+ */
+export class GameStats {
+  private seconds = 0;
+  private pellets = 0;
+  private ghostsEaten = 0;
+  private readonly fruit: { kind: string; points: number }[] = [];
+  private readonly deaths: Death[] = [];
+  private calls = 0;
+  private decisions = 0;
+  private fallbacks = 0;
+  private latencyMs = 0;
+  private confidence = { sum: 0, n: 0 };
+  private costUsd = 0;
+  private costEstimated = false;
+  private before: {
+    status: GameState['status'];
+    pelletsEaten: number;
+    frightChain: number;
+    score: number;
+    fruit: { kind: string; points: number } | null;
+    context: DeathContext | null;
+  } | null = null;
+
+  beforeStep(state: GameState): void {
+    this.before = {
+      status: state.status,
+      pelletsEaten: state.pelletsEaten,
+      frightChain: state.frightChain,
+      score: state.score,
+      fruit: state.fruit ? { kind: state.fruit.kind, points: state.fruit.points } : null,
+      context: deathContext(state),
+    };
+  }
+
+  afterStep(state: GameState, dt: number): void {
+    const b = this.before;
+    if (!b) return;
+    if (b.status === 'playing') this.seconds += dt;
+    // A level clear resets pelletsEaten to 0.
+    if (state.pelletsEaten > b.pelletsEaten) this.pellets += state.pelletsEaten - b.pelletsEaten;
+    // frightChain counts ghosts eaten since the last power pellet (which resets it to 0).
+    if (state.frightChain > b.frightChain) this.ghostsEaten += state.frightChain - b.frightChain;
+    else if (state.frightChain < b.frightChain) this.ghostsEaten += state.frightChain;
+    if (b.fruit && !state.fruit && state.score - b.score >= b.fruit.points) this.fruit.push(b.fruit);
+    if (b.status === 'playing' && state.status === 'dying') {
+      this.deaths.push({ ghost: nearestGhost(state), context: b.context ?? 'at/near junction', seconds: Math.round(this.seconds * 10) / 10 });
+    }
+    this.before = null;
+  }
+
+  onSchedulerEvent(e: SchedulerEvent): void {
+    if (e.type === 'call') {
+      this.calls += 1;
+      if (Number.isFinite(e.latencyMs)) this.latencyMs += e.latencyMs;
+      if (e.costUsd !== null && Number.isFinite(e.costUsd)) this.costUsd += e.costUsd;
+      if (e.costEstimated) this.costEstimated = true;
+    } else if (e.type === 'decision') {
+      this.decisions += 1;
+      if (e.decision.source === 'fallback') this.fallbacks += 1;
+      else if (e.decision.confidence !== null && Number.isFinite(e.decision.confidence)) {
+        this.confidence.sum += e.decision.confidence;
+        this.confidence.n += 1;
+      }
+    }
+  }
+
+  summary(state: GameState): GameSummary {
+    const round = (n: number, places: number) => Math.round(n * 10 ** places) / 10 ** places;
+    return {
+      score: state.score,
+      level: state.level,
+      seconds: round(this.seconds, 1),
+      pellets: this.pellets,
+      ghostsEaten: this.ghostsEaten,
+      fruit: [...this.fruit],
+      deaths: [...this.deaths],
+      jev: {
+        calls: this.calls,
+        decisions: this.decisions,
+        fallbacks: this.fallbacks,
+        meanLatencyMs: this.calls ? Math.round(this.latencyMs / this.calls) : null,
+        meanConfidence: this.confidence.n ? round(this.confidence.sum / this.confidence.n, 2) : null,
+        costUsd: round(this.costUsd, 6),
+        costEstimated: this.costEstimated,
+      },
+    };
+  }
+}

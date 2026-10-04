@@ -6,13 +6,13 @@ import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { greedyChoice, optionFeatures } from '../src/features';
 import { Scheduler, type Transport } from '../src/scheduler';
-import { createGame, escapePoint, step, type Controls } from '../src/sim';
-import { REVERSE } from '../src/maze';
+import { createGame, step, type Controls } from '../src/sim';
 import type { DecideResponse } from '../src/brain';
 import { GHOST_IDS, type ActorId } from '../src/types';
 import { handleDecide } from '../server/decide';
 import { devTargetFromEnv, modelFor } from '../server/jev';
 import { Recorder, roundDt } from '../src/replay';
+import { deathContext } from '../src/stats';
 
 const { values } = parseArgs({
   options: {
@@ -61,21 +61,6 @@ interface Result {
   calls: number;
   fallbacks: number;
   cost: number;
-}
-
-/** Classifies Pac-Man's situation in the frame before a death. */
-function deathContext(state: ReturnType<typeof createGame>): string | null {
-  if (state.status !== 'playing') return null;
-  const p = state.pacman;
-  if (p.waiting) return 'waiting at junction';
-  if (escapePoint(state)) return 'ghost ahead in corridor';
-  // The same position, facing the other way.
-  const back = p.progress > 0
-    ? { ...p, tile: state.maze.neighbor(p.tile, p.dir), dir: REVERSE[p.dir], progress: 1 - p.progress }
-    : { ...p, dir: REVERSE[p.dir] };
-  const behind = escapePoint({ ...state, pacman: back });
-  if (behind) return 'ghost from behind';
-  return 'at/near junction';
 }
 
 async function playOne(): Promise<Result> {

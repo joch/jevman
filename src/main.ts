@@ -1,10 +1,12 @@
 import './style.css';
 import { accountNotice, fetchMe, renderAccount, takeAuthError, walletNotice, type AccountView } from './auth';
 import { DemoPlayer, loadRecording } from './demo';
+import { hideOverlay, showGameOver, showPlay } from './overlay';
 import { Panel } from './panel';
 import { drawGame, FRUIT_EMOJI, TILE } from './render';
 import { Scheduler } from './scheduler';
 import { createGame, fruitForLevel, step, type GameState } from './sim';
+import { GameStats } from './stats';
 import { createHttpTransport } from './transport';
 import type { Dir } from './types';
 
@@ -55,6 +57,9 @@ function togglePause(): void {
 pauseBtn.addEventListener('click', togglePause);
 
 const keyActions = new Map<string, () => void>([['p', togglePause]]);
+const overlayEl = $('#overlay');
+/** What Space/Enter does while an overlay is open (Play, Play again). */
+let overlayAction: (() => void) | null = null;
 let steer: ((dir: Dir) => void) | null = null;
 let tick: (dt: number) => void;
 
@@ -89,7 +94,23 @@ if (rec) {
       showAccount({ ...account, ...walletNotice(url) });
     },
   });
-  const scheduler = new Scheduler({ transport, now: () => clockMs, onEvent: (e) => panel.handle(e) });
+  let stats = new GameStats();
+  const scheduler = new Scheduler({
+    transport,
+    now: () => clockMs,
+    onEvent: (e) => {
+      panel.handle(e);
+      stats.onSchedulerEvent(e);
+    },
+  });
+  // Nothing runs, and no jev call is made, until the player presses Play.
+  let started = false;
+  let gameOverShown = false;
+  const begin = (): void => {
+    started = true;
+    overlayAction = null;
+    hideOverlay(overlayEl);
+  };
 
   const togglePacman = (): void => {
     state.pacmanControl = state.pacmanControl === 'jev' ? 'keyboard' : 'jev';
@@ -100,7 +121,12 @@ if (rec) {
   const restart = (): void => {
     state = createGame({ pacmanControl: state.pacmanControl });
     scheduler.reset();
+    stats = new GameStats();
+    gameOverShown = false;
+    begin();
   };
+  overlayAction = begin;
+  showPlay(overlayEl, me, begin);
   toggleBtn.addEventListener('click', togglePacman);
   restartBtn.addEventListener('click', restart);
   speedIn.addEventListener('input', () => {
@@ -112,9 +138,17 @@ if (rec) {
     state.keyDir = dir;
   };
   tick = (dt) => {
+    if (!started) return;
     clockMs += dt * 1000;
     scheduler.update(state);
+    stats.beforeStep(state);
     step(state, dt * speed, scheduler);
+    stats.afterStep(state, dt * speed);
+    if (state.status === 'gameover' && !gameOverShown) {
+      gameOverShown = true;
+      overlayAction = restart;
+      showGameOver(overlayEl, stats.summary(state), restart);
+    }
   };
 }
 showAccount({ ...account, notice: accountNotice(me, authError, Boolean(rec)) });
@@ -130,6 +164,12 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (e.repeat) return;
+  // Space/Enter on a focused button already clicks it; elsewhere they press the overlay's button.
+  if ((e.key === ' ' || e.key === 'Enter') && overlayAction && !(e.target instanceof HTMLButtonElement)) {
+    e.preventDefault();
+    overlayAction();
+    return;
+  }
   keyActions.get(e.key.toLowerCase())?.();
 });
 
