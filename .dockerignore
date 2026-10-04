@@ -1,0 +1,11 @@
+# Only what the image build needs; never .env or local tooling state.
+*
+!package.json
+!package-lock.json
+!index.html
+!vite.config.ts
+!tsconfig.json
+!src/
+!server/
+!public/
+!Dockerfile

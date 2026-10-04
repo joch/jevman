@@ -1,0 +1,37 @@
+name: Test and deploy
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: docker build --tag jevman:ci .
+      - run: python3 scripts/smoke-image.py jevman:ci
+      # Only a green push to main deploys, and it deploys exactly this commit.
+      - name: Deploy tested commit and verify readiness
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: python3 scripts/deploy.py
+        env:
+          COOLIFY_WEBHOOK_URL: ${{ vars.COOLIFY_WEBHOOK_URL }}
+          COOLIFY_APP_UUID: ${{ vars.COOLIFY_APP_UUID }}
+          APP_URL: ${{ vars.APP_URL }}
+          COOLIFY_WEBHOOK_SECRET: ${{ secrets.COOLIFY_WEBHOOK_SECRET }}
