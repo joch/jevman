@@ -85,10 +85,16 @@ export class Scheduler implements Controls {
     if (queued.length && this.slots.inFlight < this.maxInFlight) this.send(state, queued, now);
   }
 
-  decide(point: DecisionPoint): Dir | null {
-    const d = this.ready.get(point.key)?.decision;
-    if (!d) return null;
+  decide(point: DecisionPoint, state: GameState): Dir | null {
+    const r = this.ready.get(point.key);
+    if (!r) return null;
     this.ready.delete(point.key);
+    let d = r.decision;
+    // Fruit can appear or expire inside the very step that reaches the junction, after the last update().
+    if (point.actor === 'pacman' && r.fruitOnBoard !== (state.fruit !== null)) {
+      d = fallbackDecision(state, { point, features: optionFeatures(state, point) }, 'fruit changed');
+      this.deps.onEvent({ type: 'decision', decision: d, latencyMs: null, fruitOnBoard: state.fruit !== null });
+    }
     if (!point.escape) return d.choice;
     this.consumed.add(point.key);
     // Escape answers mean "keep going" or "turn back"; Pac-Man may have rounded a corner since.

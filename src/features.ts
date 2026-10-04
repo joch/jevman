@@ -182,8 +182,8 @@ function corridorFrom(state: GameState, start: Tile, heading: Dir): Tile[] {
   return tiles;
 }
 
-/** Pac-Man covers 7.5 tiles a second; count a little less so a marked fruit is still there on arrival. */
-const FRUIT_STEPS_PER_SECOND = 7;
+/** Pac-Man covers 7.5 tiles a second; count a little less so a fruit or frightened ghost is still there on arrival. */
+const PACMAN_STEPS_PER_SECOND = 7;
 
 /**
  * The quickest route to the fruit that gets there before it disappears, with no ghost in its first corridor, close by
@@ -191,7 +191,7 @@ const FRUIT_STEPS_PER_SECOND = 7;
  */
 export function fruitRoute(state: GameState, point: DecisionPoint, feats: OptionFeatures[]): Dir | null {
   if (!state.fruit) return null;
-  const reach = Math.floor(state.fruit.secondsLeft * FRUIT_STEPS_PER_SECOND);
+  const reach = Math.floor(state.fruit.secondsLeft * PACMAN_STEPS_PER_SECOND);
   const ok = feats.filter(
     (f) => f.fruitDistance !== null && point.distance + f.fruitDistance <= reach && f.dangerInCorridor.length === 0 && (f.nearestDangerGhost ?? 999) > 2 && !isTrap(f),
   );
@@ -211,9 +211,10 @@ export function greedyChoice(state: GameState, point: DecisionPoint, feats: Opti
   }
   const safe = feats.filter((f) => f.dangerInCorridor.length === 0 && or(f.nearestDangerGhost, 999) > 2 && !isTrap(f));
   const pool = safe.length ? safe : feats;
-  if (state.frightLeft > 0 && pool.some((f) => f.nearestFrightenedGhost !== null)) {
-    return lowest(pool, (f) => or(f.nearestFrightenedGhost, 999));
-  }
+  // Only hunt a ghost Pac-Man can reach before the fright ends; otherwise it is dangerous again on arrival.
+  const huntReach = Math.floor(state.frightLeft * PACMAN_STEPS_PER_SECOND) - point.distance;
+  const huntable = pool.filter((f) => f.nearestFrightenedGhost !== null && f.nearestFrightenedGhost <= huntReach);
+  if (huntable.length) return lowest(huntable, (f) => or(f.nearestFrightenedGhost, 999));
   const fruit = fruitRoute(state, point, pool);
   if (fruit) return fruit;
   return lowest(pool, (f) => or(f.nearestPellet, 999));

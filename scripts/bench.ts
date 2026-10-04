@@ -92,8 +92,8 @@ async function playOne(): Promise<Result> {
   // Like the scheduler, answer each escape question once; afterwards Pac-Man just keeps going.
   const answeredEscapes = new Set<string>();
   const baseCtl: Controls = {
-    decide: (point) => {
-      if (jevActors.includes(point.actor)) return scheduler.decide(point);
+    decide: (point, state) => {
+      if (jevActors.includes(point.actor)) return scheduler.decide(point, state);
       if (point.escape) {
         if (answeredEscapes.has(point.key)) return null;
         answeredEscapes.add(point.key);

@@ -37,8 +37,8 @@ export class Recorder {
 
   wrap(ctl: Controls, frame: () => number): Controls {
     return {
-      decide: (point) => {
-        const choice = ctl.decide(point);
+      decide: (point, state) => {
+        const choice = ctl.decide(point, state);
         if (choice !== null) this.decisions.push([frame(), point.key, choice]);
         return choice;
       },

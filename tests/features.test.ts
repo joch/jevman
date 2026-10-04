@@ -246,6 +246,17 @@ describe('fruitRoute', () => {
     expect(fruitRoute(s, at(0), [feat('up', { fruitDistance: 2 })])).toBeNull();
   });
 
+  it('makes the greedy fallback hunt only frightened ghosts it can reach before the fright ends', () => {
+    const s = setup();
+    s.fruit = { kind: 'cherry', points: 100, tile: { ...FRUIT_TILE }, secondsLeft: 5 };
+    const point = nextDecisionPoint(s, 'pacman')!;
+    const feats = [feat('up', { nearestFrightenedGhost: 10 }), feat('left', { fruitDistance: 8 }), feat('right', { nearestPellet: 1 })];
+    s.frightLeft = 0.5; // 3 steps of fright left: the ghost will be dangerous again by then
+    expect(greedyChoice(s, { ...point, distance: 0 }, feats)).toBe('left');
+    s.frightLeft = 4;
+    expect(greedyChoice(s, { ...point, distance: 0 }, feats)).toBe('up');
+  });
+
   it('makes the greedy fallback go for the fruit instead of the nearest pellet', () => {
     const s = setup();
     s.fruit = { kind: 'cherry', points: 100, tile: { ...FRUIT_TILE }, secondsLeft: 5 };

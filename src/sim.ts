@@ -76,7 +76,8 @@ export interface DecisionPoint {
 }
 
 export interface Controls {
-  decide(point: DecisionPoint): Dir | null;
+  /** `state` is the game as it is right now, inside the step that reached the junction. */
+  decide(point: DecisionPoint, state: GameState): Dir | null;
 }
 
 export const SPEED = { pacman: 7.5, ghost: 7, frightened: 4.5, eaten: 14 } as const; // tiles per second
@@ -386,7 +387,7 @@ function moveActor(state: GameState, a: Actor, h: number, ctl: Controls): void {
   }
   if (a.id === 'pacman' && state.pacmanControl === 'jev') {
     const escape = escapePoint(state);
-    if (escape && ctl.decide(escape) === REVERSE[a.dir]) turnBack(state, a);
+    if (escape && ctl.decide(escape, state) === REVERSE[a.dir]) turnBack(state, a);
   }
   a.progress += speedOf(a) * h;
   while (a.progress >= 1) {
@@ -427,7 +428,7 @@ function nextDir(state: GameState, a: Actor, ctl: Controls): Dir | null {
   const forced = forcedDir(state, a.tile, a.dir);
   if (forced) return forced;
   const point = decisionPointAt(state, a.id, a.tile, a.dir)!;
-  const choice = ctl.decide(point);
+  const choice = ctl.decide(point, state);
   return choice && point.options.includes(choice) ? choice : null;
 }
 
