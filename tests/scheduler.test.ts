@@ -245,7 +245,7 @@ describe('Scheduler and fruit', () => {
   });
 
   it('drops a ready answer made with fruit on the board once the fruit is gone', async () => {
-    const { calls, scheduler } = harness({ actors: ['pacman'] });
+    const { calls, events, scheduler } = harness({ actors: ['pacman'] });
     const s = createGame();
     s.fruit = cherry();
     scheduler.update(s);
@@ -253,6 +253,7 @@ describe('Scheduler and fruit', () => {
     await flush();
     s.fruit = null;
     scheduler.update(s);
+    expect(ofType(events, 'superseded')).toHaveLength(1);
     expect(scheduler.decide(nextDecisionPoint(s, 'pacman')!, s)).toBeNull();
     expect(calls).toHaveLength(2);
   });

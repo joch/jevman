@@ -67,7 +67,7 @@ export class Scheduler implements Controls {
         // Pac-Man's routes and fallback depend on the fruit, which can appear or vanish without changing the key.
         if (id === 'pacman') {
           if (this.pending.get(point.key)?.fruitOnBoard === !fruitOnBoard) this.pending.delete(point.key);
-          if (this.ready.get(point.key)?.fruitOnBoard === !fruitOnBoard) this.ready.delete(point.key);
+          if (this.ready.get(point.key)?.fruitOnBoard === !fruitOnBoard) this.dropReady(point.key);
         }
         if (this.pending.has(point.key) || this.ready.has(point.key) || this.consumed.has(point.key)) continue;
         const features = optionFeatures(state, point);
@@ -80,7 +80,7 @@ export class Scheduler implements Controls {
       }
     }
     for (const key of [...this.pending.keys()]) if (!live.has(key)) this.pending.delete(key);
-    for (const key of [...this.ready.keys()]) if (!live.has(key)) this.ready.delete(key);
+    for (const key of [...this.ready.keys()]) if (!live.has(key)) this.dropReady(key);
     for (const key of [...this.consumed]) if (!live.has(key)) this.consumed.delete(key);
 
     for (const [key, p] of [...this.pending]) {
@@ -150,6 +150,14 @@ export class Scheduler implements Controls {
       .finally(() => {
         this.slots.inFlight -= 1;
       });
+  }
+
+  /** Discard an answer that was announced as a decision but will never be used. */
+  private dropReady(key: string): void {
+    const r = this.ready.get(key);
+    if (!r) return;
+    this.ready.delete(key);
+    this.deps.onEvent({ type: 'superseded', decision: r.decision });
   }
 
   private resolve(key: string, decision: Decision, latencyMs: number | null): void {

@@ -81,7 +81,7 @@ export class Panel {
         this.totals.decisions -= 1;
         if (e.decision.source === 'fallback') this.totals.fallbacks -= 1;
         this.totals.stale += 1;
-        this.addLog(`${ACTOR_NAMES[e.decision.actor]}: answer dropped (fruit changed)`, 'stale');
+        this.addLog(`${ACTOR_NAMES[e.decision.actor]}: unused answer dropped (situation changed)`, 'stale');
         break;
     }
     this.renderTotals();
