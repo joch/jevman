@@ -19,6 +19,11 @@ export interface SchedulerDeps {
   maxInFlight?: number;
   /** Actors this scheduler asks jev about (default: all). */
   actors?: readonly ActorId[];
+  /**
+   * In-flight request counter. Pass the same object to successive schedulers (one per game) so requests
+   * still running from an earlier game keep counting against `maxInFlight`.
+   */
+  slots?: { inFlight: number };
 }
 
 interface Pending {
@@ -36,7 +41,7 @@ export class Scheduler implements Controls {
   private readonly ready = new Map<string, Decision>();
   /** Answers already handed to the sim whose question is still open (escape questions); never re-asked. */
   private readonly consumed = new Set<string>();
-  private inFlight = 0;
+  private readonly slots: { inFlight: number };
   private readonly timeoutMs: number;
   private readonly maxInFlight: number;
   private readonly actors: readonly ActorId[];
@@ -45,6 +50,7 @@ export class Scheduler implements Controls {
     this.timeoutMs = deps.timeoutMs ?? 2000;
     this.maxInFlight = deps.maxInFlight ?? 3;
     this.actors = deps.actors ?? ACTOR_IDS;
+    this.slots = deps.slots ?? { inFlight: 0 };
   }
 
   update(state: GameState): void {
@@ -70,7 +76,7 @@ export class Scheduler implements Controls {
     }
 
     const queued = [...this.pending.values()].filter((p) => p.sentAt === null);
-    if (queued.length && this.inFlight < this.maxInFlight) this.send(state, queued, now);
+    if (queued.length && this.slots.inFlight < this.maxInFlight) this.send(state, queued, now);
   }
 
   decide(point: DecisionPoint): Dir | null {
@@ -91,7 +97,7 @@ export class Scheduler implements Controls {
 
   private send(state: GameState, batch: Pending[], now: number): void {
     for (const p of batch) p.sentAt = now;
-    this.inFlight += 1;
+    this.slots.inFlight += 1;
     const isCurrent = (p: Pending) => this.pending.get(p.q.point.key) === p;
     this.deps
       .transport(buildRequest(state, batch.map((p) => p.q)))
@@ -121,7 +127,7 @@ export class Scheduler implements Controls {
         },
       )
       .finally(() => {
-        this.inFlight -= 1;
+        this.slots.inFlight -= 1;
       });
   }
 

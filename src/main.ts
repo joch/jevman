@@ -97,9 +97,12 @@ if (rec) {
   });
   let stats = new GameStats();
   // One scheduler per game: answers still in flight from a restarted game reach its old scheduler and are ignored.
+  // They share one in-flight counter, so restarting can't stack up more concurrent (billed) requests.
+  const slots = { inFlight: 0 };
   const newScheduler = (gameStats: GameStats) =>
     new Scheduler({
       transport,
+      slots,
       now: () => clockMs,
       onEvent: (e) => {
         if (gameStats !== stats) return;
