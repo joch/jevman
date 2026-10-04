@@ -1,6 +1,6 @@
 # jevman
 
-Pac-Man where the characters are driven by Opper's decision model `typesafe/jev-1.13.0`.
+Pac-Man where the characters are driven by the jev decision model (`typesafe/jev-1.13.0`), called through Opper or straight from TypeSafe.
 jev plays one side at a time: with Pac-Man on jev, the ghosts follow the classic scripted rules;
 steer Pac-Man yourself (`J`) and jev plays the ghosts instead. The side panel shows each
 decision's probabilities, confidence, latency and running cost. Red entries are greedy fallbacks
