@@ -80,11 +80,12 @@ async function playOne(): Promise<Result> {
       if (e.type === 'call') {
         r.calls += 1;
         r.cost += e.costUsd ?? 0;
-      } else if (e.type === 'decision') {
-        if (e.decision.source === 'fallback') r.fallbacks += 1;
+      } else if (e.type === 'decision' || e.type === 'superseded') {
+        const sign = e.type === 'decision' ? 1 : -1;
+        if (e.decision.source === 'fallback') r.fallbacks += sign;
         if (e.decision.escape) {
-          r.escapes += 1;
-          if (e.decision.choice === e.decision.options[1]) r.turnBacks += 1;
+          r.escapes += sign;
+          if (e.decision.choice === e.decision.options[1]) r.turnBacks += sign;
         }
       }
     },

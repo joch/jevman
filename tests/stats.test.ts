@@ -192,3 +192,17 @@ describe('GameStats ghost counting within one frame', () => {
     expect(stats.summary(s).ghostsEaten).toBe(1);
   });
 });
+
+describe('GameStats superseded answers', () => {
+  it('drops a superseded answer from the totals so one junction counts once', () => {
+    const stats = new GameStats();
+    const decision = (source: 'jev' | 'fallback', confidence: number | null) => ({
+      actor: 'pacman' as const, key: 'k', tile: { x: 0, y: 0 }, choice: 'up' as const, options: ['up' as const], probabilities: {}, confidence, source,
+    });
+    stats.onSchedulerEvent({ type: 'decision', decision: decision('jev', 0.4), latencyMs: 200, fruitOnBoard: true });
+    stats.onSchedulerEvent({ type: 'decision', decision: decision('jev', 0.8), latencyMs: 200, fruitOnBoard: true });
+    stats.onSchedulerEvent({ type: 'superseded', decision: decision('jev', 0.4) });
+    stats.onSchedulerEvent({ type: 'decision', decision: decision('fallback', null), latencyMs: null, fruitOnBoard: false });
+    expect(stats.summary(createGame()).jev).toMatchObject({ decisions: 2, fallbacks: 1, meanConfidence: 0.8 });
+  });
+});

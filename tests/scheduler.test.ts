@@ -280,6 +280,7 @@ describe('Scheduler and fruit', () => {
       s.fruit.secondsLeft = secondsLeft; // Pac-Man waited at the junction for the answer
       expect(scheduler.decide(nextDecisionPoint(s, 'pacman')!, s)).not.toBeNull();
       expect(ofType(events, 'decision').at(-1)!.decision.source).toBe(secondsLeft === 8 ? 'jev' : 'fallback');
+      expect(ofType(events, 'superseded')).toHaveLength(secondsLeft === 8 ? 0 : 1);
     }
   });
 });

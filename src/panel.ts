@@ -77,6 +77,12 @@ export class Panel {
       case 'decision':
         this.showDecision(e);
         break;
+      case 'superseded':
+        this.totals.decisions -= 1;
+        if (e.decision.source === 'fallback') this.totals.fallbacks -= 1;
+        this.totals.stale += 1;
+        this.addLog(`${ACTOR_NAMES[e.decision.actor]}: answer dropped (fruit changed)`, 'stale');
+        break;
     }
     this.renderTotals();
   }

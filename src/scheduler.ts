@@ -9,6 +9,8 @@ export type SchedulerEvent =
   | { type: 'decision'; decision: Decision; latencyMs: number | null; fruitOnBoard: boolean }
   | { type: 'call'; actors: ActorId[]; latencyMs: number; usage: DecideResponse['usage']; costUsd: number | null; costEstimated?: boolean; traceId: string | null }
   | { type: 'stale'; actor: ActorId; key: string }
+  /** An earlier `decision` that was never used; consumers should take it back out of their totals. */
+  | { type: 'superseded'; decision: Decision }
   | { type: 'error'; message: string };
 
 export interface SchedulerDeps {
@@ -98,6 +100,7 @@ export class Scheduler implements Controls {
     // while Pac-Man waits for an answer the fruit can drift out of reach. Either way the answer is stale.
     const features = point.actor === 'pacman' && (r.fruitOnBoard || state.fruit) ? optionFeatures(state, point) : null;
     if (features && (r.fruitOnBoard !== (state.fruit !== null) || fruitRoute(state, point, features) !== r.fruitRoute)) {
+      this.deps.onEvent({ type: 'superseded', decision: d });
       d = fallbackDecision(state, { point, features }, 'fruit changed');
       this.deps.onEvent({ type: 'decision', decision: d, latencyMs: null, fruitOnBoard: state.fruit !== null });
     }
