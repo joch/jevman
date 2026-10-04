@@ -16,6 +16,7 @@ export interface AuthConfig {
 export interface HttpRequest {
   method: string;
   url: string;
+  /** Header names are lowercase, as Node's IncomingMessage provides them. */
   headers: Record<string, string | string[] | undefined>;
 }
 
@@ -36,16 +37,34 @@ export type ExchangeCode = (code: string) => Promise<Exchanged>;
 
 export const loginConfigured = (cfg: AuthConfig): boolean => Boolean(cfg.clientId && cfg.clientSecret);
 const secure = (cfg: AuthConfig) => cfg.redirectUri.startsWith('https:');
-const header = (req: HttpRequest, name: string): string => {
+/** A request header by its lowercase name; repeated headers are joined. */
+export const header = (req: HttpRequest, name: string): string => {
   const v = req.headers[name];
   return Array.isArray(v) ? v.join('; ') : (v ?? '');
 };
-const redirect = (location: string, cookies: string[] = []): HttpResponse => ({
+
+/**
+ * True when the browser says the request came from another site: `Sec-Fetch-Site` other than `same-origin`,
+ * or an `Origin` whose host is not this request's `Host`. Requests without either header (curl, old browsers) pass.
+ */
+export function crossSite(req: HttpRequest): boolean {
+  const site = header(req, 'sec-fetch-site');
+  if (site && site !== 'same-origin') return true;
+  const origin = header(req, 'origin');
+  if (!origin) return false;
+  try {
+    return new URL(origin).host !== header(req, 'host');
+  } catch {
+    return true; // e.g. `Origin: null` from a sandboxed frame
+  }
+}
+
+export const redirect = (location: string, cookies: string[] = []): HttpResponse => ({
   status: 302,
-  headers: { Location: location, 'Set-Cookie': cookies },
+  headers: { Location: location, 'Cache-Control': 'no-store', 'Set-Cookie': cookies },
   body: '',
 });
-const json = (status: number, body: unknown, cookies: string[] = [], extra: Record<string, string> = {}): HttpResponse => ({
+export const json = (status: number, body: unknown, cookies: string[] = [], extra: Record<string, string> = {}): HttpResponse => ({
   status,
   headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...extra, ...(cookies.length ? { 'Set-Cookie': cookies } : {}) },
   body: JSON.stringify(body),
@@ -138,6 +157,7 @@ export function sessionFrom(req: HttpRequest, cfg: AuthConfig, now = Date.now())
 
 export function handleLogout(req: HttpRequest, cfg: AuthConfig): HttpResponse {
   if (req.method !== 'POST') return json(405, { error: 'POST only' }, [], { Allow: 'POST' });
+  if (crossSite(req)) return json(403, { error: 'Cross-site request refused' });
   if (!header(req, 'content-type').toLowerCase().startsWith('application/json')) return json(415, { error: 'Expected application/json' });
   return json(200, { ok: true }, [clearSessionCookie(cfg)]);
 }

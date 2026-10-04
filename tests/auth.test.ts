@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { handleCallback, handleLogin, handleLogout, handleMe, opperExchange, sessionFrom, SESSION_COOKIE, STATE_COOKIE, type AuthConfig, type HttpRequest } from '../server/auth';
+import { crossSite, handleCallback, handleLogin, handleLogout, handleMe, opperExchange, sessionFrom, SESSION_COOKIE, STATE_COOKIE, type AuthConfig, type HttpRequest } from '../server/auth';
 import { openSession, sealSession } from '../server/session';
 
 const cfg: AuthConfig = { clientId: 'opper_app_x', clientSecret: 'shh', redirectUri: 'http://localhost:5173/auth/callback', opperUrl: 'https://api.opper.ai', sessionSecret: 's'.repeat(64) };
@@ -18,6 +18,7 @@ describe('handleLogin', () => {
     expect(loc.origin + loc.pathname).toBe('https://api.opper.ai/oauth/authorize');
     expect(Object.fromEntries(loc.searchParams)).toEqual({ client_id: 'opper_app_x', redirect_uri: cfg.redirectUri, response_type: 'code', state: 'st4te' });
     expect(setCookies(r)[0]).toBe(`${STATE_COOKIE}=st4te; Max-Age=600; Path=/auth; HttpOnly; SameSite=Lax`);
+    expect(r.headers['Cache-Control']).toBe('no-store');
   });
   it('explains missing configuration', () => {
     const r = handleLogin(req('/auth/login'), { ...cfg, clientSecret: undefined });
@@ -39,6 +40,7 @@ describe('handleCallback', () => {
     expect(session).toMatchObject({ apiKey: 'op-player', user: { name: 'Ada' }, issuedAt: 10_000 });
     expect(setCookies(r).find((c) => c.startsWith(SESSION_COOKIE))).toMatch(/Max-Age=2592000; Path=\/; HttpOnly; SameSite=Lax/);
     expect(setCookies(r).find((c) => c.startsWith(STATE_COOKIE))).toMatch(/Max-Age=0/);
+    expect(r.headers['Cache-Control']).toBe('no-store');
   });
   it('caps the cookie lifetime at the key expiry', async () => {
     const exchange = async () => ({ apiKey: 'op-player', user: {}, expiresAt: new Date(10_000 + 3_600_000).toISOString() });
@@ -54,6 +56,7 @@ describe('handleCallback', () => {
     const exchange = vi.fn(async () => ({ apiKey: 'op-player', user: {} }));
     const r = await handleCallback(withState(url), cfg, exchange);
     expect(r.headers.Location).toBe(`/?auth_error=${why}`);
+    expect(r.headers['Cache-Control']).toBe('no-store');
     if (why === 'state') expect(exchange).not.toHaveBeenCalled();
     expect(setCookies(r).some((c) => c.startsWith(`${SESSION_COOKIE}=`) && !c.includes('Max-Age=0'))).toBe(false);
   });
@@ -125,6 +128,16 @@ describe('session lookup, logout and /api/me', () => {
     expect(notPost.headers.Allow).toBe('POST');
     expect(notPost.headers['Cache-Control']).toBe('no-store');
   });
+  it('refuses a cross-site logout without clearing the session', () => {
+    const crossSiteHeaders: Record<string, string>[] = [{ 'sec-fetch-site': 'cross-site' }, { origin: 'https://evil.example', host: 'localhost:5173' }];
+    for (const extra of crossSiteHeaders) {
+      const r = handleLogout(signedIn('/auth/logout', 'POST', { 'content-type': 'application/json', ...extra }), cfg);
+      expect(r.status).toBe(403);
+      expect(setCookies(r)).toEqual([]);
+    }
+    const sameOrigin = { 'content-type': 'application/json', 'sec-fetch-site': 'same-origin', origin: 'http://localhost:5173', host: 'localhost:5173' };
+    expect(handleLogout(signedIn('/auth/logout', 'POST', sameOrigin), cfg).status).toBe(200);
+  });
   it('describes the account without the key', () => {
     const player = JSON.parse(handleMe(signedIn('/api/me'), cfg, true).body);
     expect(player).toEqual({ mode: 'player', user: { name: 'Ada' }, projectName: 'jevman', walletUrl: 'https://platform.opper.ai/wallet', loginAvailable: true });
@@ -132,5 +145,22 @@ describe('session lookup, logout and /api/me', () => {
     expect(JSON.parse(handleMe(req('/api/me'), { ...cfg, clientId: undefined }, false).body)).toMatchObject({ mode: 'none', loginAvailable: false });
     expect(handleMe(signedIn('/api/me'), cfg, true).body).not.toContain('op-player');
     expect(handleMe(signedIn('/api/me'), cfg, true).headers['Cache-Control']).toBe('no-store');
+  });
+});
+
+describe('crossSite', () => {
+  it.each([
+    [{}, false],
+    [{ 'sec-fetch-site': 'same-origin' }, false],
+    [{ 'sec-fetch-site': 'same-site' }, true],
+    [{ 'sec-fetch-site': 'cross-site' }, true],
+    [{ 'sec-fetch-site': 'none' }, true],
+    [{ origin: 'http://localhost:5173', host: 'localhost:5173' }, false],
+    [{ origin: 'http://localhost:5174', host: 'localhost:5173' }, true],
+    [{ origin: 'https://evil.example', host: 'localhost:5173' }, true],
+    [{ origin: 'null', host: 'localhost:5173' }, true],
+    [{ origin: 'http://localhost:5173' }, true],
+  ])('%j -> %s', (headers, expected) => {
+    expect(crossSite(req('/', headers, 'POST'))).toBe(expected);
   });
 });
