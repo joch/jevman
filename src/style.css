@@ -55,3 +55,4 @@ button:hover { border-color: var(--accent); }
 .account .signin { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
 .account .signin:disabled { opacity: 0.5; cursor: not-allowed; }
 .account[data-kind='demo'], .account[data-kind='signed-out'] { color: var(--text); }
+.account .notice { color: var(--danger); }

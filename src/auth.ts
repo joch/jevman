@@ -4,20 +4,51 @@ export interface Me {
   projectName?: string;
   walletUrl: string;
   loginAvailable: boolean;
+  /** True when /api/me could not be read, so the server's real state is unknown. */
+  unavailable?: boolean;
 }
 
-export type AccountView = { kind: 'player' | 'dev' | 'demo' | 'signed-out'; me: Me };
+export type AccountView = { kind: 'player' | 'dev' | 'demo' | 'signed-out'; me: Me; notice?: string };
 
-const FALLBACK: Me = { mode: 'none', walletUrl: 'https://platform.opper.ai/wallet', loginAvailable: false };
+const DEFAULT_WALLET_URL = 'https://platform.opper.ai/wallet';
+const ME_TIMEOUT_MS = 2500;
+
+// A transient failure must not read as "not configured", so sign-in stays enabled.
+const fallbackMe = (): Me => ({ mode: 'none', walletUrl: DEFAULT_WALLET_URL, loginAvailable: true, unavailable: true });
+
+const text = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
+
+function httpsUrl(v: unknown): string {
+  if (typeof v !== 'string') return DEFAULT_WALLET_URL;
+  try {
+    return new URL(v).protocol === 'https:' ? v : DEFAULT_WALLET_URL;
+  } catch {
+    return DEFAULT_WALLET_URL;
+  }
+}
+
+function parseMe(body: unknown): Me | null {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) return null;
+  const b = body as Record<string, unknown>;
+  if (b.mode !== 'player' && b.mode !== 'dev' && b.mode !== 'none') return null;
+  const me: Me = { mode: b.mode, walletUrl: httpsUrl(b.walletUrl), loginAvailable: b.loginAvailable === true };
+  if (typeof b.user === 'object' && b.user !== null) {
+    const u = b.user as Record<string, unknown>;
+    me.user = { name: text(u.name), email: text(u.email) };
+  }
+  const projectName = text(b.projectName);
+  if (projectName) me.projectName = projectName;
+  return me;
+}
 
 export async function fetchMe(): Promise<Me> {
   try {
-    const res = await fetch('/api/me');
-    if (res.ok) return (await res.json()) as Me;
+    const res = await fetch('/api/me', { signal: AbortSignal.timeout(ME_TIMEOUT_MS) });
+    if (res.ok) return parseMe(await res.json()) ?? fallbackMe();
   } catch {
-    // offline or no server: behave as signed out
+    // offline, timed out, or bad JSON: behave as signed out
   }
-  return FALLBACK;
+  return fallbackMe();
 }
 
 export function signIn(): void {
@@ -63,6 +94,16 @@ function signInButton(me: Me): HTMLButtonElement {
 export function renderAccount(root: HTMLElement, view: AccountView): void {
   const { me } = view;
   const parts: HTMLElement[] = [];
+  if (view.notice) {
+    const notice = el('span', view.notice, 'notice');
+    notice.setAttribute('role', 'alert');
+    parts.push(notice);
+    if (view.kind !== 'player') {
+      const retry = signInButton(me);
+      retry.textContent = 'Try again';
+      parts.push(retry);
+    }
+  }
   if (view.kind === 'player') {
     const who = me.user?.name ?? me.user?.email ?? 'Opper user';
     parts.push(el('span', `Signed in as ${who}${me.projectName ? ` · ${me.projectName}` : ''}`));

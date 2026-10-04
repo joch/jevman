@@ -43,15 +43,47 @@ describe('httpTransport', () => {
 });
 
 describe('createHttpTransport hooks', () => {
-  it('reports a signed-out player and an empty wallet', async () => {
+  const json = (body: unknown, status: number) => async () => new Response(JSON.stringify(body), { status });
+
+  it('reports a signed-out player once, and only that', async () => {
+    const onSignedOut = vi.fn();
+    const onWalletEmpty = vi.fn();
+    stub(json({ error: 'expired', signedOut: true }, 401));
+    await expect(createHttpTransport({ onSignedOut, onWalletEmpty })(req)).rejects.toThrow('expired');
+    expect(onSignedOut).toHaveBeenCalledOnce();
+    expect(onWalletEmpty).not.toHaveBeenCalled();
+  });
+
+  it('reports an empty wallet once, and only that', async () => {
+    const onSignedOut = vi.fn();
+    const onWalletEmpty = vi.fn();
+    stub(json({ error: 'empty', walletUrl: 'https://platform.opper.ai/wallet' }, 402));
+    await expect(createHttpTransport({ onSignedOut, onWalletEmpty })(req)).rejects.toThrow('empty');
+    expect(onWalletEmpty).toHaveBeenCalledOnce();
+    expect(onWalletEmpty).toHaveBeenCalledWith('https://platform.opper.ai/wallet');
+    expect(onSignedOut).not.toHaveBeenCalled();
+  });
+
+  it('calls no hook for a 401 without signedOut or a 402 without walletUrl', async () => {
     const onSignedOut = vi.fn();
     const onWalletEmpty = vi.fn();
     const t = createHttpTransport({ onSignedOut, onWalletEmpty });
-    stub(async () => new Response(JSON.stringify({ error: 'expired', signedOut: true }), { status: 401 }));
+    stub(json({ error: 'nope' }, 401));
+    await expect(t(req)).rejects.toThrow('nope');
+    stub(json({ error: 'poor' }, 402));
+    await expect(t(req)).rejects.toThrow('poor');
+    expect(onSignedOut).not.toHaveBeenCalled();
+    expect(onWalletEmpty).not.toHaveBeenCalled();
+  });
+
+  it('still rejects with the server message when a hook throws', async () => {
+    const boom = () => {
+      throw new Error('hook exploded');
+    };
+    const t = createHttpTransport({ onSignedOut: boom, onWalletEmpty: boom });
+    stub(json({ error: 'expired', signedOut: true }, 401));
     await expect(t(req)).rejects.toThrow('expired');
-    expect(onSignedOut).toHaveBeenCalledOnce();
-    stub(async () => new Response(JSON.stringify({ error: 'empty', walletUrl: 'https://platform.opper.ai/wallet' }), { status: 402 }));
+    stub(json({ error: 'empty', walletUrl: 'https://platform.opper.ai/wallet' }, 402));
     await expect(t(req)).rejects.toThrow('empty');
-    expect(onWalletEmpty).toHaveBeenCalledWith('https://platform.opper.ai/wallet');
   });
 });

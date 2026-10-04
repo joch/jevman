@@ -29,8 +29,12 @@ export function createHttpTransport(hooks: TransportHooks = {}): Transport {
       throw err;
     }
     if (!res.ok) {
-      if ((json as { signedOut?: boolean }).signedOut) hooks.onSignedOut?.();
-      if (res.status === 402 && typeof (json as { walletUrl?: unknown }).walletUrl === 'string') hooks.onWalletEmpty?.((json as { walletUrl: string }).walletUrl);
+      try {
+        if ((json as { signedOut?: boolean }).signedOut) hooks.onSignedOut?.();
+        if (res.status === 402 && typeof (json as { walletUrl?: unknown }).walletUrl === 'string') hooks.onWalletEmpty?.((json as { walletUrl: string }).walletUrl);
+      } catch {
+        // a faulty hook must not replace the server's error message
+      }
       throw new Error(json.error ?? `/api/decide returned HTTP ${res.status}`);
     }
     if (!json.answers || typeof json.answers !== 'object' || !json.usage) throw new Error('/api/decide returned an invalid response');

@@ -22,11 +22,15 @@ const panel = new Panel($('#panel'));
 
 const accountEl = $('#account');
 const me = await fetchMe();
-renderAccount(accountEl, { kind: me.mode === 'player' ? 'player' : me.mode === 'dev' ? 'dev' : 'demo', me });
 const authError = takeAuthError();
-if (authError) panel.handle({ type: 'error', message: authError });
+renderAccount(accountEl, { kind: me.mode === 'player' ? 'player' : me.mode === 'dev' ? 'dev' : 'demo', me, notice: authError ?? undefined });
+let signedOutShown = me.mode === 'none';
 const transport = createHttpTransport({
-  onSignedOut: () => renderAccount(accountEl, { kind: 'signed-out', me: { ...me, mode: 'none' } }),
+  onSignedOut: () => {
+    if (signedOutShown) return; // render the aria-live region once per signed-in -> signed-out transition
+    signedOutShown = true;
+    renderAccount(accountEl, { kind: 'signed-out', me: { ...me, mode: 'none' } });
+  },
   onWalletEmpty: () => {},
 });
 
