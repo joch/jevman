@@ -104,6 +104,7 @@ describe('GameStats', () => {
 
   it('classifies a death while Pac-Man waits for jev', () => {
     const s = playing();
+    s.pacmanControl = 'jev';
     s.pacman.waiting = true;
     expect(deathContext(s)).toBe('waiting at junction');
     expect(deathLabel({ ghost: 'inky', context: 'waiting at junction', seconds: 0 })).toBe('caught by Inky while waiting for jev at a junction');
@@ -151,5 +152,27 @@ describe('GameStats edge cases', () => {
     stats.onSchedulerEvent({ type: 'call', actors: ['blinky'], usage: { input_tokens: 1, output_tokens: 1 }, traceId: null, latencyMs: Number.NaN, costUsd: null });
     stats.onSchedulerEvent({ type: 'call', actors: ['blinky'], usage: { input_tokens: 1, output_tokens: 1 }, traceId: null, latencyMs: 300, costUsd: null });
     expect(stats.summary(createGame()).jev).toMatchObject({ calls: 2, errors: 1, meanLatencyMs: 300, costUsd: null });
+  });
+});
+
+describe('GameStats review fixes', () => {
+  it('does not blame jev for a keyboard Pac-Man stopped at a wall', () => {
+    const s = playing();
+    s.pacman.waiting = true;
+    expect(deathContext(s)).toBe('at/near junction');
+    s.pacmanControl = 'jev';
+    expect(deathContext(s)).toBe('waiting at junction');
+  });
+
+  it('does not count a fruit that expires in a step that also scores enough for other reasons', () => {
+    const s = playing();
+    const stats = new GameStats();
+    s.fruit = { kind: 'cherry', points: 100, tile: { x: 13, y: 17 }, secondsLeft: 0.001 };
+    stats.beforeStep(s);
+    step(s, 1 / 60, never);
+    s.score += 200; // e.g. a ghost eaten in the same step
+    stats.afterStep(s, 1 / 60);
+    expect(s.fruit).toBeNull();
+    expect(stats.summary(s).fruit).toEqual([]);
   });
 });

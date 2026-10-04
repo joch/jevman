@@ -105,6 +105,8 @@ if (rec) {
         if (gameStats !== stats) return;
         panel.handle(e);
         stats.onSchedulerEvent(e);
+        // A request still in flight at game over reports afterwards; keep the card's numbers complete.
+        if (gameOverShown && !overlayEl.hidden) showGameOver(overlayEl, stats.summary(state), restart);
       },
     });
   let scheduler = newScheduler(stats);
@@ -113,6 +115,7 @@ if (rec) {
   let gameOverShown = false;
   const begin = (): void => {
     started = true;
+    restartBtn.disabled = false;
     overlayAction = null;
     hideOverlay(overlayEl);
   };
@@ -124,6 +127,7 @@ if (rec) {
     toggleBtn.setAttribute('aria-pressed', String(state.pacmanControl === 'jev'));
   };
   const restart = (): void => {
+    if (!started) return; // Restart / R must not skip the Play card
     state = createGame({ pacmanControl: state.pacmanControl });
     scheduler.reset();
     stats = new GameStats();
@@ -134,6 +138,7 @@ if (rec) {
     pauseBtn.textContent = 'Pause';
     begin();
   };
+  restartBtn.disabled = true;
   overlayAction = showPlay(overlayEl, me, begin);
   toggleBtn.addEventListener('click', togglePacman);
   restartBtn.addEventListener('click', restart);

@@ -2,7 +2,7 @@ import { ACTOR_NAMES } from './brain';
 import { REVERSE } from './maze';
 import type { SchedulerEvent } from './scheduler';
 import { actorPosition, escapePoint, type GameState } from './sim';
-import { GHOST_IDS, type GhostId } from './types';
+import { GHOST_IDS, sameTile, type GhostId, type Tile } from './types';
 
 export type DeathContext = 'waiting at junction' | 'ghost ahead in corridor' | 'ghost from behind' | 'at/near junction';
 
@@ -39,7 +39,8 @@ export interface GameSummary {
 export function deathContext(state: GameState): DeathContext | null {
   if (state.status !== 'playing') return null;
   const p = state.pacman;
-  if (p.waiting) return 'waiting at junction';
+  // A keyboard Pac-Man also "waits" when he stops at a wall; only a jev Pac-Man waits for an answer.
+  if (p.waiting && state.pacmanControl === 'jev') return 'waiting at junction';
   const asJev = { ...state, pacmanControl: 'jev' as const };
   if (escapePoint(asJev)) return 'ghost ahead in corridor';
   // The same position, facing the other way.
@@ -103,7 +104,8 @@ export class GameStats {
     frightChain: number;
     powerPellets: number;
     score: number;
-    fruit: { kind: string; points: number } | null;
+    fruit: { kind: string; points: number; tile: Tile } | null;
+    popups: Set<GameState['popups'][number]>;
     context: DeathContext | null;
   } | null = null;
 
@@ -114,7 +116,8 @@ export class GameStats {
       frightChain: state.frightChain,
       powerPellets: state.maze.powerPellets.size,
       score: state.score,
-      fruit: state.fruit ? { kind: state.fruit.kind, points: state.fruit.points } : null,
+      fruit: state.fruit ? { kind: state.fruit.kind, points: state.fruit.points, tile: { ...state.fruit.tile } } : null,
+      popups: new Set(state.popups),
       context: deathContext(state),
     };
   }
@@ -129,7 +132,11 @@ export class GameStats {
     // a fright ends). A level clear also resets it, but refills the power pellets.
     if (state.maze.powerPellets.size < b.powerPellets) this.ghostsEaten += state.frightChain;
     else if (state.frightChain > b.frightChain) this.ghostsEaten += state.frightChain - b.frightChain;
-    if (b.fruit && !state.fruit && state.score - b.score >= b.fruit.points) this.fruit.push(b.fruit);
+    // Eating fruit leaves a points popup on its tile; a fruit that merely expired does not.
+    const fruit = b.fruit;
+    if (fruit && !state.fruit && state.popups.some((p) => !b.popups.has(p) && p.text === String(fruit.points) && sameTile(p.tile, fruit.tile))) {
+      this.fruit.push({ kind: fruit.kind, points: fruit.points });
+    }
     if (b.status === 'playing' && state.status === 'dying') {
       this.deaths.push({ ghost: nearestGhost(state), context: b.context ?? 'at/near junction', seconds: Math.round(this.seconds * 10) / 10 });
     }
