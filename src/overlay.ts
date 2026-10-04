@@ -69,12 +69,18 @@ export function showPlay(root: HTMLElement, me: Me, onPlay: () => void): () => v
   const card = el('div', undefined, 'card');
   if (me.mode === 'none') {
     card.append(el('h2', 'Sign in to play'));
-    card.append(el('p', 'Sign in with Opper to let jev play live; calls bill your own Opper wallet.'));
     const button = el('button', 'Sign in with Opper', 'primary');
-    button.addEventListener('click', signIn);
+    if (me.loginAvailable) {
+      card.append(el('p', 'Sign in with Opper to let jev play live; calls bill your own Opper wallet.'));
+      button.addEventListener('click', signIn);
+    } else {
+      // Login with Opper isn't configured here (its route answers 503): don't offer a broken action.
+      card.append(el('p', 'This server has no jev key and Login with Opper is not configured. Clone the repo and add your own key to play.'));
+      button.disabled = true;
+    }
     card.append(button);
     show(root, card, button);
-    return signIn;
+    return me.loginAvailable ? signIn : () => {};
   }
   card.append(el('h2', 'Ready when you are'));
   card.append(el('p', 'jev drives the ghosts, and Pac-Man too unless you press J to steer him yourself.'));
