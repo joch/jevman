@@ -1,5 +1,8 @@
 // Headless real-time benchmark: how long does Pac-Man survive, and how well does he play?
-// Run: npm run bench -- [--games 4] [--pacman jev|greedy] [--ghosts greedy|jev] [--max 120]
+// Run: npm run bench -- [--games 4] [--pacman jev|greedy] [--ghosts greedy|jev] [--max 120] [--record path.json]
+// --record needs --games 1 and writes the game (steps, decisions, panel events) for src/replay.ts.
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { parseArgs } from 'node:util';
 import { greedyChoice, optionFeatures } from '../src/features';
 import { Scheduler, type Transport } from '../src/scheduler';
@@ -8,6 +11,7 @@ import { REVERSE } from '../src/maze';
 import type { DecideResponse } from '../src/brain';
 import { GHOST_IDS, type ActorId } from '../src/types';
 import { handleDecide } from '../server/decide';
+import { Recorder, roundDt } from '../src/replay';
 
 const { values } = parseArgs({
   options: {
@@ -15,10 +19,15 @@ const { values } = parseArgs({
     pacman: { type: 'string', default: 'jev' },
     ghosts: { type: 'string', default: 'greedy' },
     max: { type: 'string', default: '120' },
+    record: { type: 'string' },
   },
 });
 const games = Number(values.games);
 const maxSeconds = Number(values.max);
+if (values.record && games !== 1) {
+  console.error('--record needs --games 1');
+  process.exit(1);
+}
 const jevActors: ActorId[] = [...(values.pacman === 'jev' ? ['pacman' as const] : []), ...(values.ghosts === 'jev' ? GHOST_IDS : [])];
 const realTime = jevActors.length > 0; // jev latency only matters in real time; greedy-only games run flat out
 const FRAME = 1 / 60;
@@ -67,11 +76,14 @@ function deathContext(state: ReturnType<typeof createGame>): string | null {
 async function playOne(): Promise<Result> {
   const state = createGame();
   const r: Result = { deathsBy: {}, escapes: 0, turnBacks: 0, survived: 0, score: 0, pellets: 0, deaths: 0, level: 1, calls: 0, fallbacks: 0, cost: 0 };
+  const recorder = values.record ? new Recorder() : null;
+  let frame = 0;
   const scheduler = new Scheduler({
     transport,
     now: () => performance.now(),
     actors: jevActors,
     onEvent: (e) => {
+      recorder?.events.push([frame, e]);
       if (e.type === 'call') {
         r.calls += 1;
         r.cost += e.costUsd ?? 0;
@@ -86,7 +98,7 @@ async function playOne(): Promise<Result> {
   });
   // Like the scheduler, answer each escape question once; afterwards Pac-Man just keeps going.
   const answeredEscapes = new Set<string>();
-  const ctl: Controls = {
+  const baseCtl: Controls = {
     decide: (point) => {
       if (jevActors.includes(point.actor)) return scheduler.decide(point);
       if (point.escape) {
@@ -101,6 +113,7 @@ async function playOne(): Promise<Result> {
       return choice;
     },
   };
+  const ctl = recorder ? recorder.wrap(baseCtl, () => frame) : baseCtl;
   let lives = state.lives;
   let pelletsEaten = 0;
   let lastPellets = state.pelletsEaten;
@@ -112,6 +125,10 @@ async function playOne(): Promise<Result> {
       const now = performance.now();
       dt = Math.min(0.05, (now - last) / 1000);
       last = now;
+    }
+    if (recorder) {
+      dt = roundDt(dt);
+      recorder.frames.push(dt);
     }
     scheduler.update(state);
     const before = deathContext(state);
@@ -135,10 +152,17 @@ async function playOne(): Promise<Result> {
       r.deaths += lives - state.lives;
       lives = state.lives;
     }
+    frame += 1;
   }
   r.score = state.score;
   r.pellets = pelletsEaten;
   r.level = state.level;
+  if (recorder) {
+    const out = JSON.stringify(recorder.finish(state, 'typesafe/jev-1.13.0'));
+    mkdirSync(dirname(values.record!), { recursive: true });
+    writeFileSync(values.record!, out);
+    console.log(`recorded ${recorder.frames.length} frames to ${values.record} (${(out.length / 1024).toFixed(0)} KB)`);
+  }
   return r;
 }
 
