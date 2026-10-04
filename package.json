@@ -7,7 +7,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "smoke": "node --env-file=.env --import tsx scripts/smoke.ts",
-    "bench": "node --env-file=.env --import tsx scripts/bench.ts"
+    "bench": "node --env-file=.env --import tsx scripts/bench.ts",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
