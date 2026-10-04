@@ -226,3 +226,34 @@ describe('Scheduler', () => {
     expect(scheduler.decide(nextDecisionPoint(s, 'blinky')!)).toBeNull();
   });
 });
+
+describe('Scheduler and fruit', () => {
+  const cherry = () => ({ kind: 'cherry' as const, points: 100, tile: { x: 13, y: 17 }, secondsLeft: 9 });
+
+  it('re-asks Pac-Man when fruit appears while his question is pending', async () => {
+    const { calls, events, scheduler } = harness({ actors: ['pacman'] });
+    const s = createGame();
+    scheduler.update(s);
+    expect(JSON.stringify(calls[0].body.questions.pacman.criteria)).not.toContain('FRUIT');
+    s.fruit = cherry();
+    scheduler.update(s);
+    expect(calls).toHaveLength(2);
+    expect(JSON.stringify(calls[1].body.questions.pacman.criteria)).toContain('FRUIT');
+    calls[0].resolve(answerAll(calls[0].body));
+    await flush();
+    expect(ofType(events, 'stale').map((e) => e.actor)).toEqual(['pacman']);
+  });
+
+  it('drops a ready answer made with fruit on the board once the fruit is gone', async () => {
+    const { calls, scheduler } = harness({ actors: ['pacman'] });
+    const s = createGame();
+    s.fruit = cherry();
+    scheduler.update(s);
+    calls[0].resolve(answerAll(calls[0].body));
+    await flush();
+    s.fruit = null;
+    scheduler.update(s);
+    expect(scheduler.decide(nextDecisionPoint(s, 'pacman')!)).toBeNull();
+    expect(calls).toHaveLength(2);
+  });
+});

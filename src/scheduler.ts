@@ -38,7 +38,7 @@ interface Pending {
  */
 export class Scheduler implements Controls {
   private readonly pending = new Map<string, Pending>();
-  private readonly ready = new Map<string, Decision>();
+  private readonly ready = new Map<string, { decision: Decision; fruitOnBoard: boolean }>();
   /** Answers already handed to the sim whose question is still open (escape questions); never re-asked. */
   private readonly consumed = new Set<string>();
   private readonly slots: { inFlight: number };
@@ -56,14 +56,20 @@ export class Scheduler implements Controls {
   update(state: GameState): void {
     const now = this.deps.now();
     const live = new Set<string>();
+    const fruitOnBoard = state.fruit !== null;
     for (const id of this.actors) {
       for (const point of decisionPoints(state, id)) {
         live.add(point.key);
+        // Pac-Man's routes and fallback depend on the fruit, which can appear or vanish without changing the key.
+        if (id === 'pacman') {
+          if (this.pending.get(point.key)?.fruitOnBoard === !fruitOnBoard) this.pending.delete(point.key);
+          if (this.ready.get(point.key)?.fruitOnBoard === !fruitOnBoard) this.ready.delete(point.key);
+        }
         if (this.pending.has(point.key) || this.ready.has(point.key) || this.consumed.has(point.key)) continue;
         this.pending.set(point.key, {
           q: { point, features: optionFeatures(state, point) },
           sentAt: null,
-          fruitOnBoard: state.fruit !== null,
+          fruitOnBoard,
         });
       }
     }
@@ -80,7 +86,7 @@ export class Scheduler implements Controls {
   }
 
   decide(point: DecisionPoint): Dir | null {
-    const d = this.ready.get(point.key);
+    const d = this.ready.get(point.key)?.decision;
     if (!d) return null;
     this.ready.delete(point.key);
     if (!point.escape) return d.choice;
@@ -135,7 +141,7 @@ export class Scheduler implements Controls {
     const p = this.pending.get(key);
     if (!p) return;
     this.pending.delete(key);
-    this.ready.set(key, decision);
+    this.ready.set(key, { decision, fruitOnBoard: p.fruitOnBoard });
     this.deps.onEvent({ type: 'decision', decision, latencyMs, fruitOnBoard: p.fruitOnBoard });
   }
 }
