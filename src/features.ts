@@ -24,6 +24,8 @@ export interface OptionFeatures {
   /** Normal (non-frightened) ghosts other than the actor standing on that corridor. */
   dangerInCorridor: GhostId[];
   nearestFrightenedGhost: number | null;
+  /** Steps to every reachable frightened ghost via this option, nearest first. */
+  frightenedGhostSteps: number[];
   fruitDistance: number | null;
   nearestPowerPellet: number | null;
   /** Whether the nearest dangerous ghost on this route is moving toward the actor (closer to where the route starts from). */
@@ -119,7 +121,11 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
       .sort((a, b) => a.steps - b.steps);
     const closest = dangerSteps[0];
     const nearestPellet = nearest(pelletTiles);
-    const nearestFrightenedGhost = nearest(frightened.map((g) => occupiedTile(state, g)));
+    const frightenedGhostSteps = frightened
+      .map((g) => steps(occupiedTile(state, g)))
+      .filter((d): d is number => d !== null)
+      .sort((a, b) => a - b);
+    const nearestFrightenedGhost = frightenedGhostSteps[0] ?? null;
     const goalDistance = goal.target
       ? steps(goal.target)
       : goal.kind === 'hunt'
@@ -134,6 +140,7 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
       nearestDangerGhost: nearest(danger.map((g) => occupiedTile(state, g))),
       dangerInCorridor: danger.filter((g) => corridor.some((t) => sameTile(t, occupiedTile(state, g)))).map((g) => g.id),
       nearestFrightenedGhost,
+      frightenedGhostSteps,
       fruitDistance: state.fruit ? steps(state.fruit.tile) : null,
       nearestPowerPellet: nearest(powerTiles),
       dangerApproaching: closest !== undefined && movingToward(state, closest.g, origin),
@@ -197,8 +204,7 @@ export function fruitRoute(state: GameState, point: DecisionPoint, feats: Option
   if (!state.fruit) return null;
   const reach = Math.floor(state.fruit.secondsLeft * PACMAN_STEPS_PER_SECOND);
   // A frightened ghost on the way that Pac-Man only meets after the fright ends is a normal ghost by then.
-  const soonDangerous = (f: OptionFeatures) =>
-    f.nearestFrightenedGhost !== null && f.nearestFrightenedGhost <= f.fruitDistance! && f.nearestFrightenedGhost > frightReach(state, point);
+  const soonDangerous = (f: OptionFeatures) => f.frightenedGhostSteps.some((d) => d <= f.fruitDistance! && d > frightReach(state, point));
   const ok = feats.filter(
     (f) =>
       f.fruitDistance !== null &&

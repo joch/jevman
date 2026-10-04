@@ -219,7 +219,7 @@ describe('fruitRoute', () => {
   const at = (distance: number) => ({ ...nextDecisionPoint(setup(), 'pacman')!, distance });
   const feat = (dir: Dir, over: Partial<OptionFeatures>): OptionFeatures => ({
     dir, goalDistance: null, pacmanDistance: null, nearestPellet: 5, corridorPellets: 0, nearestDangerGhost: null,
-    dangerInCorridor: [], nearestFrightenedGhost: null, fruitDistance: null, nearestPowerPellet: null,
+    dangerInCorridor: [], nearestFrightenedGhost: null, frightenedGhostSteps: [], fruitDistance: null, nearestPowerPellet: null,
     dangerApproaching: false, dangerNearby: 0, junctionSteps: 3, junctionGhost: null, ...over,
   });
 
@@ -241,11 +241,15 @@ describe('fruitRoute', () => {
   it('avoids a fruit route through a frightened ghost that turns dangerous before Pac-Man gets there', () => {
     const s = setup();
     s.fruit = { kind: 'cherry', points: 100, tile: { ...FRUIT_TILE }, secondsLeft: 5 };
-    const feats = [feat('up', { fruitDistance: 10, nearestFrightenedGhost: 6 }), feat('down', { fruitDistance: 14 })];
+    const feats = [feat('up', { fruitDistance: 10, nearestFrightenedGhost: 6, frightenedGhostSteps: [6] }), feat('down', { fruitDistance: 14 })];
     s.frightLeft = 0.5; // 3 steps: the ghost 6 steps up is normal again by then
     expect(fruitRoute(s, at(0), feats)).toBe('down');
     s.frightLeft = 2; // 14 steps: still edible when Pac-Man reaches it
     expect(fruitRoute(s, at(0), feats)).toBe('up');
+    // Two ghosts on the way: the near one is still edible, the far one is not.
+    feats[0] = feat('up', { fruitDistance: 20, nearestFrightenedGhost: 6, frightenedGhostSteps: [6, 18] });
+    feats[1] = feat('down', { fruitDistance: 24 });
+    expect(fruitRoute(s, at(0), feats)).toBe('down');
   });
 
   it('gives no route when the fruit cannot be reached in time or is absent', () => {
@@ -260,7 +264,7 @@ describe('fruitRoute', () => {
     const s = setup();
     s.fruit = { kind: 'cherry', points: 100, tile: { ...FRUIT_TILE }, secondsLeft: 5 };
     const point = nextDecisionPoint(s, 'pacman')!;
-    const feats = [feat('up', { nearestFrightenedGhost: 10 }), feat('left', { fruitDistance: 8 }), feat('right', { nearestPellet: 1 })];
+    const feats = [feat('up', { nearestFrightenedGhost: 10, frightenedGhostSteps: [10] }), feat('left', { fruitDistance: 8 }), feat('right', { nearestPellet: 1 })];
     s.frightLeft = 0.5; // 3 steps of fright left: the ghost will be dangerous again by then
     expect(greedyChoice(s, { ...point, distance: 0 }, feats)).toBe('left');
     s.frightLeft = 4;
