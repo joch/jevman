@@ -45,9 +45,9 @@ const redirect = (location: string, cookies: string[] = []): HttpResponse => ({
   headers: { Location: location, 'Set-Cookie': cookies },
   body: '',
 });
-const json = (status: number, body: unknown, cookies: string[] = []): HttpResponse => ({
+const json = (status: number, body: unknown, cookies: string[] = [], extra: Record<string, string> = {}): HttpResponse => ({
   status,
-  headers: { 'Content-Type': 'application/json', ...(cookies.length ? { 'Set-Cookie': cookies } : {}) },
+  headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...extra, ...(cookies.length ? { 'Set-Cookie': cookies } : {}) },
   body: JSON.stringify(body),
 });
 const text = (s: unknown): string | undefined => (typeof s === 'string' && s ? s : undefined);
@@ -62,6 +62,8 @@ export function opperExchange(cfg: AuthConfig, fetchImpl: typeof fetch = fetch):
   return async (code) => {
     const res = await fetchImpl(`${cfg.opperUrl.replace(/\/+$/, '')}/oauth/token`, {
       method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
@@ -99,8 +101,13 @@ export function handleLogin(_req: HttpRequest, cfg: AuthConfig, random = () => r
 }
 
 export async function handleCallback(req: HttpRequest, cfg: AuthConfig, exchange: ExchangeCode, now = Date.now()): Promise<HttpResponse> {
-  const url = new URL(req.url, 'http://localhost');
   const fail = (why: string) => redirect(`/?auth_error=${why}`, [clearStateCookie(cfg)]);
+  let url: URL;
+  try {
+    url = new URL(req.url, 'http://localhost');
+  } catch {
+    return fail('state');
+  }
   const expected = parseCookies(header(req, 'cookie'))[STATE_COOKIE];
   const state = url.searchParams.get('state');
   if (!expected || !state || !safeEqual(expected, state)) return fail('state');
@@ -113,6 +120,7 @@ export async function handleCallback(req: HttpRequest, cfg: AuthConfig, exchange
   } catch {
     return fail('exchange');
   }
+  if (result.expiresAt && !(Date.parse(result.expiresAt) > now)) return fail('exchange');
   const session: SessionData = { v: 1, apiKey: result.apiKey, user: result.user, issuedAt: now };
   if (result.projectName) session.projectName = result.projectName;
   if (result.expiresAt) session.expiresAt = result.expiresAt;
@@ -129,7 +137,7 @@ export function sessionFrom(req: HttpRequest, cfg: AuthConfig, now = Date.now())
 }
 
 export function handleLogout(req: HttpRequest, cfg: AuthConfig): HttpResponse {
-  if (req.method !== 'POST') return json(405, { error: 'POST only' });
+  if (req.method !== 'POST') return json(405, { error: 'POST only' }, [], { Allow: 'POST' });
   if (!header(req, 'content-type').toLowerCase().startsWith('application/json')) return json(415, { error: 'Expected application/json' });
   return json(200, { ok: true }, [clearSessionCookie(cfg)]);
 }

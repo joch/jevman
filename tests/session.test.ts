@@ -18,6 +18,9 @@ describe('session cookie', () => {
     const [iv, ct, tag] = sealed.split('.');
     const flipped = ct.slice(0, -2) + (ct.endsWith('A') ? 'B' : 'A') + ct.slice(-1);
     expect(openSession(`${iv}.${flipped}.${tag}`, SECRET, 2_000)).toBeNull();
+    const tagBytes = Buffer.from(tag, 'base64url');
+    tagBytes[0] ^= 0xff;
+    expect(openSession(`${iv}.${ct}.${tagBytes.toString('base64url')}`, SECRET, 2_000)).toBeNull();
     expect(openSession(sealed, 'b'.repeat(64), 2_000)).toBeNull();
     expect(openSession('garbage', SECRET)).toBeNull();
     expect(openSession('a.b.c', SECRET)).toBeNull();
