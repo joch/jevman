@@ -234,8 +234,17 @@ describe('fruitRoute', () => {
     expect(saferChoice('up', p, feats)).toBe('right');
     expect(saferChoice('down', p, feats)).toBe('right');
     expect(saferChoice('left', p, feats)).toBeNull();
-    const cornered = [feat('up', { dangerInCorridor: ['blinky'] }), feat('down', { junctionGhost: { id: 'inky', steps: 1 } })];
-    expect(saferChoice('up', { up: 0.9, down: 0.1 }, cornered)).toBeNull();
+    // Cornered: every route is unsafe. Leave a ghost-filled corridor for a trapped one, and a badly trapped junction
+    // for one Pac-Man reaches nearly as soon as the ghost; keep jev's pick when the difference is small.
+    const cornered = [
+      feat('up', { dangerInCorridor: ['blinky'] }),
+      feat('left', { junctionSteps: 4, junctionGhost: { id: 'inky', steps: 3 } }),
+      feat('right', { junctionSteps: 9, junctionGhost: { id: 'clyde', steps: 8 } }),
+      feat('down', { junctionSteps: 9, junctionGhost: { id: 'pinky', steps: 5 } }),
+    ];
+    expect(saferChoice('up', { up: 0.9 }, cornered)).toBe('left');
+    expect(saferChoice('down', { down: 0.9 }, cornered)).toBe('left');
+    expect(saferChoice('right', { right: 0.9 }, cornered)).toBeNull();
   });
 
   it('picks the fastest route that reaches the fruit in time and is not dangerous', () => {
