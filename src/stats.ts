@@ -35,6 +35,8 @@ export interface GameSummary {
   };
 }
 
+const GHOST_POINTS = new Set(['200', '400', '800', '1600']);
+
 /** What Pac-Man was doing in the frame before he was caught (for keyboard or jev play alike). */
 export function deathContext(state: GameState): DeathContext | null {
   if (state.status !== 'playing') return null;
@@ -101,8 +103,6 @@ export class GameStats {
   private before: {
     status: GameState['status'];
     pelletsEaten: number;
-    frightChain: number;
-    powerPellets: number;
     score: number;
     fruit: { kind: string; points: number; tile: Tile } | null;
     popups: Set<GameState['popups'][number]>;
@@ -113,8 +113,6 @@ export class GameStats {
     this.before = {
       status: state.status,
       pelletsEaten: state.pelletsEaten,
-      frightChain: state.frightChain,
-      powerPellets: state.maze.powerPellets.size,
       score: state.score,
       fruit: state.fruit ? { kind: state.fruit.kind, points: state.fruit.points, tile: { ...state.fruit.tile } } : null,
       popups: new Set(state.popups),
@@ -128,10 +126,9 @@ export class GameStats {
     if (b.status === 'playing') this.seconds += dt;
     // A level clear resets pelletsEaten to 0.
     if (state.pelletsEaten > b.pelletsEaten) this.pellets += state.pelletsEaten - b.pelletsEaten;
-    // frightChain counts ghosts eaten since the last power pellet, which resets it to 0 (it is not reset when
-    // a fright ends). A level clear also resets it, but refills the power pellets.
-    if (state.maze.powerPellets.size < b.powerPellets) this.ghostsEaten += state.frightChain;
-    else if (state.frightChain > b.frightChain) this.ghostsEaten += state.frightChain - b.frightChain;
+    // Every ghost eaten leaves a 200/400/800/1600 popup (fruit values never collide), even when the same frame
+    // later eats a power pellet and resets frightChain.
+    this.ghostsEaten += state.popups.filter((p) => !b.popups.has(p) && GHOST_POINTS.has(p.text)).length;
     // Eating fruit leaves a points popup on its tile; a fruit that merely expired does not.
     const fruit = b.fruit;
     if (fruit && !state.fruit && state.popups.some((p) => !b.popups.has(p) && p.text === String(fruit.points) && sameTile(p.tile, fruit.tile))) {

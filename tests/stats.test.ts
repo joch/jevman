@@ -176,3 +176,19 @@ describe('GameStats review fixes', () => {
     expect(stats.summary(s).fruit).toEqual([]);
   });
 });
+
+describe('GameStats ghost counting within one frame', () => {
+  it('keeps a ghost eaten earlier in a frame that later reaches a power pellet', () => {
+    const s = playing();
+    const stats = new GameStats();
+    s.frightLeft = 3;
+    Object.assign(s.pacman, { tile: { x: 2, y: 23 }, dir: 'left', progress: 0 });
+    Object.assign(s.ghosts.blinky, { state: 'frightened', tile: { x: 2, y: 23 }, dir: 'right', progress: 0, waiting: false });
+    stats.beforeStep(s);
+    step(s, 0.15, never); // substeps: eats Blinky first, then the power pellet at (1,23) resets the chain
+    stats.afterStep(s, 0.15);
+    expect(s.maze.powerPellets.has(s.maze.key({ x: 1, y: 23 }))).toBe(false);
+    expect(s.frightChain).toBe(0);
+    expect(stats.summary(s).ghostsEaten).toBe(1);
+  });
+});

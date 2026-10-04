@@ -180,8 +180,10 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (e.repeat) return;
-  // Space/Enter on a focused button already clicks it; elsewhere they press the overlay's button.
-  if ((e.key === ' ' || e.key === 'Enter') && overlayAction && !(e.target instanceof HTMLButtonElement)) {
+  // Space/Enter on a focused control (button, link, field) do that control's own thing; elsewhere they press the
+  // overlay's button.
+  const onControl = e.target instanceof Element && e.target.closest('a, button, input, select, textarea, [contenteditable], [tabindex]') !== null;
+  if ((e.key === ' ' || e.key === 'Enter') && overlayAction && !onControl) {
     e.preventDefault();
     overlayAction();
     return;
