@@ -35,8 +35,19 @@ describe('Replay', () => {
     expect(replay.stepFrame()).toEqual([{ type: 'error', message: 'x' }]);
   });
 
+  it('stays put and hands out nothing once the recording is done', () => {
+    const rec: Recording = { ...recordGreedy(3), events: [[2, { type: 'error', message: 'x' }]] };
+    const replay = new Replay(rec);
+    while (!replay.done) replay.stepFrame();
+    const before = JSON.stringify(replay.state);
+    expect(replay.stepFrame()).toEqual([]);
+    expect(replay.frame).toBe(3);
+    expect(JSON.stringify(replay.state)).toBe(before);
+  });
+
   const DEMO = new URL('../public/demo/jev-demo.json', import.meta.url);
-  it.skipIf(!existsSync(DEMO))('replays the committed jev demo exactly (re-record if this fails after a sim change)', () => {
+  it('replays the committed jev demo exactly (re-record if this fails after a sim change)', () => {
+    expect(existsSync(DEMO), 'public/demo/jev-demo.json is missing').toBe(true);
     const rec = JSON.parse(readFileSync(DEMO, 'utf8')) as Recording;
     const replay = new Replay(rec);
     while (!replay.done) replay.stepFrame();

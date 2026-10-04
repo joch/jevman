@@ -63,8 +63,9 @@ export class Replay {
     return this.frame >= this.rec.frames.length;
   }
 
-  /** Advances one recorded frame and returns the panel events recorded for it. */
+  /** Advances one recorded frame and returns the panel events recorded for it; once done, does nothing. */
   stepFrame(): SchedulerEvent[] {
+    if (this.done) return [];
     const f = this.frame;
     step(this.state, this.rec.frames[f], { decide: (p) => this.choices.get(`${f}|${p.key}`)?.shift() ?? null });
     this.frame += 1;

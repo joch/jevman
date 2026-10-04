@@ -476,8 +476,11 @@ function checkCollisions(state: GameState): void {
   for (const g of ghostList(state)) {
     if (g.state === 'house' || g.state === 'eaten') continue;
     const q = actorPosition(g);
-    const dx = Math.abs(p.x - q.x);
-    if (Math.hypot(Math.min(dx, state.maze.width - dx), p.y - q.y) >= COLLISION_DISTANCE) continue;
+    const adx = Math.abs(p.x - q.x);
+    const dx = Math.min(adx, state.maze.width - adx); // the tunnel wraps
+    const dy = p.y - q.y;
+    // Squared distance, not Math.hypot: hypot may round differently across JS engines, and recorded demos must replay exactly.
+    if (dx * dx + dy * dy >= COLLISION_DISTANCE ** 2) continue;
     if (g.state === 'frightened') {
       const points = 200 * 2 ** state.frightChain;
       state.frightChain += 1;
