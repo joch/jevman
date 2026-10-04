@@ -1,5 +1,5 @@
 // Replays recorded games (bench --record) and explains each of Pac-Man's deaths.
-// Run: node --import tsx scripts/deaths.mts recording.json [...]
+// Run: npm run deaths -- recording.json [...]
 import { readFileSync } from 'node:fs';
 import { criteriaFor } from '../src/brain';
 import { greedyChoice, optionFeatures } from '../src/features';

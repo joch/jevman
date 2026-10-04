@@ -68,6 +68,8 @@ precedence over `.env`. The account bar above the game says which one is in use.
   `--record path.json` (with `--games 1`: save the game for replay). The demo was recorded with
   `npm run bench -- --games 1 --pacman jev --ghosts greedy --max 120 --record public/demo/jev-demo.json`;
   re-record it if a change to the game rules makes the replay test fail.
+- `npm run deaths -- game.json` — replays a recorded game and prints, for each of Pac-Man's deaths,
+  his last few junction decisions with the routes as jev saw them.
 
 ## Controls
 
