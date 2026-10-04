@@ -1,9 +1,10 @@
 import './style.css';
+import { fetchMe, renderAccount, takeAuthError } from './auth';
 import { Panel } from './panel';
 import { drawGame, FRUIT_EMOJI, TILE } from './render';
 import { Scheduler } from './scheduler';
 import { createGame, fruitForLevel, step, type GameState } from './sim';
-import { httpTransport } from './transport';
+import { createHttpTransport } from './transport';
 import type { Dir } from './types';
 
 const KEYS: Record<string, Dir> = {
@@ -19,11 +20,21 @@ canvas.height = state.maze.height * TILE;
 const ctx = canvas.getContext('2d')!;
 const panel = new Panel($('#panel'));
 
+const accountEl = $('#account');
+const me = await fetchMe();
+renderAccount(accountEl, { kind: me.mode === 'player' ? 'player' : me.mode === 'dev' ? 'dev' : 'demo', me });
+const authError = takeAuthError();
+if (authError) panel.handle({ type: 'error', message: authError });
+const transport = createHttpTransport({
+  onSignedOut: () => renderAccount(accountEl, { kind: 'signed-out', me: { ...me, mode: 'none' } }),
+  onWalletEmpty: () => {},
+});
+
 let clockMs = 0; // advances only while unpaused, so pausing never triggers timeouts
 let paused = false;
 let speed = 1;
 let last = performance.now();
-const scheduler = new Scheduler({ transport: httpTransport, now: () => clockMs, onEvent: (e) => panel.handle(e) });
+const scheduler = new Scheduler({ transport, now: () => clockMs, onEvent: (e) => panel.handle(e) });
 
 const toggleBtn = $<HTMLButtonElement>('#toggle-pacman');
 const pauseBtn = $<HTMLButtonElement>('#pause');

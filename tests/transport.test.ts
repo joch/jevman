@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { httpTransport } from '../src/transport';
+import { createHttpTransport, httpTransport } from '../src/transport';
 import type { SystemOneRequest } from '../src/brain';
 
 const req = { state: {}, questions: {} } as unknown as SystemOneRequest;
@@ -39,5 +39,19 @@ describe('httpTransport', () => {
       throw Object.assign(new Error('The operation was aborted'), { name: 'TimeoutError' });
     });
     await expect(httpTransport(req)).rejects.toThrow('/api/decide timed out after 2500 ms');
+  });
+});
+
+describe('createHttpTransport hooks', () => {
+  it('reports a signed-out player and an empty wallet', async () => {
+    const onSignedOut = vi.fn();
+    const onWalletEmpty = vi.fn();
+    const t = createHttpTransport({ onSignedOut, onWalletEmpty });
+    stub(async () => new Response(JSON.stringify({ error: 'expired', signedOut: true }), { status: 401 }));
+    await expect(t(req)).rejects.toThrow('expired');
+    expect(onSignedOut).toHaveBeenCalledOnce();
+    stub(async () => new Response(JSON.stringify({ error: 'empty', walletUrl: 'https://platform.opper.ai/wallet' }), { status: 402 }));
+    await expect(t(req)).rejects.toThrow('empty');
+    expect(onWalletEmpty).toHaveBeenCalledWith('https://platform.opper.ai/wallet');
   });
 });
