@@ -92,3 +92,10 @@ Pac-Man can also get a second question mid-corridor: when a dangerous ghost is i
 ahead, or can reach the junction at its end before he does, jev is asked whether to keep going or
 turn back right now (`pacman_escape`). Pac-Man keeps moving while it is open, and each situation is
 asked once.
+
+jev answers from a snapshot taken when the question was asked, often a whole corridor before Pac-Man
+reaches the junction, and the ghosts keep moving. So when Pac-Man takes jev's answer, a **safety
+check** looks at the board again. If jev's pick now leads into a ghost, a trap or a ghost about to
+touch him, he takes the safe route jev rated highest instead. If every route is unsafe, he takes the
+least bad one when jev's pick is clearly worse. The panel and the game-over card count these as
+**safety overrides**. Against the scripted ghosts this roughly doubled how long jev Pac-Man survives.
