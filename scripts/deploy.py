@@ -45,7 +45,8 @@ def main():
     if not isinstance(result, list):
         raise RuntimeError('Unexpected webhook response')
     matches = [item for item in result if item.get('application_uuid') == os.environ['COOLIFY_APP_UUID']]
-    if len(matches) != 1 or matches[0].get('status') != 'success' or not matches[0].get('deployment_uuid'):
+    # Coolify 4.3.x reports a queued manual-webhook deployment as 'success'; its internal helper says 'queued'.
+    if len(matches) != 1 or matches[0].get('status') not in ('success', 'queued') or not matches[0].get('deployment_uuid'):
         raise RuntimeError('Webhook did not queue the expected application')
     deployment = matches[0]['deployment_uuid']
     print(f'Queued deployment {deployment} for {sha}', flush=True)
