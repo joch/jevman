@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { DecideResponse, SystemOneRequest } from '../src/brain';
 import { Scheduler, type SchedulerEvent, type Transport } from '../src/scheduler';
-import { createGame, escapePoint, jevActors, nextDecisionPoint, type GameState } from '../src/sim';
-import type { ActorId } from '../src/types';
+import { REVERSE } from '../src/maze';
+import { createGame, escapePoint, jevActors, nextDecisionPoint, type DecisionPoint, type GameState } from '../src/sim';
+import type { ActorId, Dir } from '../src/types';
 
 interface Call {
   body: SystemOneRequest;
@@ -299,6 +300,39 @@ describe('Scheduler safety check', () => {
     expect(scheduler.decide(escapePoint(s)!, s)).toBe('right');
     expect(ofType(events, 'superseded')).toHaveLength(0);
     expect(ofType(events, 'decision').at(-1)!.decision).toMatchObject({ source: 'jev', choice: 'right', vetoed: 'left' });
+  });
+
+  const ghostInto = (s: GameState, point: DecisionPoint, dir: Dir) => {
+    const tile = s.maze.neighbor(s.maze.neighbor(point.tile, dir), dir);
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile, dir: REVERSE[dir], progress: 0, waiting: false });
+  };
+
+  it('vetoes a junction pick when a ghost has since moved into that corridor', async () => {
+    const { calls, events, scheduler } = harness({ actors: ['pacman'] });
+    const s = createGame();
+    scheduler.update(s);
+    calls[0].resolve(answerAll(calls[0].body));
+    await flush();
+    const point = nextDecisionPoint(s, 'pacman')!;
+    const picked = point.options[0];
+    ghostInto(s, point, picked);
+    const choice = scheduler.decide(point, s);
+    expect(choice).not.toBe(picked);
+    expect(ofType(events, 'decision').at(-1)!.decision).toMatchObject({ source: 'jev', choice, vetoed: picked });
+  });
+
+  it('never second-guesses a fallback decision', async () => {
+    const { clock, events, scheduler } = harness({ actors: ['pacman'] });
+    const s = createGame();
+    scheduler.update(s);
+    clock.now = 2001;
+    scheduler.update(s); // times out to the greedy rule
+    const point = nextDecisionPoint(s, 'pacman')!;
+    const fallback = ofType(events, 'decision').at(-1)!.decision;
+    expect(fallback.source).toBe('fallback');
+    ghostInto(s, point, fallback.choice);
+    expect(scheduler.decide(point, s)).toBe(fallback.choice);
+    expect(ofType(events, 'decision').some((e) => e.decision.vetoed)).toBe(false);
   });
 
   it('keeps a jev pick that is still safe', async () => {

@@ -132,20 +132,37 @@ export class Panel {
 
   private showOverride(d: Decision): void {
     this.totals.overrides += 1;
-    const card = this.cards.get(d.actor)!;
-    for (const dir of DIRS) card.bars[dir].row.classList.toggle('chosen', dir === d.choice);
-    card.meta.textContent = `jev · safety override: ${d.vetoed} → ${d.choice}`;
+    this.drawCard(d, `jev · safety override: ${d.vetoed} → ${d.choice}`, true);
     this.addLog(
-      `${ACTOR_NAMES[d.actor]} @(${d.tile.x},${d.tile.y}) ${ARROWS[d.choice]} ${d.choice} · SAFETY OVERRIDE of jev's ${ARROWS[d.vetoed!]} ${d.vetoed} (ghosts moved into it)`,
+      `${ACTOR_NAMES[d.actor]} @(${d.tile.x},${d.tile.y}) ${ARROWS[d.choice]} ${d.choice} · SAFETY OVERRIDE of jev's ${ARROWS[d.vetoed!]} ${d.vetoed} (unsafe by then)`,
       'fallback',
     );
   }
 
   private showDecision(e: Extract<SchedulerEvent, { type: 'decision' }>): void {
     const d = e.decision;
-    const card = this.cards.get(d.actor)!;
     this.totals.decisions += 1;
     if (d.source === 'fallback') this.totals.fallbacks += 1;
+    this.drawCard(
+      d,
+      d.source === 'jev'
+        ? `jev · confidence ${d.confidence === null ? '?' : d.confidence.toFixed(2)} · ${e.latencyMs ?? '?'} ms`
+        : `FALLBACK (${d.reason}) · greedy rule, not jev`,
+      d.source === 'fallback',
+    );
+    const p = d.probabilities[d.choice];
+    this.addLog(
+      `${ACTOR_NAMES[d.actor]} @(${d.tile.x},${d.tile.y}) ${ARROWS[d.choice]} ${d.choice}` +
+        (p !== undefined ? ` ${Math.round(p * 100)}%` : '') +
+        (d.escape ? ' · escape (mid-corridor)' : '') +
+        (d.source === 'fallback' ? ` · FALLBACK (${d.reason})` : '') +
+        (e.fruitOnBoard ? ' · fruit on board' : ''),
+      d.source === 'fallback' ? 'fallback' : d.actor,
+    );
+  }
+
+  private drawCard(d: Decision, meta: string, flagged: boolean): void {
+    const card = this.cards.get(d.actor)!;
     for (const dir of DIRS) {
       const bar = card.bars[dir];
       const offered = d.options.includes(dir);
@@ -156,21 +173,9 @@ export class Panel {
       bar.fill.style.width = `${Math.round(width * 100)}%`;
       bar.pct.textContent = !offered ? '' : p === undefined ? (dir !== d.choice ? '–' : d.source === 'fallback' ? 'fallback' : 'pick') : `${Math.round(p * 100)}%`;
     }
-    card.meta.textContent =
-      d.source === 'jev'
-        ? `jev · confidence ${d.confidence === null ? '?' : d.confidence.toFixed(2)} · ${e.latencyMs ?? '?'} ms`
-        : `FALLBACK (${d.reason}) · greedy rule, not jev`;
-    card.meta.classList.toggle('fallback', d.source === 'fallback');
-    card.el.classList.toggle('fallback', d.source === 'fallback');
-    const p = d.probabilities[d.choice];
-    this.addLog(
-      `${ACTOR_NAMES[d.actor]} @(${d.tile.x},${d.tile.y}) ${ARROWS[d.choice]} ${d.choice}` +
-        (p !== undefined ? ` ${Math.round(p * 100)}%` : '') +
-        (d.escape ? ' · escape (mid-corridor)' : '') +
-        (d.source === 'fallback' ? ` · FALLBACK (${d.reason})` : '') +
-        (e.fruitOnBoard ? ' · fruit on board' : ''),
-      d.source === 'fallback' ? 'fallback' : d.actor,
-    );
+    card.meta.textContent = meta;
+    card.meta.classList.toggle('fallback', flagged);
+    card.el.classList.toggle('fallback', flagged);
   }
 
   private addLog(text: string, cls: string): void {

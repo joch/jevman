@@ -131,7 +131,8 @@ export class GameStats {
       this.fruit.push({ kind: fruit.kind, points: fruit.points });
     }
     if (b.status === 'playing') {
-      this.recent.push({ seconds: this.seconds, context: b.context });
+      // Stamped with the start of the step: the situation held from then on.
+      this.recent.push({ seconds: this.seconds - dt, context: b.context });
       while (this.recent.length > 1 && this.recent[1].seconds <= this.seconds - REACT_SECONDS - 0.5) this.recent.shift();
     }
     if (b.status === 'playing' && state.status === 'dying') {
