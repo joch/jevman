@@ -1,10 +1,12 @@
 import './style.css';
 import { accountNotice, fetchMe, renderAccount, takeAuthError, walletNotice, type AccountView } from './auth';
 import { DemoPlayer, loadRecording } from './demo';
+import { hideOverlay, showGameOver, showPlay } from './overlay';
 import { Panel } from './panel';
 import { drawGame, FRUIT_EMOJI, TILE } from './render';
 import { Scheduler } from './scheduler';
 import { createGame, fruitForLevel, step, type GameState } from './sim';
+import { GameStats } from './stats';
 import { createHttpTransport } from './transport';
 import type { Dir } from './types';
 
@@ -49,12 +51,16 @@ const restartBtn = $<HTMLButtonElement>('#restart');
 const hud = { score: $('#score'), level: $('#level'), lives: $('#lives'), fruit: $('#fruit-hud') };
 
 function togglePause(): void {
+  if (!overlayEl.hidden) return; // nothing is running behind the Play / game-over card
   paused = !paused;
   pauseBtn.textContent = paused ? 'Resume' : 'Pause';
 }
 pauseBtn.addEventListener('click', togglePause);
 
+const overlayEl = $('#overlay');
 const keyActions = new Map<string, () => void>([['p', togglePause]]);
+/** What Space/Enter does while an overlay is open (Play, Play again). */
+let overlayAction: (() => void) | null = null;
 let steer: ((dir: Dir) => void) | null = null;
 let tick: (dt: number) => void;
 
@@ -89,7 +95,33 @@ if (rec) {
       showAccount({ ...account, ...walletNotice(url) });
     },
   });
-  const scheduler = new Scheduler({ transport, now: () => clockMs, onEvent: (e) => panel.handle(e) });
+  let stats = new GameStats();
+  // One scheduler per game: answers still in flight from a restarted game reach its old scheduler and are ignored.
+  // They share one in-flight counter, so restarting can't stack up more concurrent (billed) requests.
+  const slots = { inFlight: 0 };
+  const newScheduler = (gameStats: GameStats) =>
+    new Scheduler({
+      transport,
+      slots,
+      now: () => clockMs,
+      onEvent: (e) => {
+        if (gameStats !== stats) return;
+        panel.handle(e);
+        stats.onSchedulerEvent(e);
+        // A request still in flight at game over reports afterwards; keep the card's numbers complete.
+        if (gameOverShown && !overlayEl.hidden) showGameOver(overlayEl, stats.summary(state), restart);
+      },
+    });
+  let scheduler = newScheduler(stats);
+  // Nothing runs, and no jev call is made, until the player presses Play.
+  let started = false;
+  let gameOverShown = false;
+  const begin = (): void => {
+    started = true;
+    restartBtn.disabled = false;
+    overlayAction = null;
+    hideOverlay(overlayEl);
+  };
 
   const togglePacman = (): void => {
     state.pacmanControl = state.pacmanControl === 'jev' ? 'keyboard' : 'jev';
@@ -98,9 +130,19 @@ if (rec) {
     toggleBtn.setAttribute('aria-pressed', String(state.pacmanControl === 'jev'));
   };
   const restart = (): void => {
+    if (!started) return; // Restart / R must not skip the Play card
     state = createGame({ pacmanControl: state.pacmanControl });
     scheduler.reset();
+    stats = new GameStats();
+    scheduler = newScheduler(stats);
+    panel = new Panel(panelEl);
+    gameOverShown = false;
+    paused = false;
+    pauseBtn.textContent = 'Pause';
+    begin();
   };
+  restartBtn.disabled = true;
+  overlayAction = showPlay(overlayEl, me, begin);
   toggleBtn.addEventListener('click', togglePacman);
   restartBtn.addEventListener('click', restart);
   speedIn.addEventListener('input', () => {
@@ -112,9 +154,17 @@ if (rec) {
     state.keyDir = dir;
   };
   tick = (dt) => {
+    if (!started) return;
     clockMs += dt * 1000;
     scheduler.update(state);
+    stats.beforeStep(state);
     step(state, dt * speed, scheduler);
+    stats.afterStep(state, dt * speed);
+    if (state.status === 'gameover' && !gameOverShown) {
+      gameOverShown = true;
+      overlayAction = restart;
+      showGameOver(overlayEl, stats.summary(state), restart);
+    }
   };
 }
 showAccount({ ...account, notice: accountNotice(me, authError, Boolean(rec)) });
@@ -130,6 +180,14 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (e.repeat) return;
+  // Space/Enter on a focused control (button, link, field) do that control's own thing; elsewhere they press the
+  // overlay's button.
+  const onControl = e.target instanceof Element && e.target.closest('a, button, input, select, textarea, [contenteditable], [tabindex]') !== null;
+  if ((e.key === ' ' || e.key === 'Enter') && overlayAction && !onControl) {
+    e.preventDefault();
+    overlayAction();
+    return;
+  }
   keyActions.get(e.key.toLowerCase())?.();
 });
 

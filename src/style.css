@@ -63,3 +63,23 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 button:disabled:hover { border-color: #3a3a5a; }
 .account .hint { color: var(--muted); }
 .account .hint a { color: var(--muted); text-decoration: underline; }
+
+.board { position: relative; width: fit-content; max-width: 100%; }
+.overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(5, 5, 12, 0.82); border-radius: 6px; }
+.overlay[hidden] { display: none; }
+.overlay .card { background: var(--panel); border: 1px solid #2a2a40; border-radius: 10px; padding: 20px 24px; max-width: 360px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
+.overlay .card.wide { max-width: 480px; max-height: 100%; overflow: auto; }
+.overlay h2 { margin: 0; font-size: 20px; }
+.overlay h3 { margin: 0 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.overlay p { margin: 0; }
+.overlay .muted { color: var(--muted); }
+.overlay .small { font-size: 12px; }
+.overlay .score { font-size: 28px; font-weight: 700; color: var(--accent); font-family: ui-monospace, monospace; }
+.overlay .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; }
+.overlay dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; font-size: 13px; }
+.overlay dt { color: var(--muted); }
+.overlay dd { margin: 0; text-align: right; font-family: ui-monospace, monospace; }
+.overlay .deaths { text-align: left; font-size: 13px; }
+.overlay .deaths ol { margin: 0; padding-left: 18px; }
+.overlay button.primary { align-self: center; background: var(--accent); color: #111; border-color: var(--accent); font-weight: 700; font-size: 16px; padding: 8px 22px; }
+@media (max-width: 520px) { .overlay .grid { grid-template-columns: 1fr; } }

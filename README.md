@@ -56,35 +56,6 @@ A signed-in Login-with-Opper player always plays on their own key, through Opper
 server uses `TYPESAFE_API_KEY` if set, else `OPPER_API_KEY`. Variables exported in your shell take
 precedence over `.env`. The account bar above the game says which one is in use.
 
-### Deploying
-
-Production runs `node server/main.ts` (Node ≥ 22.18 runs the TypeScript directly; the server uses
-only Node built-ins). It serves the `vite build` output and mounts the same `/auth/*`, `/api/me` and
-`/api/decide` handlers as the dev server, plus:
-
-- `/health` — 503 while starting and immediately after SIGTERM, 200 when ready;
-- `/revision` — `{ "app": "jevman", "commit": <SOURCE_COMMIT>, "draining": <bool> }`.
-
-On SIGTERM it withdraws readiness, keeps serving for 5 s while health checks and the proxy catch
-up, then closes and waits for in-flight requests (35 s hard limit; use a stop grace ≥ 40 s).
-
-The `Dockerfile` builds the client and runs the server as the unprivileged `node` user with a
-one-second `HEALTHCHECK`. CI (`.github/workflows/deploy.yml`) type-checks, tests, builds the image
-and smoke-tests it (`scripts/smoke-image.py`); pull requests stop there. A green push to `main` runs
-`scripts/deploy.py`, which signs a Coolify manual GitHub webhook for that exact commit and waits
-until `/revision` reports it. It needs the GitHub secret `COOLIFY_WEBHOOK_SECRET` and the variables
-`COOLIFY_WEBHOOK_URL`, `COOLIFY_APP_UUID` and `APP_URL`.
-
-For an https deployment, set at runtime:
-
-- `OPPER_CLIENT_ID`, `OPPER_CLIENT_SECRET`, and `OPPER_REDIRECT_URI=https://your-domain/auth/callback`
-  (registered on the OAuth app);
-- a real `SESSION_SECRET` (32+ characters) — startup refuses without one;
-- **no** `OPPER_API_KEY` or `TYPESAFE_API_KEY` (both are ignored anyway unless `JEV_ALLOW_DEV_KEY=1`).
-
-Serve the app at the domain root (paths are absolute), behind a proxy that keeps the `Host` header
-(cross-site requests are refused by comparing `Origin` with `Host`).
-
 ## Scripts
 
 - `npm test` — unit tests (includes a check that the committed demo still replays exactly).

@@ -221,6 +221,17 @@ describe('rules', () => {
     expect(s.pacman.epoch).toBe(epoch + 1);
   });
 
+  it('records which ghost caught Pac-Man, and clears it for the next life', () => {
+    const s = playing('keyboard');
+    parkGhosts(s);
+    Object.assign(s.ghosts.inky, { state: 'normal', tile: { ...PACMAN_START }, dir: 'left', progress: 0 });
+    step(s, 1 / 60, never);
+    expect(s.status).toBe('dying');
+    expect(s.caughtBy).toBe('inky');
+    step(s, DYING_SECONDS, never);
+    expect(s.caughtBy).toBeNull();
+  });
+
   it('ends the game when the last life is lost', () => {
     const s = playing('keyboard');
     parkGhosts(s);

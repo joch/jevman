@@ -188,6 +188,22 @@ describe('Scheduler', () => {
     expect(scheduler.decide(escapePoint(s)!)).toBe('down');
   });
 
+  it('shares the in-flight cap between schedulers given the same slots (e.g. across restarts)', async () => {
+    const calls: Call[] = [];
+    const transport: Transport = (body) => new Promise((resolve, reject) => calls.push({ body, resolve, reject }));
+    const slots = { inFlight: 0 };
+    const first = new Scheduler({ transport, now: () => 0, onEvent: () => {}, maxInFlight: 1, slots });
+    first.update(createGame());
+    expect(calls).toHaveLength(1);
+    const second = new Scheduler({ transport, now: () => 0, onEvent: () => {}, maxInFlight: 1, slots });
+    second.update(createGame());
+    expect(calls).toHaveLength(1); // the first game's request still holds the only slot
+    calls[0].resolve(answerAll(calls[0].body));
+    await flush();
+    second.update(createGame());
+    expect(calls).toHaveLength(2);
+  });
+
   it('only asks about the actors it is limited to', () => {
     const { calls, scheduler } = harness({ actors: ['pacman'] });
     scheduler.update(createGame());
