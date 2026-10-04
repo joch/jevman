@@ -112,6 +112,19 @@ function signInButton(me: Me): HTMLButtonElement {
   return b;
 }
 
+export const REPO_URL = 'https://github.com/joch/jevman';
+
+/** The alternative to signing in: run jevman locally with your own TypeSafe (or Opper) key. */
+function runItYourself(): HTMLElement {
+  const hint = el('span', 'or ', 'hint');
+  const link = el('a', 'clone the repo and use your own TypeSafe key');
+  link.href = `${REPO_URL}#option-c--your-own-typesafe-key-jev-straight-from-typesafe`;
+  link.target = '_blank';
+  link.rel = 'noopener';
+  hint.append(link);
+  return hint;
+}
+
 export function renderAccount(root: HTMLElement, view: AccountView): void {
   const { me } = view;
   const parts: HTMLElement[] = [];
@@ -149,9 +162,11 @@ export function renderAccount(root: HTMLElement, view: AccountView): void {
   } else if (view.kind === 'demo') {
     parts.push(el('span', 'Recorded demo — sign in with Opper to let jev play live (calls bill your own Opper wallet)'));
     if (!retry) parts.push(signInButton(me));
+    parts.push(runItYourself());
   } else {
     parts.push(el('span', 'Signed out — sign in with Opper to keep jev playing'));
     if (!retry) parts.push(signInButton(me));
+    parts.push(runItYourself());
   }
   root.dataset.kind = view.kind;
   root.replaceChildren(...parts);

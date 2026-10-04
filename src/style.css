@@ -61,3 +61,5 @@ button:hover { border-color: var(--accent); }
 .account .notice { color: var(--danger); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button:disabled:hover { border-color: #3a3a5a; }
+.account .hint { color: var(--muted); }
+.account .hint a { color: var(--muted); text-decoration: underline; }

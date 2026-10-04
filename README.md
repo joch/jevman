@@ -26,14 +26,16 @@ This is meant for local development: on an https deployment the key is ignored (
 ### Option C — your own TypeSafe key (jev straight from TypeSafe)
 
 jev is made by [TypeSafe](https://typesafe.ai). To call TypeSafe's own System One API instead of going
-through Opper, set `TYPESAFE_API_KEY` in `.env` (and optionally `TYPESAFE_BASE_URL`, default
+through Opper, get an API key from TypeSafe (see [docs.typesafe.ai](https://docs.typesafe.ai/introduction/quickstart))
+and set `TYPESAFE_API_KEY` in `.env` (and optionally `TYPESAFE_BASE_URL`, default
 `https://api.typesafe.ai`). Calls then go to `POST {TYPESAFE_BASE_URL}/v1/systemone` with model
 `jev-1.13.0`; the request and answers are the same as through Opper. TypeSafe's API returns no
 cost, so the panel shows an **estimate** (`≈`) from token usage at TypeSafe's published price
-($0.042 per million input tokens; output is free). Like option A this is a local key: it wins over
-`OPPER_API_KEY` when both are set, signed-in Login-with-Opper players still play on their own Opper
-wallet, and it is ignored on https deployments unless `JEV_ALLOW_DEV_KEY=1`. `npm run smoke` and
-`npm run bench` use it too.
+($0.042 per million input tokens; output is free). Like option A this is a local key, ignored on
+https deployments unless `JEV_ALLOW_DEV_KEY=1`. `npm run smoke` and `npm run bench` use it too.
+
+This is also the easiest way to play jevman without an Opper account: clone the repo, add your
+TypeSafe key, `npm run dev`. The hosted page links here next to "Sign in with Opper".
 
 ### Option B — Login with Opper (players pay for their own play)
 
@@ -48,7 +50,11 @@ Opper wallet**. The player's key is kept in an encrypted, httpOnly cookie (the p
 never sees it). "Sign out" clears the cookie; to revoke the app's key entirely, remove jevman under
 connected apps in your [Opper wallet](https://platform.opper.ai/wallet).
 
-If several are set, a signed-in player's key wins; otherwise `TYPESAFE_API_KEY`, then `OPPER_API_KEY`.
+### Which key is used
+
+A signed-in Login-with-Opper player always plays on their own key, through Opper. Otherwise the
+server uses `TYPESAFE_API_KEY` if set, else `OPPER_API_KEY`. Variables exported in your shell take
+precedence over `.env`. The account bar above the game says which one is in use.
 
 ### Deploying
 

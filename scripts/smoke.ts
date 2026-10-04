@@ -50,5 +50,5 @@ for (const q of batch) {
   }
   console.log(`${q.point.actor.padEnd(7)} at (${d.tile.x},${d.tile.y}) → ${d.choice.padEnd(5)} confidence ${d.confidence} probabilities ${JSON.stringify(d.probabilities)}`);
 }
-console.log(`questions ${batch.length}, tokens in ${res.usage.input_tokens} out ${res.usage.output_tokens}, latency ${res.latencyMs} ms, cost ${res.costUsd} USD, trace ${res.traceId}`);
+console.log(`questions ${batch.length}, tokens in ${res.usage.input_tokens} out ${res.usage.output_tokens}, latency ${res.latencyMs} ms, cost ${res.costEstimated ? '≈' : ''}${res.costUsd} USD, trace ${res.traceId}`);
 process.exit(failed ? 1 : 0);

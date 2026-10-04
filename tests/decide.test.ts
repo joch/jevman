@@ -214,6 +214,28 @@ describe('handleDecideRequest', () => {
     expect(String(r.headers['Set-Cookie'])).toMatch(new RegExp(`^${SESSION_COOKIE}=; Max-Age=0`));
   });
 
+  it('sends a signed-in player through Opper even when the dev key is a TypeSafe key', async () => {
+    const TS: JevTarget = { provider: 'typesafe', apiKey: 'ts-dev', baseUrl: 'https://api.typesafe.ai' };
+    const fetchMock = ok();
+    const r = await run(post({ cookie: playerCookie() }), JSON.stringify(body), TS, fetchMock);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.opper.ai/v3/compat/v1/systemone');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer op-player');
+    expect(JSON.stringify(init)).not.toContain('ts-dev');
+    expect(r.body).not.toContain('ts-dev');
+  });
+
+  it('redacts a TypeSafe dev key from the failure log', async () => {
+    const TS: JevTarget = { provider: 'typesafe', apiKey: 'ts-dev', baseUrl: 'https://api.typesafe.ai' };
+    const logError = vi.fn();
+    const log = () => {
+      throw new Error('log failed for ts-dev');
+    };
+    expect((await run(post(), JSON.stringify(body), TS, ok(), { log, logError })).status).toBe(500);
+    expect(JSON.stringify(logError.mock.calls)).toContain('[redacted]');
+    expect(JSON.stringify(logError.mock.calls)).not.toContain('ts-dev');
+  });
+
   it('answers 500 and logs a redacted message when handling throws', async () => {
     const logError = vi.fn();
     const log = () => {

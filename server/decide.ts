@@ -50,7 +50,7 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
   const provider = deps.provider ?? 'opper';
   const tag = `[${['jev', deps.keyMode, provider === 'typesafe' ? 'typesafe' : undefined].filter(Boolean).join(' ')}]`;
   const timeoutMs = deps.timeoutMs ?? 2000;
-  if (!deps.apiKey) return { status: 500, body: { error: 'No OPPER_API_KEY in .env — all decisions are fallbacks' } };
+  if (!deps.apiKey) return { status: 500, body: { error: 'No TYPESAFE_API_KEY or OPPER_API_KEY in .env — all decisions are fallbacks' } };
   if (!isDecideInput(input)) return { status: 400, body: { error: 'Expected { state, questions } with at least one question' } };
 
   const actors = Object.keys(input.questions).join(',');
@@ -69,7 +69,7 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
     const text = await res.text();
     const latencyMs = Math.round(deps.now() - started);
     if (!res.ok) {
-      const error = redact(`jev returned HTTP ${res.status}: ${upstreamMessage(text)}`);
+      const error = redact(`jev returned HTTP ${res.status}: ${upstreamMessage(redact(text))}`);
       log(`${tag} ${actors} failed after ${latencyMs} ms — ${error}`);
       if (deps.keyMode === 'player') {
         if (res.status === 401) return { status: 401, body: { error: 'Your Opper sign-in has expired — sign in again', signedOut: true, clearSession: true } };
@@ -82,9 +82,10 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
     const usage = json.usage ?? { input_tokens: 0, output_tokens: 0 };
     if (provider === 'typesafe') {
       // TypeSafe sends no cost header; estimate from its published input-token price.
-      const costUsd = (Number(usage.input_tokens) || 0) * TYPESAFE_USD_PER_INPUT_TOKEN;
+      const tokens = Number(json.usage?.input_tokens);
+      const costUsd = Number.isFinite(tokens) ? tokens * TYPESAFE_USD_PER_INPUT_TOKEN : null;
       const requestId = res.headers.get('x-typesafe-request-id');
-      log(`${tag} ${actors} ok in ${latencyMs} ms, cost ≈${Number(costUsd.toPrecision(2))} USD, request ${requestId ?? '?'}`);
+      log(`${tag} ${actors} ok in ${latencyMs} ms, cost ${costUsd === null ? '?' : `≈${Number(costUsd.toPrecision(2))}`} USD, request ${requestId ?? '?'}`);
       return { status: 200, body: { answers: json.answers ?? {}, usage, latencyMs, costUsd, costEstimated: true, traceId: requestId } };
     }
     const cost = res.headers.get('x-opper-cost');

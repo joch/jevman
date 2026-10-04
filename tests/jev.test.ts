@@ -55,6 +55,24 @@ describe('handleDecide against TypeSafe directly', () => {
     expect(res).toEqual({ status: 502, body: { error: 'jev returned HTTP 401: bad key [redacted]' } });
   });
 
+  it('redacts a key that an upstream error echoes even past the 200-character cut', async () => {
+    const echo = `${'x'.repeat(195)} ts-key-that-is-long`;
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(echo, { status: 500 }));
+    const res = await handleDecide(body, deps(fetchMock, { apiKey: 'ts-key-that-is-long' }));
+    expect(JSON.stringify(res.body)).not.toMatch(/ts-k/);
+  });
+
+  it('reports no cost when TypeSafe omits usage', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ answers }), { status: 200 }));
+    const res = await handleDecide(body, deps(fetchMock));
+    expect(res.body).toMatchObject({ costUsd: null, costEstimated: true });
+  });
+
+  it('names both dev keys when none is configured', async () => {
+    const res = await handleDecide(body, deps(vi.fn(), { apiKey: undefined }));
+    expect((res.body as { error: string }).error).toMatch(/TYPESAFE_API_KEY.*OPPER_API_KEY/);
+  });
+
   it('keeps the Opper behaviour by default', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ answers, usage: { input_tokens: 5, output_tokens: 2 } }), { status: 200, headers: { 'x-opper-cost': '0.00002' } }));
     const res = await handleDecide(body, deps(fetchMock, { provider: undefined, baseUrl: 'https://api.opper.ai' }));
