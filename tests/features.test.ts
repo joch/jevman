@@ -216,6 +216,7 @@ describe('optionFeatures for escape questions', () => {
 });
 
 describe('fruitRoute', () => {
+  const at = (distance: number) => ({ ...nextDecisionPoint(setup(), 'pacman')!, distance });
   const feat = (dir: Dir, over: Partial<OptionFeatures>): OptionFeatures => ({
     dir, goalDistance: null, pacmanDistance: null, nearestPellet: 5, corridorPellets: 0, nearestDangerGhost: null,
     dangerInCorridor: [], nearestFrightenedGhost: null, fruitDistance: null, nearestPowerPellet: null,
@@ -231,15 +232,18 @@ describe('fruitRoute', () => {
       feat('down', { fruitDistance: 14 }),
       feat('right', { fruitDistance: 9, junctionGhost: { id: 'pinky', steps: 2 } }), // trap
     ];
-    expect(fruitRoute(s, feats)).toBe('down');
+    expect(fruitRoute(s, at(0), feats)).toBe('down');
+    // The walk to the junction counts: 15 more steps put the down route (14) out of reach too.
+    expect(fruitRoute(s, at(15), feats)).toBeNull();
+    expect(fruitRoute(s, at(14), feats)).toBe('down');
   });
 
   it('gives no route when the fruit cannot be reached in time or is absent', () => {
     const s = setup();
     s.fruit = { kind: 'cherry', points: 100, tile: { ...FRUIT_TILE }, secondsLeft: 1 }; // reach: 7 steps
-    expect(fruitRoute(s, [feat('up', { fruitDistance: 12 })])).toBeNull();
+    expect(fruitRoute(s, at(0), [feat('up', { fruitDistance: 12 })])).toBeNull();
     s.fruit = null;
-    expect(fruitRoute(s, [feat('up', { fruitDistance: 2 })])).toBeNull();
+    expect(fruitRoute(s, at(0), [feat('up', { fruitDistance: 2 })])).toBeNull();
   });
 
   it('makes the greedy fallback go for the fruit instead of the nearest pellet', () => {

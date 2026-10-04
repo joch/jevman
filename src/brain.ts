@@ -119,11 +119,16 @@ export function instructionsFor(state: GameState, point: DecisionPoint, feats: O
     // Spelling out one safe, reachable fruit route works far better than per-route distances: jev weighed
     // "cherry 14 steps away" against pellets and mostly let the fruit expire.
     const f = state.fruit;
+    const marked = f && fruitRoute(state, point, feats);
     const fruit = !f
       ? ''
-      : fruitRoute(state, feats)
-        ? `A ${f.kind} worth ${f.points} points (as much as ${f.points / 10} pellets) is on the board and will disappear soon. One route is marked FRUIT: it is the fastest safe way to it. Take the FRUIT route unless another route has a frightened ghost within a few steps. `
-        : `A ${f.kind} worth ${f.points} points is on the board but cannot be reached in time without passing a ghost; ignore it. `;
+      : marked
+        ? `A ${f.kind} worth ${f.points} points (as much as ${f.points / 10} pellets) is on the board and will disappear soon. One route is marked FRUIT: it is the fastest way to it that looks safe. ${
+            state.frightLeft > 0 ? 'Hunt a frightened ghost you can reach first; otherwise take the FRUIT route.' : 'Take the FRUIT route.'
+          } `
+        : point.escape
+          ? ''
+          : `A ${f.kind} worth ${f.points} points is on the board but cannot be reached safely in time; ignore it. `;
     return state.frightLeft > 0
       ? `You are Pac-Man. A power pellet is active for ${round1(state.frightLeft)} more seconds: frightened ghosts (lowercase letters) are worth 200, 400, 800 and 1600 points in a row. Hunt the nearest frightened ghost if you can reach it in time, but never run into a normal ghost. ${fruit}${at}`
       : `You are Pac-Man. Clear the maze by eating every pellet while staying away from the ghosts; touching a non-frightened ghost costs a life. Power pellets (o) make ghosts frightened and edible, so take one when ghosts are closing in. Never pick a route marked DANGER or TRAP unless every route is; prefer routes where ghosts are moving away. ${fruit}${at}`;
@@ -143,7 +148,7 @@ const steps = (n: number | null, what: string) => (n === null ? `${what} not rea
 
 export function criteriaFor(state: GameState, point: DecisionPoint, feats: OptionFeatures[]): Record<string, string> {
   const goal = goalFor(state, point.actor);
-  const fruit = point.actor === 'pacman' ? fruitRoute(state, feats) : null;
+  const fruit = point.actor === 'pacman' ? fruitRoute(state, point, feats) : null;
   const names = (ids: GhostId[]) => ids.map((id) => ACTOR_NAMES[id]).join(' and ');
   return Object.fromEntries(
     feats.map((f) => {
@@ -166,7 +171,7 @@ export function criteriaFor(state: GameState, point: DecisionPoint, feats: Optio
         if (state.frightLeft === 0 && f.nearestPowerPellet !== null) parts.push(steps(f.nearestPowerPellet, 'power pellet'));
         if (state.frightLeft > 0 && f.nearestFrightenedGhost !== null) parts.push(steps(f.nearestFrightenedGhost, 'frightened ghost'));
         if (state.fruit && f.dir === fruit) {
-          parts.unshift(`FRUIT — fastest safe way to the ${state.fruit.kind} (${plural(f.fruitDistance!, 'step')}, worth ${state.fruit.points} points)`);
+          parts.unshift(`FRUIT — fastest safe-looking way to the ${state.fruit.kind} (${plural(f.fruitDistance!, 'step')}, worth ${state.fruit.points} points)`);
         }
       } else if (goal.kind === 'flee') {
         parts.push(`${steps(f.pacmanDistance, 'Pac-Man')} via this route (farther is safer)`);
