@@ -24,6 +24,8 @@ export interface OptionFeatures {
   /** Normal (non-frightened) ghosts other than the actor standing on that corridor. */
   dangerInCorridor: GhostId[];
   nearestFrightenedGhost: number | null;
+  /** Steps to every reachable frightened ghost via this option, nearest first. */
+  frightenedGhostSteps: number[];
   fruitDistance: number | null;
   nearestPowerPellet: number | null;
   /** Whether the nearest dangerous ghost on this route is moving toward the actor (closer to where the route starts from). */
@@ -119,7 +121,11 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
       .sort((a, b) => a.steps - b.steps);
     const closest = dangerSteps[0];
     const nearestPellet = nearest(pelletTiles);
-    const nearestFrightenedGhost = nearest(frightened.map((g) => occupiedTile(state, g)));
+    const frightenedGhostSteps = frightened
+      .map((g) => steps(occupiedTile(state, g)))
+      .filter((d): d is number => d !== null)
+      .sort((a, b) => a - b);
+    const nearestFrightenedGhost = frightenedGhostSteps[0] ?? null;
     const goalDistance = goal.target
       ? steps(goal.target)
       : goal.kind === 'hunt'
@@ -134,6 +140,7 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
       nearestDangerGhost: nearest(danger.map((g) => occupiedTile(state, g))),
       dangerInCorridor: danger.filter((g) => corridor.some((t) => sameTile(t, occupiedTile(state, g)))).map((g) => g.id),
       nearestFrightenedGhost,
+      frightenedGhostSteps,
       fruitDistance: state.fruit ? steps(state.fruit.tile) : null,
       nearestPowerPellet: nearest(powerTiles),
       dangerApproaching: closest !== undefined && movingToward(state, closest.g, origin),
@@ -182,6 +189,34 @@ function corridorFrom(state: GameState, start: Tile, heading: Dir): Tile[] {
   return tiles;
 }
 
+/** Pac-Man covers 7.5 tiles a second; count a little less so a fruit or frightened ghost is still there on arrival. */
+const PACMAN_STEPS_PER_SECOND = 7;
+
+/** Steps Pac-Man can still cover before the fright ends; a frightened ghost farther away is dangerous on arrival. */
+const frightReach = (state: GameState, point: DecisionPoint): number =>
+  Math.floor(state.frightLeft * PACMAN_STEPS_PER_SECOND) - point.distance;
+
+/**
+ * The quickest route to the fruit that gets there before it disappears, with no ghost in its first corridor, close by
+ * or able to block its junction; or null. Counts the walk to the decision point too.
+ */
+export function fruitRoute(state: GameState, point: DecisionPoint, feats: OptionFeatures[]): Dir | null {
+  if (!state.fruit) return null;
+  const reach = Math.floor(state.fruit.secondsLeft * PACMAN_STEPS_PER_SECOND);
+  // A frightened ghost on the way that Pac-Man only meets after the fright ends is a normal ghost by then.
+  const soonDangerous = (f: OptionFeatures) => f.frightenedGhostSteps.some((d) => d <= f.fruitDistance! && d > frightReach(state, point));
+  const ok = feats.filter(
+    (f) =>
+      f.fruitDistance !== null &&
+      point.distance + f.fruitDistance <= reach &&
+      f.dangerInCorridor.length === 0 &&
+      (f.nearestDangerGhost ?? 999) > 2 &&
+      !isTrap(f) &&
+      !soonDangerous(f),
+  );
+  return ok.length ? ok.reduce((best, f) => (f.fruitDistance! < best.fruitDistance! ? f : best)).dir : null;
+}
+
 /** Deterministic stand-in used when jev cannot answer in time. */
 export function greedyChoice(state: GameState, point: DecisionPoint, feats: OptionFeatures[]): Dir {
   const lowest = (pool: OptionFeatures[], score: (f: OptionFeatures) => number) =>
@@ -195,8 +230,11 @@ export function greedyChoice(state: GameState, point: DecisionPoint, feats: Opti
   }
   const safe = feats.filter((f) => f.dangerInCorridor.length === 0 && or(f.nearestDangerGhost, 999) > 2 && !isTrap(f));
   const pool = safe.length ? safe : feats;
-  if (state.frightLeft > 0 && pool.some((f) => f.nearestFrightenedGhost !== null)) {
-    return lowest(pool, (f) => or(f.nearestFrightenedGhost, 999));
-  }
+  // Only hunt a ghost Pac-Man can reach before the fright ends; otherwise it is dangerous again on arrival.
+  const huntReach = frightReach(state, point);
+  const huntable = pool.filter((f) => f.nearestFrightenedGhost !== null && f.nearestFrightenedGhost <= huntReach);
+  if (huntable.length) return lowest(huntable, (f) => or(f.nearestFrightenedGhost, 999));
+  const fruit = fruitRoute(state, point, pool);
+  if (fruit) return fruit;
   return lowest(pool, (f) => or(f.nearestPellet, 999));
 }

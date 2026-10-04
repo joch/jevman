@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { goalFor, greedyChoice, isTrap, optionFeatures, type OptionFeatures } from '../src/features';
+import { fruitRoute, goalFor, greedyChoice, isTrap, optionFeatures, type OptionFeatures } from '../src/features';
 import { FRUIT_TILE, SCATTER_CORNERS } from '../src/layout';
 import { createGame, escapePoint, nextDecisionPoint, type GameState } from '../src/sim';
 import { GHOST_IDS, type Dir } from '../src/types';
@@ -212,5 +212,70 @@ describe('optionFeatures for escape questions', () => {
     expect(f.right.dangerInCorridor).toEqual(['pinky']);
     expect(f.right.dangerApproaching).toBe(true);
     expect(f.left.dangerInCorridor).toEqual(['blinky']);
+  });
+});
+
+describe('fruitRoute', () => {
+  const at = (distance: number) => ({ ...nextDecisionPoint(setup(), 'pacman')!, distance });
+  const feat = (dir: Dir, over: Partial<OptionFeatures>): OptionFeatures => ({
+    dir, goalDistance: null, pacmanDistance: null, nearestPellet: 5, corridorPellets: 0, nearestDangerGhost: null,
+    dangerInCorridor: [], nearestFrightenedGhost: null, frightenedGhostSteps: [], fruitDistance: null, nearestPowerPellet: null,
+    dangerApproaching: false, dangerNearby: 0, junctionSteps: 3, junctionGhost: null, ...over,
+  });
+
+  it('picks the fastest route that reaches the fruit in time and is not dangerous', () => {
+    const s = setup();
+    s.fruit = { kind: 'cherry', points: 100, tile: { ...FRUIT_TILE }, secondsLeft: 4 }; // reach: 28 steps
+    const feats = [
+      feat('up', { nearestPellet: 1, fruitDistance: 30 }),
+      feat('left', { fruitDistance: 12, dangerInCorridor: ['blinky'] }),
+      feat('down', { fruitDistance: 14 }),
+      feat('right', { fruitDistance: 9, junctionGhost: { id: 'pinky', steps: 2 } }), // trap
+    ];
+    expect(fruitRoute(s, at(0), feats)).toBe('down');
+    // The walk to the junction counts: 15 more steps put the down route (14) out of reach too.
+    expect(fruitRoute(s, at(15), feats)).toBeNull();
+    expect(fruitRoute(s, at(14), feats)).toBe('down');
+  });
+
+  it('avoids a fruit route through a frightened ghost that turns dangerous before Pac-Man gets there', () => {
+    const s = setup();
+    s.fruit = { kind: 'cherry', points: 100, tile: { ...FRUIT_TILE }, secondsLeft: 5 };
+    const feats = [feat('up', { fruitDistance: 10, nearestFrightenedGhost: 6, frightenedGhostSteps: [6] }), feat('down', { fruitDistance: 14 })];
+    s.frightLeft = 0.5; // 3 steps: the ghost 6 steps up is normal again by then
+    expect(fruitRoute(s, at(0), feats)).toBe('down');
+    s.frightLeft = 2; // 14 steps: still edible when Pac-Man reaches it
+    expect(fruitRoute(s, at(0), feats)).toBe('up');
+    // Two ghosts on the way: the near one is still edible, the far one is not.
+    feats[0] = feat('up', { fruitDistance: 20, nearestFrightenedGhost: 6, frightenedGhostSteps: [6, 18] });
+    feats[1] = feat('down', { fruitDistance: 24 });
+    expect(fruitRoute(s, at(0), feats)).toBe('down');
+  });
+
+  it('gives no route when the fruit cannot be reached in time or is absent', () => {
+    const s = setup();
+    s.fruit = { kind: 'cherry', points: 100, tile: { ...FRUIT_TILE }, secondsLeft: 1 }; // reach: 7 steps
+    expect(fruitRoute(s, at(0), [feat('up', { fruitDistance: 12 })])).toBeNull();
+    s.fruit = null;
+    expect(fruitRoute(s, at(0), [feat('up', { fruitDistance: 2 })])).toBeNull();
+  });
+
+  it('makes the greedy fallback hunt only frightened ghosts it can reach before the fright ends', () => {
+    const s = setup();
+    s.fruit = { kind: 'cherry', points: 100, tile: { ...FRUIT_TILE }, secondsLeft: 5 };
+    const point = nextDecisionPoint(s, 'pacman')!;
+    const feats = [feat('up', { nearestFrightenedGhost: 10, frightenedGhostSteps: [10] }), feat('left', { fruitDistance: 8 }), feat('right', { nearestPellet: 1 })];
+    s.frightLeft = 0.5; // 3 steps of fright left: the ghost will be dangerous again by then
+    expect(greedyChoice(s, { ...point, distance: 0 }, feats)).toBe('left');
+    s.frightLeft = 4;
+    expect(greedyChoice(s, { ...point, distance: 0 }, feats)).toBe('up');
+  });
+
+  it('makes the greedy fallback go for the fruit instead of the nearest pellet', () => {
+    const s = setup();
+    s.fruit = { kind: 'cherry', points: 100, tile: { ...FRUIT_TILE }, secondsLeft: 5 };
+    const point = nextDecisionPoint(s, 'pacman')!;
+    const feats = [feat('up', { nearestPellet: 1, fruitDistance: 30 }), feat('left', { nearestPellet: 6, fruitDistance: 8 }), feat('right', { nearestPellet: 3 })];
+    expect(greedyChoice(s, point, feats)).toBe('left');
   });
 });

@@ -64,8 +64,8 @@ describe('Scheduler', () => {
     calls[0].resolve(answerAll(calls[0].body));
     await flush();
     const point = nextDecisionPoint(s, 'blinky')!;
-    expect(scheduler.decide(point)).toBe(point.options[0]);
-    expect(scheduler.decide(point)).toBeNull();
+    expect(scheduler.decide(point, s)).toBe(point.options[0]);
+    expect(scheduler.decide(point, s)).toBeNull();
     const decisions = ofType(events, 'decision');
     expect(decisions).toHaveLength(2);
     expect(decisions.every((e) => e.decision.source === 'jev' && e.latencyMs === 300)).toBe(true);
@@ -80,7 +80,7 @@ describe('Scheduler', () => {
     calls[0].resolve(answerAll(calls[0].body));
     await flush();
     const point = nextDecisionPoint(s, 'blinky')!;
-    expect(scheduler.decide(point)).toBe(point.options[0]);
+    expect(scheduler.decide(point, s)).toBe(point.options[0]);
     // A junction answer is not remembered once handed out: if the same junction is still ahead, it is asked again.
     scheduler.update(s);
     expect(calls).toHaveLength(2);
@@ -121,7 +121,7 @@ describe('Scheduler', () => {
       ['fallback', 'timeout'],
     ]);
     const point = nextDecisionPoint(s, 'blinky')!;
-    expect(point.options).toContain(scheduler.decide(point));
+    expect(point.options).toContain(scheduler.decide(point, s));
     calls[0].resolve(answerAll(calls[0].body));
     await flush();
     expect(ofType(events, 'stale').map((e) => e.actor).sort()).toEqual(['blinky', 'pacman']);
@@ -170,7 +170,7 @@ describe('Scheduler', () => {
     calls[0].resolve(answerAll(calls[0].body));
     await flush();
     const escape = escapePoint(s)!;
-    expect(scheduler.decide(escape)).toBe('left');
+    expect(scheduler.decide(escape, s)).toBe('left');
     scheduler.update(s);
     expect(calls).toHaveLength(1);
   });
@@ -185,7 +185,7 @@ describe('Scheduler', () => {
     calls[0].resolve(answerAll(calls[0].body, (actor, o) => (actor === 'pacman_escape' ? 'right' : o[0])));
     await flush();
     Object.assign(s.pacman, { tile: { x: 1, y: 28 }, dir: 'up', progress: 0 });
-    expect(scheduler.decide(escapePoint(s)!)).toBe('down');
+    expect(scheduler.decide(escapePoint(s)!, s)).toBe('down');
   });
 
   it('shares the in-flight cap between schedulers given the same slots (e.g. across restarts)', async () => {
@@ -223,6 +223,65 @@ describe('Scheduler', () => {
     calls[0].resolve(answerAll(calls[0].body));
     await flush();
     scheduler.reset();
-    expect(scheduler.decide(nextDecisionPoint(s, 'blinky')!)).toBeNull();
+    expect(scheduler.decide(nextDecisionPoint(s, 'blinky')!, s)).toBeNull();
+  });
+});
+
+describe('Scheduler and fruit', () => {
+  const cherry = () => ({ kind: 'cherry' as const, points: 100, tile: { x: 13, y: 17 }, secondsLeft: 9 });
+
+  it('re-asks Pac-Man when fruit appears while his question is pending', async () => {
+    const { calls, events, scheduler } = harness({ actors: ['pacman'] });
+    const s = createGame();
+    scheduler.update(s);
+    expect(JSON.stringify(calls[0].body.questions.pacman.criteria)).not.toContain('FRUIT');
+    s.fruit = cherry();
+    scheduler.update(s);
+    expect(calls).toHaveLength(2);
+    expect(JSON.stringify(calls[1].body.questions.pacman.criteria)).toContain('FRUIT');
+    calls[0].resolve(answerAll(calls[0].body));
+    await flush();
+    expect(ofType(events, 'stale').map((e) => e.actor)).toEqual(['pacman']);
+  });
+
+  it('drops a ready answer made with fruit on the board once the fruit is gone', async () => {
+    const { calls, events, scheduler } = harness({ actors: ['pacman'] });
+    const s = createGame();
+    s.fruit = cherry();
+    scheduler.update(s);
+    calls[0].resolve(answerAll(calls[0].body));
+    await flush();
+    s.fruit = null;
+    scheduler.update(s);
+    expect(ofType(events, 'superseded')).toHaveLength(1);
+    expect(scheduler.decide(nextDecisionPoint(s, 'pacman')!, s)).toBeNull();
+    expect(calls).toHaveLength(2);
+  });
+
+  it('answers with fruit-aware fallback rules when fruit appears in the same step Pac-Man reaches the junction', async () => {
+    const { calls, events, scheduler } = harness({ actors: ['pacman'] });
+    const s = createGame();
+    scheduler.update(s);
+    calls[0].resolve(answerAll(calls[0].body));
+    await flush();
+    s.fruit = cherry(); // spawned inside sim.step, before the next scheduler.update
+    const point = nextDecisionPoint(s, 'pacman')!;
+    expect(scheduler.decide(point, s)).not.toBeNull();
+    expect(ofType(events, 'decision').at(-1)!.decision).toMatchObject({ source: 'fallback', reason: 'fruit changed' });
+  });
+
+  it('keeps a fruit-aware answer while the fruit is still reachable, but not once it drifts out of reach', async () => {
+    for (const secondsLeft of [8, 0.2]) {
+      const { calls, events, scheduler } = harness({ actors: ['pacman'] });
+      const s = createGame();
+      s.fruit = cherry();
+      scheduler.update(s);
+      calls[0].resolve(answerAll(calls[0].body));
+      await flush();
+      s.fruit.secondsLeft = secondsLeft; // Pac-Man waited at the junction for the answer
+      expect(scheduler.decide(nextDecisionPoint(s, 'pacman')!, s)).not.toBeNull();
+      expect(ofType(events, 'decision').at(-1)!.decision.source).toBe(secondsLeft === 8 ? 'jev' : 'fallback');
+      expect(ofType(events, 'superseded')).toHaveLength(secondsLeft === 8 ? 0 : 1);
+    }
   });
 });

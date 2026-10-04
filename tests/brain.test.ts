@@ -70,6 +70,39 @@ describe('escape questions', () => {
   });
 });
 
+describe('fruit in the prompt', () => {
+  it('marks only the fastest safe route to reachable fruit and says to take it', () => {
+    const s = createGame();
+    for (const id of ['pinky', 'inky', 'clyde'] as const) s.ghosts[id].releaseAt = Infinity;
+    s.ghosts.blinky.state = 'house';
+    s.fruit = { kind: 'cherry', points: 100, tile: { x: 13, y: 17 }, secondsLeft: 9 };
+    const { instructions, criteria } = buildRequest(s, [pending(s, 'pacman')]).questions.pacman;
+    const marked = Object.entries(criteria).filter(([, v]) => v.includes('FRUIT'));
+    expect(marked).toHaveLength(1);
+    expect(marked[0][1]).toMatch(/^Go \w+: FRUIT — fastest safe-looking way to the cherry \(\d+ steps, worth 100 points\); /);
+    expect(instructions).toMatch(/cherry worth 100 points \(as much as 10 pellets\).*One route is marked FRUIT/);
+    expect(Object.values(criteria).join(' ')).not.toMatch(/cherry \(100 pts\)/);
+  });
+
+  it('says when the fruit cannot be reached in time and marks no route', () => {
+    const s = createGame();
+    s.fruit = { kind: 'cherry', points: 100, tile: { x: 13, y: 17 }, secondsLeft: 0.5 };
+    const { instructions, criteria } = buildRequest(s, [pending(s, 'pacman')]).questions.pacman;
+    expect(Object.values(criteria).some((v) => v.includes('FRUIT'))).toBe(false);
+    expect(instructions).toMatch(/cherry worth 100 points.*cannot be reached safely in time/);
+  });
+
+  it('puts a reachable frightened ghost before the fruit while a power pellet is active', () => {
+    const s = createGame();
+    for (const id of ['pinky', 'inky', 'clyde'] as const) s.ghosts[id].releaseAt = Infinity;
+    s.ghosts.blinky.state = 'frightened';
+    s.frightLeft = 4;
+    s.fruit = { kind: 'cherry', points: 100, tile: { x: 13, y: 17 }, secondsLeft: 9 };
+    const { instructions } = buildRequest(s, [pending(s, 'pacman')]).questions.pacman;
+    expect(instructions).toMatch(/Hunt a frightened ghost you can reach first; otherwise take the FRUIT route/);
+  });
+});
+
 describe('instructionsFor', () => {
   it('reflects personality, mode, fright and fruit', () => {
     const s = createGame();

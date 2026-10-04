@@ -12,7 +12,7 @@ import { GHOST_IDS, type ActorId } from '../src/types';
 import { handleDecide } from '../server/decide';
 import { devTargetFromEnv, modelFor } from '../server/jev';
 import { Recorder, roundDt } from '../src/replay';
-import { deathContext } from '../src/stats';
+import { deathContext, GameStats } from '../src/stats';
 
 const { values } = parseArgs({
   options: {
@@ -61,11 +61,14 @@ interface Result {
   calls: number;
   fallbacks: number;
   cost: number;
+  fruitSpawned: number;
+  fruitEaten: number;
 }
 
 async function playOne(): Promise<Result> {
   const state = createGame();
-  const r: Result = { deathsBy: {}, escapes: 0, turnBacks: 0, survived: 0, score: 0, pellets: 0, deaths: 0, level: 1, calls: 0, fallbacks: 0, cost: 0 };
+  const r: Result = { deathsBy: {}, escapes: 0, turnBacks: 0, survived: 0, score: 0, pellets: 0, deaths: 0, level: 1, calls: 0, fallbacks: 0, cost: 0, fruitSpawned: 0, fruitEaten: 0 };
+  const stats = new GameStats();
   const recorder = values.record ? new Recorder() : null;
   let frame = 0;
   const scheduler = new Scheduler({
@@ -77,11 +80,12 @@ async function playOne(): Promise<Result> {
       if (e.type === 'call') {
         r.calls += 1;
         r.cost += e.costUsd ?? 0;
-      } else if (e.type === 'decision') {
-        if (e.decision.source === 'fallback') r.fallbacks += 1;
+      } else if (e.type === 'decision' || e.type === 'superseded') {
+        const sign = e.type === 'decision' ? 1 : -1;
+        if (e.decision.source === 'fallback') r.fallbacks += sign;
         if (e.decision.escape) {
-          r.escapes += 1;
-          if (e.decision.choice === e.decision.options[1]) r.turnBacks += 1;
+          r.escapes += sign;
+          if (e.decision.choice === e.decision.options[1]) r.turnBacks += sign;
         }
       }
     },
@@ -89,8 +93,8 @@ async function playOne(): Promise<Result> {
   // Like the scheduler, answer each escape question once; afterwards Pac-Man just keeps going.
   const answeredEscapes = new Set<string>();
   const baseCtl: Controls = {
-    decide: (point) => {
-      if (jevActors.includes(point.actor)) return scheduler.decide(point);
+    decide: (point, state) => {
+      if (jevActors.includes(point.actor)) return scheduler.decide(point, state);
       if (point.escape) {
         if (answeredEscapes.has(point.key)) return null;
         answeredEscapes.add(point.key);
@@ -122,7 +126,11 @@ async function playOne(): Promise<Result> {
     }
     scheduler.update(state);
     const before = deathContext(state);
+    const fruitBefore = state.fruit;
+    stats.beforeStep(state);
     step(state, dt, ctl);
+    stats.afterStep(state, dt);
+    if (!fruitBefore && state.fruit) r.fruitSpawned += 1;
     for (const a of [state.pacman, ...GHOST_IDS.map((id) => state.ghosts[id])]) {
       if (a.id !== 'pacman' && state.ghosts[a.id].state === 'house') continue;
       const into = state.maze.neighbor(a.tile, a.dir);
@@ -145,6 +153,7 @@ async function playOne(): Promise<Result> {
     frame += 1;
   }
   r.score = state.score;
+  r.fruitEaten = stats.summary(state).fruit.length;
   r.pellets = pelletsEaten;
   r.level = state.level;
   if (recorder) {
@@ -167,5 +176,5 @@ const deathsBy: Record<string, number> = {};
 for (const r of results) for (const [k, v] of Object.entries(r.deathsBy)) deathsBy[k] = (deathsBy[k] ?? 0) + v;
 console.log(`deaths by situation: ${JSON.stringify(deathsBy)}`);
 console.log(
-  `MEAN ${label}: survived ${mean((r) => r.survived).toFixed(1)}s, score ${mean((r) => r.score).toFixed(0)}, pellets ${mean((r) => r.pellets).toFixed(0)}, pellets/life ${mean((r) => r.pellets / Math.max(1, r.deaths)).toFixed(0)}, fallbacks ${mean((r) => r.fallbacks).toFixed(1)}, cost $${mean((r) => r.cost).toFixed(4)}/game`,
+  `MEAN ${label}: survived ${mean((r) => r.survived).toFixed(1)}s, score ${mean((r) => r.score).toFixed(0)}, pellets ${mean((r) => r.pellets).toFixed(0)}, pellets/life ${mean((r) => r.pellets / Math.max(1, r.deaths)).toFixed(0)}, fallbacks ${mean((r) => r.fallbacks).toFixed(1)}, fruit eaten ${results.reduce((a, r) => a + r.fruitEaten, 0)}/${results.reduce((a, r) => a + r.fruitSpawned, 0)}, cost $${mean((r) => r.cost).toFixed(4)}/game`,
 );

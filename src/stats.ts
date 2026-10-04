@@ -139,12 +139,13 @@ export class GameStats {
       if (e.costEstimated) this.costEstimated = true;
     } else if (e.type === 'error') {
       this.errors += 1;
-    } else if (e.type === 'decision') {
-      this.decisions += 1;
-      if (e.decision.source === 'fallback') this.fallbacks += 1;
+    } else if (e.type === 'decision' || e.type === 'superseded') {
+      const sign = e.type === 'decision' ? 1 : -1;
+      this.decisions += sign;
+      if (e.decision.source === 'fallback') this.fallbacks += sign;
       else if (e.decision.confidence !== null && Number.isFinite(e.decision.confidence)) {
-        this.confidence.sum += e.decision.confidence;
-        this.confidence.n += 1;
+        this.confidence.sum += sign * e.decision.confidence;
+        this.confidence.n += sign;
       }
     }
   }
