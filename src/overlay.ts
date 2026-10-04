@@ -1,4 +1,4 @@
-import type { Me } from './auth';
+import { signIn, type Me } from './auth';
 import { FRUIT_EMOJI } from './render';
 import { deathLabel, type GameSummary } from './stats';
 
@@ -23,7 +23,8 @@ export function summaryRows(s: GameSummary): { game: Row[]; jev: Row[] } {
       ['Fallbacks', String(j.fallbacks)],
       ['Mean latency', j.meanLatencyMs === null ? '–' : `${j.meanLatencyMs} ms`],
       ['Avg confidence', j.meanConfidence === null ? '–' : `${Math.round(j.meanConfidence * 100)}%`],
-      ['Cost', `${j.costEstimated ? '≈' : ''}$${j.costUsd.toFixed(4)}`],
+      ['Cost', j.costUsd === null ? '–' : `${j.costEstimated ? '≈' : ''}$${j.costUsd.toFixed(4)}`],
+      ...(j.errors ? [['Failed calls', String(j.errors)] as Row] : []),
     ],
   };
 }
@@ -45,6 +46,11 @@ function table(title: string, rows: Row[]): HTMLElement {
 }
 
 function show(root: HTMLElement, card: HTMLElement, button: HTMLButtonElement): void {
+  const title = card.querySelector('h2');
+  if (title) {
+    title.id = 'overlay-title';
+    root.setAttribute('aria-labelledby', title.id);
+  }
   root.replaceChildren(card);
   root.hidden = false;
   button.focus({ preventScroll: true });
@@ -55,18 +61,34 @@ export function hideOverlay(root: HTMLElement): void {
   root.replaceChildren();
 }
 
-/** Before a live game: nothing runs (and nothing is billed) until the player presses Play. */
-export function showPlay(root: HTMLElement, me: Me, onPlay: () => void): void {
+/**
+ * Before a live game: nothing runs (and nothing is billed) until the player presses Play. Returns what
+ * Space/Enter should do. Without any key (signed out, demo unavailable) it offers sign-in instead.
+ */
+export function showPlay(root: HTMLElement, me: Me, onPlay: () => void): () => void {
   const card = el('div', undefined, 'card');
+  if (me.mode === 'none') {
+    card.append(el('h2', 'Sign in to play'));
+    card.append(el('p', 'Sign in with Opper to let jev play live; calls bill your own Opper wallet.'));
+    const button = el('button', 'Sign in with Opper', 'primary');
+    button.addEventListener('click', signIn);
+    card.append(button);
+    show(root, card, button);
+    return signIn;
+  }
   card.append(el('h2', 'Ready when you are'));
   card.append(el('p', 'jev drives the ghosts, and Pac-Man too unless you press J to steer him yourself.'));
   card.append(el('p', me.mode === 'player'
     ? 'A game usually costs about $0.02–0.03 from your Opper wallet.'
     : me.devProvider === 'typesafe' ? 'Calls use your TypeSafe key from .env.' : 'Calls use the local key from .env.', 'muted'));
-  const play = el('button', '▶ Play', 'primary');
+  const play = el('button', undefined, 'primary');
+  const icon = el('span', '▶ ');
+  icon.setAttribute('aria-hidden', 'true');
+  play.append(icon, 'Play');
   play.addEventListener('click', onPlay);
   card.append(play, el('p', 'or press Space / Enter', 'muted small'));
   show(root, card, play);
+  return onPlay;
 }
 
 export function showGameOver(root: HTMLElement, summary: GameSummary, onPlayAgain: () => void): void {

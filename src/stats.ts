@@ -27,8 +27,11 @@ export interface GameSummary {
     fallbacks: number;
     meanLatencyMs: number | null;
     meanConfidence: number | null;
-    costUsd: number;
+    /** null when no call reported a cost. */
+    costUsd: number | null;
     costEstimated: boolean;
+    /** Requests that failed (signed out, empty wallet, timeouts, errors). */
+    errors: number;
   };
 }
 
@@ -89,14 +92,16 @@ export class GameStats {
   private calls = 0;
   private decisions = 0;
   private fallbacks = 0;
-  private latencyMs = 0;
+  private latency = { sum: 0, n: 0 };
   private confidence = { sum: 0, n: 0 };
-  private costUsd = 0;
+  private cost = { sum: 0, known: false };
   private costEstimated = false;
+  private errors = 0;
   private before: {
     status: GameState['status'];
     pelletsEaten: number;
     frightChain: number;
+    powerPellets: number;
     score: number;
     fruit: { kind: string; points: number } | null;
     context: DeathContext | null;
@@ -107,6 +112,7 @@ export class GameStats {
       status: state.status,
       pelletsEaten: state.pelletsEaten,
       frightChain: state.frightChain,
+      powerPellets: state.maze.powerPellets.size,
       score: state.score,
       fruit: state.fruit ? { kind: state.fruit.kind, points: state.fruit.points } : null,
       context: deathContext(state),
@@ -119,9 +125,10 @@ export class GameStats {
     if (b.status === 'playing') this.seconds += dt;
     // A level clear resets pelletsEaten to 0.
     if (state.pelletsEaten > b.pelletsEaten) this.pellets += state.pelletsEaten - b.pelletsEaten;
-    // frightChain counts ghosts eaten since the last power pellet (which resets it to 0).
-    if (state.frightChain > b.frightChain) this.ghostsEaten += state.frightChain - b.frightChain;
-    else if (state.frightChain < b.frightChain) this.ghostsEaten += state.frightChain;
+    // frightChain counts ghosts eaten since the last power pellet, which resets it to 0 (it is not reset when
+    // a fright ends). A level clear also resets it, but refills the power pellets.
+    if (state.maze.powerPellets.size < b.powerPellets) this.ghostsEaten += state.frightChain;
+    else if (state.frightChain > b.frightChain) this.ghostsEaten += state.frightChain - b.frightChain;
     if (b.fruit && !state.fruit && state.score - b.score >= b.fruit.points) this.fruit.push(b.fruit);
     if (b.status === 'playing' && state.status === 'dying') {
       this.deaths.push({ ghost: nearestGhost(state), context: b.context ?? 'at/near junction', seconds: Math.round(this.seconds * 10) / 10 });
@@ -132,9 +139,17 @@ export class GameStats {
   onSchedulerEvent(e: SchedulerEvent): void {
     if (e.type === 'call') {
       this.calls += 1;
-      if (Number.isFinite(e.latencyMs)) this.latencyMs += e.latencyMs;
-      if (e.costUsd !== null && Number.isFinite(e.costUsd)) this.costUsd += e.costUsd;
+      if (Number.isFinite(e.latencyMs)) {
+        this.latency.sum += e.latencyMs;
+        this.latency.n += 1;
+      }
+      if (e.costUsd !== null && Number.isFinite(e.costUsd)) {
+        this.cost.sum += e.costUsd;
+        this.cost.known = true;
+      }
       if (e.costEstimated) this.costEstimated = true;
+    } else if (e.type === 'error') {
+      this.errors += 1;
     } else if (e.type === 'decision') {
       this.decisions += 1;
       if (e.decision.source === 'fallback') this.fallbacks += 1;
@@ -159,10 +174,11 @@ export class GameStats {
         calls: this.calls,
         decisions: this.decisions,
         fallbacks: this.fallbacks,
-        meanLatencyMs: this.calls ? Math.round(this.latencyMs / this.calls) : null,
+        meanLatencyMs: this.latency.n ? Math.round(this.latency.sum / this.latency.n) : null,
         meanConfidence: this.confidence.n ? round(this.confidence.sum / this.confidence.n, 2) : null,
-        costUsd: round(this.costUsd, 6),
+        costUsd: this.cost.known ? round(this.cost.sum, 6) : null,
         costEstimated: this.costEstimated,
+        errors: this.errors,
       },
     };
   }

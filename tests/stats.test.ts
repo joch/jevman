@@ -98,6 +98,7 @@ describe('GameStats', () => {
       meanConfidence: 0.7,
       costUsd: 0.0001,
       costEstimated: true,
+      errors: 0,
     });
   });
 
@@ -116,7 +117,7 @@ describe('summaryRows', () => {
       score: 3500, level: 2, seconds: 84.4, pellets: 234, ghostsEaten: 3,
       fruit: [{ kind: 'cherry', points: 100 }, { kind: 'strawberry', points: 300 }],
       deaths: [],
-      jev: { calls: 487, decisions: 560, fallbacks: 2, meanLatencyMs: 252, meanConfidence: 0.71, costUsd: 0.02301, costEstimated: true },
+      jev: { calls: 487, decisions: 560, fallbacks: 2, meanLatencyMs: 252, meanConfidence: 0.71, costUsd: 0.02301, costEstimated: true, errors: 0 },
     });
     expect(rows.game).toEqual([['Level', '2'], ['Time', '1:24'], ['Pellets', '234'], ['Ghosts eaten', '3'], ['Fruit', '🍒 🍓']]);
     expect(rows.jev).toEqual([['Calls', '487'], ['Decisions', '560'], ['Fallbacks', '2'], ['Mean latency', '252 ms'], ['Avg confidence', '71%'], ['Cost', '≈$0.0230']]);
@@ -124,8 +125,31 @@ describe('summaryRows', () => {
 
   it('shows dashes when nothing happened', async () => {
     const { summaryRows } = await import('../src/overlay');
-    const rows = summaryRows({ score: 0, level: 1, seconds: 3, pellets: 0, ghostsEaten: 0, fruit: [], deaths: [], jev: { calls: 0, decisions: 0, fallbacks: 0, meanLatencyMs: null, meanConfidence: null, costUsd: 0, costEstimated: false } });
+    const rows = summaryRows({ score: 0, level: 1, seconds: 3, pellets: 0, ghostsEaten: 0, fruit: [], deaths: [], jev: { calls: 0, decisions: 0, fallbacks: 0, meanLatencyMs: null, meanConfidence: null, costUsd: null, costEstimated: false, errors: 3 } });
     expect(rows.game.find(([k]) => k === 'Fruit')![1]).toBe('–');
-    expect(rows.jev.slice(3)).toEqual([['Mean latency', '–'], ['Avg confidence', '–'], ['Cost', '$0.0000']]);
+    expect(rows.jev.slice(3)).toEqual([['Mean latency', '–'], ['Avg confidence', '–'], ['Cost', '–'], ['Failed calls', '3']]);
+  });
+});
+
+describe('GameStats edge cases', () => {
+  it('counts ghosts eaten right after a new power pellet even when the old chain was the same length', () => {
+    const s = playing();
+    const stats = new GameStats();
+    s.frightChain = 2; // left over from an earlier fright
+    Object.assign(s.pacman, { tile: { x: 2, y: 23 }, dir: 'left', progress: 0.9 });
+    for (const id of ['blinky', 'pinky'] as const) {
+      Object.assign(s.ghosts[id], { state: 'normal', tile: { x: 1, y: 22 }, dir: 'down', progress: 0.9, waiting: false });
+    }
+    run(stats, s, 1 / 60); // eats the power pellet at (1,23) and both ghosts in the same step
+    expect(s.frightChain).toBe(2);
+    expect(stats.summary(s).ghostsEaten).toBe(2);
+  });
+
+  it('counts failed calls and reports unknown cost and latency honestly', () => {
+    const stats = new GameStats();
+    stats.onSchedulerEvent({ type: 'error', message: 'Your Opper wallet is empty' });
+    stats.onSchedulerEvent({ type: 'call', actors: ['blinky'], usage: { input_tokens: 1, output_tokens: 1 }, traceId: null, latencyMs: Number.NaN, costUsd: null });
+    stats.onSchedulerEvent({ type: 'call', actors: ['blinky'], usage: { input_tokens: 1, output_tokens: 1 }, traceId: null, latencyMs: 300, costUsd: null });
+    expect(stats.summary(createGame()).jev).toMatchObject({ calls: 2, errors: 1, meanLatencyMs: 300, costUsd: null });
   });
 });

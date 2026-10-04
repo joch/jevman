@@ -51,13 +51,14 @@ const restartBtn = $<HTMLButtonElement>('#restart');
 const hud = { score: $('#score'), level: $('#level'), lives: $('#lives'), fruit: $('#fruit-hud') };
 
 function togglePause(): void {
+  if (!overlayEl.hidden) return; // nothing is running behind the Play / game-over card
   paused = !paused;
   pauseBtn.textContent = paused ? 'Resume' : 'Pause';
 }
 pauseBtn.addEventListener('click', togglePause);
 
-const keyActions = new Map<string, () => void>([['p', togglePause]]);
 const overlayEl = $('#overlay');
+const keyActions = new Map<string, () => void>([['p', togglePause]]);
 /** What Space/Enter does while an overlay is open (Play, Play again). */
 let overlayAction: (() => void) | null = null;
 let steer: ((dir: Dir) => void) | null = null;
@@ -95,14 +96,18 @@ if (rec) {
     },
   });
   let stats = new GameStats();
-  const scheduler = new Scheduler({
-    transport,
-    now: () => clockMs,
-    onEvent: (e) => {
-      panel.handle(e);
-      stats.onSchedulerEvent(e);
-    },
-  });
+  // One scheduler per game: answers still in flight from a restarted game reach its old scheduler and are ignored.
+  const newScheduler = (gameStats: GameStats) =>
+    new Scheduler({
+      transport,
+      now: () => clockMs,
+      onEvent: (e) => {
+        if (gameStats !== stats) return;
+        panel.handle(e);
+        stats.onSchedulerEvent(e);
+      },
+    });
+  let scheduler = newScheduler(stats);
   // Nothing runs, and no jev call is made, until the player presses Play.
   let started = false;
   let gameOverShown = false;
@@ -122,11 +127,14 @@ if (rec) {
     state = createGame({ pacmanControl: state.pacmanControl });
     scheduler.reset();
     stats = new GameStats();
+    scheduler = newScheduler(stats);
+    panel = new Panel(panelEl);
     gameOverShown = false;
+    paused = false;
+    pauseBtn.textContent = 'Pause';
     begin();
   };
-  overlayAction = begin;
-  showPlay(overlayEl, me, begin);
+  overlayAction = showPlay(overlayEl, me, begin);
   toggleBtn.addEventListener('click', togglePacman);
   restartBtn.addEventListener('click', restart);
   speedIn.addEventListener('input', () => {
