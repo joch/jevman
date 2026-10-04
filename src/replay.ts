@@ -2,6 +2,10 @@ import type { SchedulerEvent } from './scheduler';
 import { createGame, step, type Controls, type GameState } from './sim';
 import type { Dir } from './types';
 
+type CallEvent = Extract<SchedulerEvent, { type: 'call' }>;
+/** A scheduler event as stored in a recording: call events drop traceId, which points at the recorder's own Opper traces. */
+export type RecordedEvent = Exclude<SchedulerEvent, CallEvent> | Omit<CallEvent, 'traceId'>;
+
 export interface Recording {
   version: 1;
   recordedAt: string;
@@ -11,7 +15,7 @@ export interface Recording {
   /** Every non-null direction Controls.decide returned: [frame, decision key, direction]. */
   decisions: [number, string, Dir][];
   /** Scheduler events for the panel: [frame, event]. */
-  events: [number, SchedulerEvent][];
+  events: [number, RecordedEvent][];
   final: { score: number; lives: number; level: number; frames: number };
 }
 
@@ -21,7 +25,15 @@ export const roundDt = (dt: number): number => Math.round(dt * 10_000) / 10_000;
 export class Recorder {
   readonly frames: number[] = [];
   readonly decisions: [number, string, Dir][] = [];
-  readonly events: [number, SchedulerEvent][] = [];
+  readonly events: [number, RecordedEvent][] = [];
+
+  /** Keeps a scheduler event for the panel, without its trace id. */
+  record(frame: number, e: SchedulerEvent): void {
+    if (e.type === 'call') {
+      const { traceId: _omit, ...rest } = e;
+      this.events.push([frame, rest]);
+    } else this.events.push([frame, e]);
+  }
 
   wrap(ctl: Controls, frame: () => number): Controls {
     return {
@@ -56,7 +68,10 @@ export class Replay {
 
   constructor(private readonly rec: Recording) {
     for (const [f, key, dir] of rec.decisions) this.choices.set(`${f}|${key}`, [...(this.choices.get(`${f}|${key}`) ?? []), dir]);
-    for (const [f, e] of rec.events) this.eventsByFrame.set(f, [...(this.eventsByFrame.get(f) ?? []), e]);
+    for (const [f, e] of rec.events) {
+      const event: SchedulerEvent = e.type === 'call' ? { ...e, traceId: null } : e;
+      this.eventsByFrame.set(f, [...(this.eventsByFrame.get(f) ?? []), event]);
+    }
   }
 
   get done(): boolean {

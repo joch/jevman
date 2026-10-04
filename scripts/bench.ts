@@ -10,7 +10,7 @@ import { createGame, escapePoint, step, type Controls } from '../src/sim';
 import { REVERSE } from '../src/maze';
 import type { DecideResponse } from '../src/brain';
 import { GHOST_IDS, type ActorId } from '../src/types';
-import { handleDecide } from '../server/decide';
+import { handleDecide, JEV_MODEL } from '../server/decide';
 import { Recorder, roundDt } from '../src/replay';
 
 const { values } = parseArgs({
@@ -83,7 +83,7 @@ async function playOne(): Promise<Result> {
     now: () => performance.now(),
     actors: jevActors,
     onEvent: (e) => {
-      recorder?.events.push([frame, e]);
+      recorder?.record(frame, e);
       if (e.type === 'call') {
         r.calls += 1;
         r.cost += e.costUsd ?? 0;
@@ -158,7 +158,7 @@ async function playOne(): Promise<Result> {
   r.pellets = pelletsEaten;
   r.level = state.level;
   if (recorder) {
-    const out = JSON.stringify(recorder.finish(state, 'typesafe/jev-1.13.0'));
+    const out = JSON.stringify(recorder.finish(state, JEV_MODEL));
     mkdirSync(dirname(values.record!), { recursive: true });
     writeFileSync(values.record!, out);
     console.log(`recorded ${recorder.frames.length} frames to ${values.record} (${(out.length / 1024).toFixed(0)} KB)`);

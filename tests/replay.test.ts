@@ -35,6 +35,19 @@ describe('Replay', () => {
     expect(replay.stepFrame()).toEqual([{ type: 'error', message: 'x' }]);
   });
 
+  it('records call events without their trace id and replays them with traceId null', () => {
+    const rec = new Recorder();
+    const call = { type: 'call' as const, actors: ['blinky' as const], latencyMs: 120, usage: { input_tokens: 5, output_tokens: 2 }, costUsd: 0.00002, traceId: 'trace-secret' };
+    rec.record(0, call);
+    rec.record(0, { type: 'error', message: 'x' });
+    rec.frames.push(0.016);
+    const recording = rec.finish(createGame(), 'jev');
+    expect(JSON.stringify(recording)).not.toContain('traceId');
+    const { traceId: _omit, ...withoutTrace } = call;
+    expect(recording.events).toEqual([[0, withoutTrace], [0, { type: 'error', message: 'x' }]]);
+    expect(new Replay(recording).stepFrame()).toEqual([{ ...call, traceId: null }, { type: 'error', message: 'x' }]);
+  });
+
   it('stays put and hands out nothing once the recording is done', () => {
     const rec: Recording = { ...recordGreedy(3), events: [[2, { type: 'error', message: 'x' }]] };
     const replay = new Replay(rec);
