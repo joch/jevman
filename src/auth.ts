@@ -115,8 +115,8 @@ function signInButton(me: Me): HTMLButtonElement {
 export const REPO_URL = 'https://github.com/joch/jevman';
 
 /** The alternative to signing in: run jevman locally with your own TypeSafe (or Opper) key. */
-function runItYourself(): HTMLElement {
-  const hint = el('span', 'or ', 'hint');
+function runItYourself(lead: string): HTMLElement {
+  const hint = el('p', lead, 'hint');
   const link = el('a', 'clone the repo and use your own TypeSafe key');
   link.href = `${REPO_URL}#option-c--your-own-typesafe-key-jev-straight-from-typesafe`;
   link.target = '_blank';
@@ -125,49 +125,62 @@ function runItYourself(): HTMLElement {
   return hint;
 }
 
+/**
+ * The account area of the page header: a badge and one line saying how jev is paid for, an optional hint below it,
+ * and the actions (sign in, wallet, sign out) beside it.
+ */
 export function renderAccount(root: HTMLElement, view: AccountView): void {
   const { me } = view;
-  const parts: HTMLElement[] = [];
+  const text = el('div', undefined, 'account-text');
+  const actions = el('div', undefined, 'account-actions');
+  const line = (badge: string, message: string) => {
+    const p = el('p', undefined, 'status');
+    p.append(el('span', badge, 'badge'), el('span', message));
+    text.append(p);
+  };
   // With a notice, "Try again" takes the place of the view's own sign-in button.
   const retry = Boolean(view.notice) && view.kind !== 'player';
-  if (view.notice) {
-    // No role="alert": the account bar itself is an aria-live="polite" region.
-    if (view.noticeLink) {
-      const link = el('a', `${view.notice} ↗`, 'notice');
-      link.href = view.noticeLink;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      parts.push(link);
-    } else parts.push(el('span', view.notice, 'notice'));
-    if (retry) {
-      const again = signInButton(me);
-      again.textContent = 'Try again';
-      parts.push(again);
-    }
-  }
   if (view.kind === 'player') {
     const who = me.user?.name ?? me.user?.email ?? 'Opper user';
-    parts.push(el('span', `Signed in as ${who}${me.projectName ? ` · ${me.projectName}` : ''}`));
-    const wallet = el('a', 'My Opper wallet ↗');
+    line('Live', `Signed in as ${who}${me.projectName ? ` · ${me.projectName}` : ''}`);
+    text.append(el('p', 'jev plays live; calls bill your Opper wallet.', 'hint'));
+    const wallet = el('a', 'My wallet ↗', 'button');
     wallet.href = me.walletUrl;
     wallet.target = '_blank';
     wallet.rel = 'noopener';
-    parts.push(wallet);
     const out = el('button', 'Sign out');
     out.addEventListener('click', () => void signOut());
-    parts.push(out);
+    actions.append(wallet, out);
   } else if (view.kind === 'dev') {
-    parts.push(el('span', me.devProvider === 'typesafe' ? 'Playing with your TypeSafe key from .env (calls go straight to TypeSafe)' : 'Playing with the local dev key from .env'));
-    if (me.loginAvailable && !retry) parts.push(signInButton(me));
+    line('Local key', me.devProvider === 'typesafe' ? 'Playing with your TypeSafe key from .env' : 'Playing with the local dev key from .env');
+    text.append(el('p', me.devProvider === 'typesafe' ? 'Calls go straight to TypeSafe.' : 'Calls go through Opper with your key.', 'hint'));
+    if (me.loginAvailable && !retry) actions.append(signInButton(me));
   } else if (view.kind === 'demo') {
-    parts.push(el('span', 'Recorded demo — sign in with Opper to let jev play live (calls bill your own Opper wallet)'));
-    if (!retry) parts.push(signInButton(me));
-    parts.push(runItYourself());
+    line('Recorded demo', 'Sign in to let jev play live');
+    text.append(runItYourself('Calls bill your own Opper wallet, or '));
+    if (!retry) actions.append(signInButton(me));
   } else {
-    parts.push(el('span', 'Signed out — sign in with Opper to keep jev playing'));
-    if (!retry) parts.push(signInButton(me));
-    parts.push(runItYourself());
+    line('Signed out', 'Sign in with Opper to keep jev playing');
+    text.append(runItYourself('Or '));
+    if (!retry) actions.append(signInButton(me));
+  }
+  if (view.notice) {
+    // No role="alert": the account area itself is an aria-live="polite" region.
+    const notice = el('p', undefined, 'notice');
+    if (view.noticeLink) {
+      const link = el('a', `${view.notice} ↗`);
+      link.href = view.noticeLink;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      notice.append(link);
+    } else notice.textContent = view.notice;
+    text.append(notice);
+    if (retry) {
+      const again = signInButton(me);
+      again.textContent = 'Try again';
+      actions.prepend(again);
+    }
   }
   root.dataset.kind = view.kind;
-  root.replaceChildren(...parts);
+  root.replaceChildren(text, ...(actions.childElementCount ? [actions] : []));
 }
