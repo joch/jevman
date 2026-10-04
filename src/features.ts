@@ -183,6 +183,19 @@ function corridorFrom(state: GameState, start: Tile, heading: Dir): Tile[] {
 }
 
 /** Deterministic stand-in used when jev cannot answer in time. */
+/** Pac-Man covers 7.5 tiles a second; count a little less so a marked fruit is still there on arrival. */
+const FRUIT_STEPS_PER_SECOND = 7;
+
+/** The quickest route to the fruit that gets there before it disappears and passes no ghost, or null. */
+export function fruitRoute(state: GameState, feats: OptionFeatures[]): Dir | null {
+  if (!state.fruit) return null;
+  const reach = Math.floor(state.fruit.secondsLeft * FRUIT_STEPS_PER_SECOND);
+  const ok = feats.filter(
+    (f) => f.fruitDistance !== null && f.fruitDistance <= reach && f.dangerInCorridor.length === 0 && (f.nearestDangerGhost ?? 999) > 2 && !isTrap(f),
+  );
+  return ok.length ? ok.reduce((best, f) => (f.fruitDistance! < best.fruitDistance! ? f : best)).dir : null;
+}
+
 export function greedyChoice(state: GameState, point: DecisionPoint, feats: OptionFeatures[]): Dir {
   const lowest = (pool: OptionFeatures[], score: (f: OptionFeatures) => number) =>
     pool.reduce((best, f) => (score(f) < score(best) ? f : best)).dir;
@@ -198,5 +211,7 @@ export function greedyChoice(state: GameState, point: DecisionPoint, feats: Opti
   if (state.frightLeft > 0 && pool.some((f) => f.nearestFrightenedGhost !== null)) {
     return lowest(pool, (f) => or(f.nearestFrightenedGhost, 999));
   }
+  const fruit = fruitRoute(state, pool);
+  if (fruit) return fruit;
   return lowest(pool, (f) => or(f.nearestPellet, 999));
 }
