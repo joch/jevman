@@ -106,3 +106,10 @@ least bad one when jev's pick is clearly worse. The panel and the game-over card
 there the check turns Pac-Man back whenever that is safe, and jev's answer decides only when both
 ways are risky. Against the scripted ghosts the safety check roughly doubled how long jev Pac-Man
 survives.
+
+## License
+
+Copyright © 2026 Johnny Chadda. jevman is free software under the
+[GNU Affero General Public License v3.0 or later](LICENSE). You may use, change and host it. If you
+run a modified version as a service, you must offer its users the source of your version, as the
+game's "Source on GitHub" link does for this one.
