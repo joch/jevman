@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { openSession, parseCookies, safeEqual, sealSession, serializeCookie, SESSION_MAX_AGE_S, type SessionData } from './session';
+import { openSession, parseCookies, safeEqual, sealSession, serializeCookie, SESSION_MAX_AGE_S, type SessionData } from './session.ts';
 
 export const WALLET_URL = 'https://platform.opper.ai/wallet';
 export const SESSION_COOKIE = 'jevman_session';

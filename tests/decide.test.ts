@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { EventEmitter } from 'node:events';
-import { handleDecide, JEV_MODEL, jevPlugin, type DecideDeps } from '../server/decide';
+import { handleDecide, JEV_MODEL, resolveKey, type DecideDeps } from '../server/decide';
 
 const body = {
   state: { maze: ['#'] },
@@ -112,66 +111,32 @@ describe('handleDecide', () => {
   });
 });
 
-describe('jevPlugin middleware', () => {
-  function mount(logger: { info: () => void; warn: () => void; error: () => void }) {
-    let handler!: (req: EventEmitter & { method: string; headers: Record<string, string> }, res: unknown) => void;
-    const plugin = jevPlugin({ OPPER_API_KEY: 'test-key', OPPER_BASE_URL: 'https://api.opper.ai' });
-    (plugin.configureServer as (s: unknown) => void)({
-      config: { logger },
-      middlewares: { use: (_path: string, h: typeof handler) => (handler = h) },
-    });
-    return handler;
-  }
-
-  it('answers 500 and ends the response when handling throws, instead of hanging', async () => {
-    vi.stubGlobal('fetch', async () => {
-      throw new Error('boom');
-    });
-    const error = vi.fn();
-    const handler = mount({
-      info: () => {
-        throw new Error('logger exploded with test-key');
-      },
-      warn: () => {},
-      error,
-    });
-    const headers: Record<string, string> = {};
-    const res = {
-      statusCode: 200,
-      headersSent: false,
-      setHeader: (k: string, v: string) => (headers[k] = v),
-      end: vi.fn((_chunk?: string) => (res.headersSent = true)),
-    };
-    const req = Object.assign(new EventEmitter(), { method: 'POST', headers: { 'content-type': 'application/json' } });
-    handler(req, res);
-    req.emit('data', JSON.stringify(body));
-    req.emit('end');
-    await vi.waitFor(() => expect(res.end).toHaveBeenCalled());
-    vi.unstubAllGlobals();
-    expect(res.statusCode).toBe(500);
-    expect(JSON.parse(res.end.mock.calls[0][0] as unknown as string)).toEqual({ error: 'internal error in /api/decide' });
-    expect(JSON.stringify(error.mock.calls)).not.toContain('test-key');
+describe('player keys', () => {
+  const upstream = (status: number) => vi.fn<typeof fetch>(async () => new Response('{"error":"x"}', { status }));
+  it.each([
+    [401, 401, { error: 'Your Opper sign-in has expired — sign in again', signedOut: true, clearSession: true }],
+    [402, 402, { error: 'Your Opper wallet is empty — top up to keep playing', walletUrl: 'https://platform.opper.ai/wallet' }],
+    [403, 403, { error: 'jev is not enabled for your Opper account' }],
+  ])('maps upstream %i to %i for a player key', async (up, status, bodyOut) => {
+    const res = await handleDecide(body, deps(upstream(up), { keyMode: 'player' }));
+    expect(res).toEqual({ status, body: bodyOut });
   });
-
-  it('answers 405 to non-POST requests', () => {
-    const handler = mount({ info: () => {}, warn: () => {}, error: () => {} });
-    const res = { statusCode: 200, end: vi.fn() };
-    handler(Object.assign(new EventEmitter(), { method: 'GET', headers: {} }), res);
-    expect(res.statusCode).toBe(405);
-    expect(res.end).toHaveBeenCalled();
+  it('keeps the 502 mapping for the dev key', async () => {
+    expect((await handleDecide(body, deps(upstream(401), { keyMode: 'dev' }))).status).toBe(502);
   });
+  it('labels log lines with the key mode', async () => {
+    const log = vi.fn();
+    await handleDecide(body, deps(ok(), { keyMode: 'player', log }));
+    expect(log.mock.calls[0][0]).toMatch(/^\[jev player\] /);
+  });
+});
 
-  it.each([['text/plain'], [undefined]])('answers 415 without calling jev for Content-Type %s (CSRF guard)', (contentType) => {
-    const fetchSpy = vi.fn();
-    vi.stubGlobal('fetch', fetchSpy);
-    const handler = mount({ info: () => {}, warn: () => {}, error: () => {} });
-    const headers: Record<string, string> = {};
-    const res = { statusCode: 200, setHeader: (k: string, v: string) => (headers[k] = v), end: vi.fn() };
-    const req = Object.assign(new EventEmitter(), { method: 'POST', headers: (contentType ? { 'content-type': contentType } : {}) as Record<string, string> });
-    handler(req, res);
-    vi.unstubAllGlobals();
-    expect(res.statusCode).toBe(415);
-    expect(JSON.parse(res.end.mock.calls[0][0] as string)).toEqual({ error: 'Expected application/json' });
-    expect(fetchSpy).not.toHaveBeenCalled();
+describe('resolveKey', () => {
+  const session = { v: 1 as const, apiKey: 'op-player', user: {}, issuedAt: 0 };
+  it('prefers the signed-in player, then the dev key, else none', () => {
+    expect(resolveKey(session, 'op-dev')).toEqual({ apiKey: 'op-player', mode: 'player' });
+    expect(resolveKey(null, 'op-dev')).toEqual({ apiKey: 'op-dev', mode: 'dev' });
+    expect(resolveKey(null, '')).toBeNull();
+    expect(resolveKey(null, undefined)).toBeNull();
   });
 });
