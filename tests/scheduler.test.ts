@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DecideResponse, SystemOneRequest } from '../src/brain';
 import { Scheduler, type SchedulerEvent, type Transport } from '../src/scheduler';
-import { createGame, escapePoint, nextDecisionPoint } from '../src/sim';
+import { createGame, escapePoint, jevActors, nextDecisionPoint, type GameState } from '../src/sim';
 import type { ActorId } from '../src/types';
 
 interface Call {
@@ -10,7 +10,7 @@ interface Call {
   reject: (e: Error) => void;
 }
 
-function harness(opts: { maxInFlight?: number; actors?: readonly ActorId[]; safetyCheck?: boolean } = {}) {
+function harness(opts: { maxInFlight?: number; actors?: readonly ActorId[] | ((s: GameState) => readonly ActorId[]); safetyCheck?: boolean } = {}) {
   const calls: Call[] = [];
   const events: SchedulerEvent[] = [];
   const clock = { now: 0 };
@@ -310,5 +310,17 @@ describe('Scheduler safety check', () => {
     const point = nextDecisionPoint(s, 'pacman')!;
     expect(scheduler.decide(point, s)).toBe(point.options[0]);
     expect(ofType(events, 'superseded')).toHaveLength(0);
+  });
+});
+
+describe('jev plays one side', () => {
+  it('asks about Pac-Man only while jev plays him, and about the ghosts only while the player steers', () => {
+    const { calls, scheduler } = harness({ actors: jevActors });
+    const s = createGame({ pacmanControl: 'jev' });
+    scheduler.update(s);
+    expect(Object.keys(calls[0].body.questions)).toEqual(['pacman']);
+    s.pacmanControl = 'keyboard';
+    scheduler.update(s);
+    expect(Object.keys(calls[1].body.questions)).toEqual(['blinky']);
   });
 });

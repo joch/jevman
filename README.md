@@ -1,7 +1,8 @@
 # jevman
 
 Pac-Man where the characters are driven by Opper's decision model `typesafe/jev-1.13.0`.
-Ghosts are always jev; Pac-Man toggles between keyboard and jev. The side panel shows each
+jev plays one side at a time: with Pac-Man on jev, the ghosts follow the classic scripted rules;
+steer Pac-Man yourself (`J`) and jev plays the ghosts instead. The side panel shows each
 decision's probabilities, confidence, latency and running cost. Red entries are greedy fallbacks
 used when jev could not answer (timeout, error, invalid answer or missing key) — never jev's own choice.
 
@@ -65,7 +66,7 @@ precedence over `.env`. The account bar above the game says which one is in use.
   fallbacks, escape questions and cost. Paid whenever jev drives a character. Flags: `--games 4`
   (played in parallel), `--pacman jev|greedy`, `--ghosts greedy|jev`, `--max 120` (seconds per game),
   `--record path.json` (with `--games 1`: save the game for replay). The demo was recorded with
-  `npm run bench -- --games 1 --pacman jev --ghosts jev --max 90 --record public/demo/jev-demo.json`;
+  `npm run bench -- --games 1 --pacman jev --ghosts greedy --max 120 --record public/demo/jev-demo.json`;
   re-record it if a change to the game rules makes the replay test fail.
 
 ## Controls
@@ -74,10 +75,11 @@ Arrows/WASD steer (keyboard mode) · `J` toggle Pac-Man jev/keyboard · `P` paus
 
 ## Cost
 
-Each jev call costs about **$0.00005**, through Opper or straight from TypeSafe. With jev driving all five characters a game makes roughly
-5–6 calls per second, so a typical game (about 1–1.5 minutes until Pac-Man runs out of lives)
-costs **about $0.02–0.03**, or **about $1 per hour** of continuous play. Steering Pac-Man yourself
-or lowering the speed makes fewer calls. `npm run bench` reports the exact cost per game.
+Each jev call costs about **$0.00005**, through Opper or straight from TypeSafe. With jev playing
+Pac-Man a game makes about 1–2 calls per second, so a typical game (two to three minutes until he
+runs out of lives) costs **about $0.01**, or **about $0.35 per hour** of continuous play. When you
+steer Pac-Man and jev plays the four ghosts it makes about 4 calls per second, **about $0.75 per
+hour**. Lowering the speed makes fewer calls. `npm run bench` reports the exact cost per game.
 
 ## How decisions work
 

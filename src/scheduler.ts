@@ -21,8 +21,8 @@ export interface SchedulerDeps {
   maxInFlight?: number;
   /** Re-check Pac-Man's answer against the ghosts where they are now, at the junction (default on). */
   safetyCheck?: boolean;
-  /** Actors this scheduler asks jev about (default: all). */
-  actors?: readonly ActorId[];
+  /** Actors this scheduler asks jev about, fixed or per game state (default: all). */
+  actors?: readonly ActorId[] | ((state: GameState) => readonly ActorId[]);
   /**
    * In-flight request counter. Pass the same object to successive schedulers (one per game) so requests
    * still running from an earlier game keep counting against `maxInFlight`.
@@ -50,7 +50,7 @@ export class Scheduler implements Controls {
   private readonly slots: { inFlight: number };
   private readonly timeoutMs: number;
   private readonly maxInFlight: number;
-  private readonly actors: readonly ActorId[];
+  private readonly actors: readonly ActorId[] | ((state: GameState) => readonly ActorId[]);
 
   constructor(private readonly deps: SchedulerDeps) {
     this.timeoutMs = deps.timeoutMs ?? 2000;
@@ -63,7 +63,7 @@ export class Scheduler implements Controls {
     const now = this.deps.now();
     const live = new Set<string>();
     const fruitOnBoard = state.fruit !== null;
-    for (const id of this.actors) {
+    for (const id of typeof this.actors === 'function' ? this.actors(state) : this.actors) {
       for (const point of decisionPoints(state, id)) {
         live.add(point.key);
         // Pac-Man's routes and fallback depend on the fruit, which can appear or vanish without changing the key.

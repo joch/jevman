@@ -1,7 +1,7 @@
 import { ACTOR_NAMES, type Decision } from './brain';
 import { GHOST_COLORS } from './render';
 import type { SchedulerEvent } from './scheduler';
-import type { GameState } from './sim';
+import { jevActors, type GameState } from './sim';
 import { ACTOR_IDS, DIRS, type ActorId, type Dir } from './types';
 
 const COLORS: Record<ActorId, string> = { pacman: '#ffd800', ...GHOST_COLORS };
@@ -17,6 +17,8 @@ interface Card {
 
 export class Panel {
   private readonly cards = new Map<ActorId, Card>();
+  /** Whether jev played each character at the last updateActors. */
+  private readonly played = new Map<ActorId, boolean>();
   private readonly banner: HTMLElement;
   private readonly totalsEl: HTMLElement;
   private readonly log: HTMLElement;
@@ -96,15 +98,36 @@ export class Panel {
         id === 'pacman' && state.pacmanControl === 'keyboard' ? 'keyboard'
         : ghost?.state === 'house' ? 'in house'
         : ghost?.state === 'eaten' ? 'eyes → home'
+        : ghost && !jevActors(state).includes(id) ? (ghost.state === 'frightened' ? 'scripted · frightened' : 'scripted')
         : state.status === 'playing' && actor.waiting ? 'thinking…'
         : ghost?.state === 'frightened' ? 'frightened'
         : 'moving';
-      const status = this.cards.get(id)!.status;
-      if (status.textContent !== text) {
-        status.textContent = text;
-        status.dataset.state = text;
+      const card = this.cards.get(id)!;
+      if (card.status.textContent !== text) {
+        card.status.textContent = text;
+        card.status.dataset.state = text;
+      }
+      // A character jev doesn't play shows who steers it instead of a stale jev decision.
+      const played = jevActors(state).includes(id);
+      if (played !== this.played.get(id)) {
+        this.played.set(id, played);
+        this.clearCard(id, played ? 'no decision yet' : ghost ? 'classic ghost rules, not jev' : 'steered by you, not jev');
       }
     }
+  }
+
+  /** Empty bars and a note on who steers: for a character jev stopped playing (or never played this game). */
+  private clearCard(id: ActorId, meta: string): void {
+    const card = this.cards.get(id)!;
+    for (const dir of DIRS) {
+      const bar = card.bars[dir];
+      bar.row.classList.remove('chosen', 'disabled');
+      bar.fill.style.width = '0%';
+      bar.pct.textContent = '–';
+    }
+    card.meta.textContent = meta;
+    card.meta.classList.remove('fallback');
+    card.el.classList.remove('fallback');
   }
 
   private showOverride(d: Decision): void {

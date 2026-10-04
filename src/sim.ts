@@ -183,6 +183,14 @@ export const actorOf = (state: GameState, id: ActorId): Actor =>
 
 const ghostList = (state: GameState): Ghost[] => GHOST_IDS.map((id) => state.ghosts[id]);
 
+/**
+ * Who jev plays in the live game: one side, so its decisions are easy to follow. With jev playing Pac-Man the ghosts
+ * follow classic scripted rules; when the player steers Pac-Man, jev plays the ghosts.
+ */
+export function jevActors(state: GameState): readonly ActorId[] {
+  return state.pacmanControl === 'jev' ? ['pacman'] : GHOST_IDS;
+}
+
 export function isJevDriven(state: GameState, id: ActorId): boolean {
   if (id === 'pacman') return state.pacmanControl === 'jev';
   const s = state.ghosts[id].state;
