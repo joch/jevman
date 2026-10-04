@@ -21,6 +21,8 @@ canvas { background: #000; border-radius: 6px; max-width: 100%; height: auto; }
 button { background: #24243a; color: var(--text); border: 1px solid #3a3a5a; border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }
 button:hover { border-color: var(--accent); }
 .help { color: var(--muted); font-size: 13px; margin: 0; }
+.source { color: var(--muted); font-size: 13px; margin: 0; }
+.source a { color: inherit; }
 #panel { background: var(--panel); border-radius: 8px; padding: 12px 14px; max-height: calc(100vh - 32px); overflow: auto; position: sticky; top: 16px; }
 #panel h2 { margin: 0 0 8px; font-size: 16px; }
 #panel h3 { margin: 14px 0 6px; font-size: 13px; color: var(--muted); }
@@ -56,3 +58,5 @@ button:hover { border-color: var(--accent); }
 .account .signin:disabled { opacity: 0.5; cursor: not-allowed; }
 .account[data-kind='demo'], .account[data-kind='signed-out'] { color: var(--text); }
 .account .notice { color: var(--danger); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button:disabled:hover { border-color: #3a3a5a; }
