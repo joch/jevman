@@ -11,11 +11,18 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); }
-.layout { display: grid; grid-template-columns: auto minmax(320px, 440px); gap: 24px; padding: 16px; justify-content: center; align-items: start; }
+.page { width: fit-content; max-width: 100%; margin: 0 auto; padding: 16px; }
+.site { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 24px; padding-bottom: 14px; margin-bottom: 16px; border-bottom: 1px solid #22223a; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand h1 { margin: 0; font-size: 22px; letter-spacing: 0.02em; }
+.brand p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.logo { width: 34px; height: 34px; flex: none; border-radius: 50%; background: conic-gradient(from 60deg, transparent 0 60deg, var(--accent) 60deg 360deg); }
+.layout { display: grid; grid-template-columns: auto minmax(320px, 440px); gap: 24px; justify-content: center; align-items: start; }
 @media (max-width: 1040px) { .layout { grid-template-columns: 1fr; } }
 .game { display: flex; flex-direction: column; gap: 8px; }
 canvas { background: #000; border-radius: 6px; max-width: 100%; height: auto; }
-.hud { display: flex; gap: 20px; font-family: ui-monospace, monospace; font-size: 15px; }
+.hud { display: flex; flex-wrap: wrap; gap: 4px 20px; font-family: ui-monospace, monospace; font-size: 15px; }
+.hud span { white-space: nowrap; }
 .hud b { color: var(--accent); }
 .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 button { background: #24243a; color: var(--text); border: 1px solid #3a3a5a; border-radius: 6px; padding: 6px 12px; cursor: pointer; font: inherit; }
@@ -53,15 +60,24 @@ button:hover { border-color: var(--accent); }
 .log li.fallback { color: var(--danger); }
 .log li.stale { color: var(--muted); }
 
-.account { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px; color: var(--muted); min-height: 32px; }
+.account { display: flex; align-items: center; gap: 16px; font-size: 13px; min-height: 40px; }
+.account-text { display: flex; flex-direction: column; gap: 3px; }
+.account p { margin: 0; }
+.account .status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 500; }
+.account .badge { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 999px; border: 1px solid #3a3a5a; color: var(--muted); }
+.account[data-kind='player'] .badge { color: #4ade80; border-color: #2f6b45; }
+.account[data-kind='demo'] .badge, .account[data-kind='signed-out'] .badge { color: var(--accent); border-color: #6b5c00; }
+.account-actions { display: flex; gap: 8px; align-items: center; flex: none; }
 .account a { color: var(--accent); }
+.account a.button { color: var(--text); text-decoration: none; border: 1px solid #3a3a5a; border-radius: 6px; padding: 6px 12px; }
+.account a.button:hover { border-color: #5a5a8a; }
 .account .signin { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
 .account .signin:disabled { opacity: 0.5; cursor: not-allowed; }
-.account[data-kind='demo'], .account[data-kind='signed-out'] { color: var(--text); }
-.account .notice { color: var(--danger); }
+.account .notice, .account .notice a { color: var(--danger); }
+@media (max-width: 640px) { .account { width: 100%; justify-content: space-between; } }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button:disabled:hover { border-color: #3a3a5a; }
-.account .hint { color: var(--muted); }
+.account .hint { color: var(--muted); font-size: 12px; }
 .account .hint a { color: var(--muted); text-decoration: underline; }
 
 .board { position: relative; width: fit-content; max-width: 100%; }

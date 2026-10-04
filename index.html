@@ -7,9 +7,19 @@
     <title>jevman</title>
   </head>
   <body>
+    <div class="page">
+    <header class="site">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <div>
+          <h1>jevman</h1>
+          <p>Pac-Man played by jev, Opper's decision model</p>
+        </div>
+      </div>
+      <div id="account" class="account" aria-live="polite"></div>
+    </header>
     <main class="layout">
       <section class="game">
-        <div id="account" class="account" aria-live="polite"></div>
         <header class="hud">
           <span>Score <b id="score">0</b></span>
           <span>Level <b id="level">1</b></span>
@@ -31,6 +41,7 @@
       </section>
       <aside id="panel" aria-label="jev decisions"></aside>
     </main>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
