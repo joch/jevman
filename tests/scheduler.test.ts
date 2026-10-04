@@ -268,4 +268,18 @@ describe('Scheduler and fruit', () => {
     expect(scheduler.decide(point, s)).not.toBeNull();
     expect(ofType(events, 'decision').at(-1)!.decision).toMatchObject({ source: 'fallback', reason: 'fruit changed' });
   });
+
+  it('keeps a fruit-aware answer while the fruit is still reachable, but not once it drifts out of reach', async () => {
+    for (const secondsLeft of [8, 0.2]) {
+      const { calls, events, scheduler } = harness({ actors: ['pacman'] });
+      const s = createGame();
+      s.fruit = cherry();
+      scheduler.update(s);
+      calls[0].resolve(answerAll(calls[0].body));
+      await flush();
+      s.fruit.secondsLeft = secondsLeft; // Pac-Man waited at the junction for the answer
+      expect(scheduler.decide(nextDecisionPoint(s, 'pacman')!, s)).not.toBeNull();
+      expect(ofType(events, 'decision').at(-1)!.decision.source).toBe(secondsLeft === 8 ? 'jev' : 'fallback');
+    }
+  });
 });

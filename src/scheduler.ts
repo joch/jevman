@@ -1,5 +1,5 @@
 import { buildRequest, fallbackDecision, parseAnswer, questionName, type DecideResponse, type Decision, type PendingQuestion, type SystemOneRequest } from './brain';
-import { optionFeatures } from './features';
+import { fruitRoute, optionFeatures } from './features';
 import { decisionPoints, type Controls, type DecisionPoint, type GameState } from './sim';
 import { ACTOR_IDS, type ActorId, type Dir } from './types';
 
@@ -30,6 +30,8 @@ interface Pending {
   q: PendingQuestion;
   sentAt: number | null; // null = queued, waiting for a free slot
   fruitOnBoard: boolean;
+  /** Pac-Man's FRUIT route when the question was built; the answer is stale once that changes. */
+  fruitRoute: Dir | null;
 }
 
 /**
@@ -38,7 +40,7 @@ interface Pending {
  */
 export class Scheduler implements Controls {
   private readonly pending = new Map<string, Pending>();
-  private readonly ready = new Map<string, { decision: Decision; fruitOnBoard: boolean }>();
+  private readonly ready = new Map<string, { decision: Decision; fruitOnBoard: boolean; fruitRoute: Dir | null }>();
   /** Answers already handed to the sim whose question is still open (escape questions); never re-asked. */
   private readonly consumed = new Set<string>();
   private readonly slots: { inFlight: number };
@@ -66,10 +68,12 @@ export class Scheduler implements Controls {
           if (this.ready.get(point.key)?.fruitOnBoard === !fruitOnBoard) this.ready.delete(point.key);
         }
         if (this.pending.has(point.key) || this.ready.has(point.key) || this.consumed.has(point.key)) continue;
+        const features = optionFeatures(state, point);
         this.pending.set(point.key, {
-          q: { point, features: optionFeatures(state, point) },
+          q: { point, features },
           sentAt: null,
           fruitOnBoard,
+          fruitRoute: id === 'pacman' ? fruitRoute(state, point, features) : null,
         });
       }
     }
@@ -90,9 +94,11 @@ export class Scheduler implements Controls {
     if (!r) return null;
     this.ready.delete(point.key);
     let d = r.decision;
-    // Fruit can appear or expire inside the very step that reaches the junction, after the last update().
-    if (point.actor === 'pacman' && r.fruitOnBoard !== (state.fruit !== null)) {
-      d = fallbackDecision(state, { point, features: optionFeatures(state, point) }, 'fruit changed');
+    // Fruit can appear or expire inside the very step that reaches the junction, after the last update(), and
+    // while Pac-Man waits for an answer the fruit can drift out of reach. Either way the answer is stale.
+    const features = point.actor === 'pacman' && (r.fruitOnBoard || state.fruit) ? optionFeatures(state, point) : null;
+    if (features && (r.fruitOnBoard !== (state.fruit !== null) || fruitRoute(state, point, features) !== r.fruitRoute)) {
+      d = fallbackDecision(state, { point, features }, 'fruit changed');
       this.deps.onEvent({ type: 'decision', decision: d, latencyMs: null, fruitOnBoard: state.fruit !== null });
     }
     if (!point.escape) return d.choice;
@@ -147,7 +153,7 @@ export class Scheduler implements Controls {
     const p = this.pending.get(key);
     if (!p) return;
     this.pending.delete(key);
-    this.ready.set(key, { decision, fruitOnBoard: p.fruitOnBoard });
+    this.ready.set(key, { decision, fruitOnBoard: p.fruitOnBoard, fruitRoute: p.fruitRoute });
     this.deps.onEvent({ type: 'decision', decision, latencyMs, fruitOnBoard: p.fruitOnBoard });
   }
 }
