@@ -238,6 +238,16 @@ describe('fruitRoute', () => {
     expect(fruitRoute(s, at(14), feats)).toBe('down');
   });
 
+  it('avoids a fruit route through a frightened ghost that turns dangerous before Pac-Man gets there', () => {
+    const s = setup();
+    s.fruit = { kind: 'cherry', points: 100, tile: { ...FRUIT_TILE }, secondsLeft: 5 };
+    const feats = [feat('up', { fruitDistance: 10, nearestFrightenedGhost: 6 }), feat('down', { fruitDistance: 14 })];
+    s.frightLeft = 0.5; // 3 steps: the ghost 6 steps up is normal again by then
+    expect(fruitRoute(s, at(0), feats)).toBe('down');
+    s.frightLeft = 2; // 14 steps: still edible when Pac-Man reaches it
+    expect(fruitRoute(s, at(0), feats)).toBe('up');
+  });
+
   it('gives no route when the fruit cannot be reached in time or is absent', () => {
     const s = setup();
     s.fruit = { kind: 'cherry', points: 100, tile: { ...FRUIT_TILE }, secondsLeft: 1 }; // reach: 7 steps
