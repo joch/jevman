@@ -1,20 +1,24 @@
 # jevman
 
-Pac-Man where the characters are driven by the jev decision model (`typesafe/jev-1.13.0`), called through Opper or straight from TypeSafe.
-jev plays one side at a time: with Pac-Man on jev, the ghosts follow the classic scripted rules;
-steer Pac-Man yourself (`J`) and jev plays the ghosts instead. The side panel shows each
-decision's probabilities, confidence, latency and running cost. Red entries are greedy fallbacks
-used when jev could not answer (timeout, error, invalid answer or missing key) — never jev's own choice.
+Pac-Man where the characters are driven by the jev decision model (`typesafe/jev-1.13.0`), called
+through Opper or straight from TypeSafe. jev plays one side at a time. In **Watch jev play** (the
+default) jev steers Pac-Man and the ghosts follow the classic scripted rules. In **Play against jev**
+you steer Pac-Man and jev plays the four ghosts. Pick the mode in the Play dialog, or switch with `J`
+during a game.
+
+The side panel shows each of jev's decisions with its probabilities, confidence, latency and the
+running cost. Red entries were not jev's own choice: greedy fallbacks used when jev could not answer
+(timeout, error or invalid answer) and safety overrides (see [How decisions work](#how-decisions-work)).
 
 Source: <https://github.com/joch/jevman>
 
 ## Run
 
-Requires Node ≥ 20.6 (developed on Node 26).
+Requires Node ≥ 22.18, which runs the TypeScript server directly. Developed on Node 26; the Docker image uses Node 24.
 
 ```bash
 npm install
-cp .env.example .env   # then pick option A, B or C below
+cp .env.example .env   # then set up option A, B or C below
 npm run dev            # http://localhost:5173
 ```
 
@@ -23,20 +27,6 @@ npm run dev            # http://localhost:5173
 Set `OPPER_API_KEY` to a **project-scoped** Opper API key. Every jev call is billed to that key.
 This is meant for local development: on an https deployment the key is ignored (unless you set
 `JEV_ALLOW_DEV_KEY=1`), because it would pay for every visitor.
-
-### Option C — your own TypeSafe key (jev straight from TypeSafe)
-
-jev is made by [TypeSafe](https://typesafe.ai). To call TypeSafe's own System One API instead of going
-through Opper, get an API key from TypeSafe (see [docs.typesafe.ai](https://docs.typesafe.ai/introduction/quickstart))
-and set `TYPESAFE_API_KEY` in `.env` (and optionally `TYPESAFE_BASE_URL`, default
-`https://api.typesafe.ai`). Calls then go to `POST {TYPESAFE_BASE_URL}/v1/systemone` with model
-`jev-1.13.0`; the request and answers are the same as through Opper. TypeSafe's API returns no
-cost, so the panel shows an **estimate** (`≈`) from token usage at TypeSafe's published price
-($0.042 per million input tokens; output is free). Like option A this is a local key, ignored on
-https deployments unless `JEV_ALLOW_DEV_KEY=1`. `npm run smoke` and `npm run bench` use it too.
-
-This is also the easiest way to play jevman without an Opper account: clone the repo, add your
-TypeSafe key, `npm run dev`. The hosted page links here next to "Sign in with Opper".
 
 ### Option B — Login with Opper (players pay for their own play)
 
@@ -51,11 +41,25 @@ Opper wallet**. The player's key is kept in an encrypted, httpOnly cookie (the p
 never sees it). "Sign out" clears the cookie; to revoke the app's key entirely, remove jevman under
 connected apps in your [Opper wallet](https://platform.opper.ai/wallet).
 
+### Option C — your own TypeSafe key (jev straight from TypeSafe)
+
+jev is made by [TypeSafe](https://typesafe.ai). To call TypeSafe's own System One API instead of going
+through Opper, get an API key from TypeSafe (see [docs.typesafe.ai](https://docs.typesafe.ai/introduction/quickstart))
+and set `TYPESAFE_API_KEY` in `.env` (and optionally `TYPESAFE_BASE_URL`, default
+`https://api.typesafe.ai`). Calls then go to `POST {TYPESAFE_BASE_URL}/v1/systemone` with model
+`jev-1.13.0`; the request and answers are the same as through Opper. TypeSafe's API returns no
+cost, so the panel shows an **estimate** (`≈`) from token usage at TypeSafe's published price
+($0.042 per million input tokens; output is free). Like option A this is a local key, ignored on
+https deployments unless `JEV_ALLOW_DEV_KEY=1`. `npm run smoke` and `npm run bench` use it too.
+
+This is also the easiest way to play jevman without an Opper account: clone the repo, add your
+TypeSafe key, `npm run dev`. The hosted page links here from its header, under "Sign in with Opper".
+
 ### Which key is used
 
 A signed-in Login-with-Opper player always plays on their own key, through Opper. Otherwise the
 server uses `TYPESAFE_API_KEY` if set, else `OPPER_API_KEY`. Variables exported in your shell take
-precedence over `.env`. The account bar above the game says which one is in use.
+precedence over `.env`. The account area in the page header says which one is in use.
 
 ## Scripts
 
@@ -65,7 +69,8 @@ precedence over `.env`. The account bar above the game says which one is in use.
 - `npm run bench` — headless games reporting survival time, score, pellets, deaths, calls,
   fallbacks, escape questions and cost. Paid whenever jev drives a character. Flags: `--games 4`
   (played in parallel), `--pacman jev|greedy`, `--ghosts greedy|jev`, `--max 120` (seconds per game),
-  `--record path.json` (with `--games 1`: save the game for replay). The demo was recorded with
+  `--safety on|off` (the safety check described below), `--record path.json` (with `--games 1`:
+  save the game for replay). The demo was recorded with
   `npm run bench -- --games 1 --pacman jev --ghosts greedy --max 120 --record public/demo/jev-demo.json`;
   re-record it if a change to the game rules makes the replay test fail.
 - `npm run deaths -- game.json` — replays a recorded game and prints, for each of Pac-Man's deaths,
@@ -73,7 +78,8 @@ precedence over `.env`. The account bar above the game says which one is in use.
 
 ## Controls
 
-Arrows/WASD steer (keyboard mode) · `J` toggle Pac-Man jev/keyboard · `P` pause · `R` restart · speed slider.
+Arrows/WASD steer Pac-Man in Play against jev · `J` or the Pac-Man button switches mode · `P` pause ·
+`R` restart · the speed slider slows the game down. Space/Enter presses Play.
 
 ## Cost
 
@@ -89,8 +95,9 @@ When a character commits to a corridor its next junction is known, so the game a
 straight away (one System One request per frame, one `choice` question per character, options =
 legal directions described with computed facts: distances to pellets, power pellets, fruit and
 ghosts, whether the nearest ghost is coming closer, and whether a ghost can reach the end of the
-corridor before Pac-Man). If the character reaches the junction before the answer, it waits there
-("thinking" bubble). After 2 s, or on an error, it uses a greedy rule.
+corridor before Pac-Man). Up to three requests are in flight at once. If the character reaches the
+junction before the answer, it waits there (its panel card says "thinking…"). After 2 s, or on an
+error, it uses a greedy rule.
 
 Pac-Man can also get a second question mid-corridor: when a dangerous ghost is in the corridor
 ahead, or can reach the junction at its end before he does, jev is asked whether to keep going or
