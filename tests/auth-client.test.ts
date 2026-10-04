@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchMe } from '../src/auth';
+import { accountNotice, fetchMe, walletNotice, type Me } from '../src/auth';
 
 const WALLET = 'https://platform.opper.ai/wallet';
 
@@ -67,5 +67,36 @@ describe('fetchMe', () => {
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/me');
     expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+describe('accountNotice', () => {
+  const me = (extra: Partial<Me> = {}): Me => ({ mode: 'none', walletUrl: WALLET, loginAvailable: true, ...extra });
+
+  it('prefers the sign-in error', () => {
+    expect(accountNotice(me({ unavailable: true }), 'Sign-in was cancelled.', true)).toBe('Sign-in was cancelled.');
+  });
+
+  it('says the server could not be reached when /api/me failed', () => {
+    expect(accountNotice(me({ unavailable: true }), null, true)).toBe("Couldn't reach the server — showing the recorded demo");
+    expect(accountNotice(me({ unavailable: true }), null, false)).toBe("Couldn't reach the server");
+  });
+
+  it('shows nothing otherwise', () => {
+    expect(accountNotice(me(), null, true)).toBeUndefined();
+    expect(accountNotice(me({ mode: 'player' }), null, false)).toBeUndefined();
+  });
+});
+
+describe('walletNotice', () => {
+  it('asks the player to top up, linking to the wallet', () => {
+    expect(walletNotice('https://platform.opper.ai/wallet?x=1')).toEqual({
+      notice: 'Your Opper wallet is empty — top up to keep playing',
+      noticeLink: 'https://platform.opper.ai/wallet?x=1',
+    });
+  });
+
+  it('links to the default wallet for a non-https URL', () => {
+    expect(walletNotice('javascript:alert(1)').noticeLink).toBe(WALLET);
   });
 });

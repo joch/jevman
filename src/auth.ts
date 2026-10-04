@@ -8,7 +8,13 @@ export interface Me {
   unavailable?: boolean;
 }
 
-export type AccountView = { kind: 'player' | 'dev' | 'demo' | 'signed-out'; me: Me; notice?: string };
+export type AccountView = {
+  kind: 'player' | 'dev' | 'demo' | 'signed-out';
+  me: Me;
+  notice?: string;
+  /** Makes the notice a link (opened in a new tab), e.g. to the wallet. */
+  noticeLink?: string;
+};
 
 const DEFAULT_WALLET_URL = 'https://platform.opper.ai/wallet';
 const ME_TIMEOUT_MS = 2500;
@@ -76,6 +82,18 @@ export function takeAuthError(): string | null {
   return AUTH_ERRORS[code] ?? 'Sign-in failed. Please try again.';
 }
 
+/** The notice the account bar starts with: a sign-in error, else a warning that /api/me was unreachable. */
+export function accountNotice(me: Me, authError: string | null, demo: boolean): string | undefined {
+  if (authError) return authError;
+  if (me.unavailable) return demo ? "Couldn't reach the server — showing the recorded demo" : "Couldn't reach the server";
+  return undefined;
+}
+
+/** The notice for a player whose Opper wallet ran dry (HTTP 402 from /api/decide). */
+export function walletNotice(walletUrl: string): { notice: string; noticeLink: string } {
+  return { notice: 'Your Opper wallet is empty — top up to keep playing', noticeLink: httpsUrl(walletUrl) };
+}
+
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
   if (text) e.textContent = text;
@@ -94,14 +112,21 @@ function signInButton(me: Me): HTMLButtonElement {
 export function renderAccount(root: HTMLElement, view: AccountView): void {
   const { me } = view;
   const parts: HTMLElement[] = [];
+  // With a notice, "Try again" takes the place of the view's own sign-in button.
+  const retry = Boolean(view.notice) && view.kind !== 'player';
   if (view.notice) {
-    const notice = el('span', view.notice, 'notice');
-    notice.setAttribute('role', 'alert');
-    parts.push(notice);
-    if (view.kind !== 'player') {
-      const retry = signInButton(me);
-      retry.textContent = 'Try again';
-      parts.push(retry);
+    // No role="alert": the account bar itself is an aria-live="polite" region.
+    if (view.noticeLink) {
+      const link = el('a', `${view.notice} ↗`, 'notice');
+      link.href = view.noticeLink;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      parts.push(link);
+    } else parts.push(el('span', view.notice, 'notice'));
+    if (retry) {
+      const again = signInButton(me);
+      again.textContent = 'Try again';
+      parts.push(again);
     }
   }
   if (view.kind === 'player') {
@@ -117,13 +142,13 @@ export function renderAccount(root: HTMLElement, view: AccountView): void {
     parts.push(out);
   } else if (view.kind === 'dev') {
     parts.push(el('span', 'Playing with the local dev key from .env'));
-    if (me.loginAvailable) parts.push(signInButton(me));
+    if (me.loginAvailable && !retry) parts.push(signInButton(me));
   } else if (view.kind === 'demo') {
     parts.push(el('span', 'Recorded demo — sign in with Opper to let jev play live (calls bill your own Opper wallet)'));
-    parts.push(signInButton(me));
+    if (!retry) parts.push(signInButton(me));
   } else {
     parts.push(el('span', 'Signed out — sign in with Opper to keep jev playing'));
-    parts.push(signInButton(me));
+    if (!retry) parts.push(signInButton(me));
   }
   root.dataset.kind = view.kind;
   root.replaceChildren(...parts);
