@@ -114,7 +114,7 @@ export class Scheduler implements Controls {
       const probabilities = Object.fromEntries(asked.map((o, i) => [now[i], d.probabilities[o]]));
       const safer = saferChoice(choice, probabilities, features ?? optionFeatures(state, point));
       if (safer) {
-        this.deps.onEvent({ type: 'superseded', decision: d });
+        // Same decision, new direction: consumers count it as an override, not as another decision.
         d = { ...d, choice: point.escape ? asked[now.indexOf(safer)] : safer, vetoed: d.choice };
         this.deps.onEvent({ type: 'decision', decision: d, latencyMs: null, fruitOnBoard: state.fruit !== null });
       }

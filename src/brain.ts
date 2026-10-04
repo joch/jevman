@@ -58,7 +58,10 @@ export interface Decision {
   reason?: string;
   /** Answer to a mid-corridor escape question rather than a junction choice. */
   escape?: boolean;
-  /** jev's own pick, replaced at the junction because ghosts had made it unsafe since jev answered. */
+  /**
+   * jev's own pick, replaced at the junction because ghosts had made it unsafe since jev answered. A decision event
+   * with `vetoed` repeats an earlier one for the same junction with the new choice; it is not a new decision.
+   */
   vetoed?: Dir;
 }
 

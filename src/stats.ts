@@ -32,6 +32,8 @@ export interface GameSummary {
     costEstimated: boolean;
     /** Requests that failed (signed out, empty wallet, timeouts, errors). */
     errors: number;
+    /** jev picks the safety check replaced because ghosts had moved into the way. */
+    overrides: number;
   };
 }
 
@@ -85,6 +87,7 @@ export class GameStats {
   private cost = { sum: 0, known: false };
   private costEstimated = false;
   private errors = 0;
+  private overrides = 0;
   private before: {
     status: GameState['status'];
     pelletsEaten: number;
@@ -139,6 +142,8 @@ export class GameStats {
       if (e.costEstimated) this.costEstimated = true;
     } else if (e.type === 'error') {
       this.errors += 1;
+    } else if (e.type === 'decision' && e.decision.vetoed) {
+      this.overrides += 1;
     } else if (e.type === 'decision' || e.type === 'superseded') {
       const sign = e.type === 'decision' ? 1 : -1;
       this.decisions += sign;
@@ -169,6 +174,7 @@ export class GameStats {
         costUsd: this.cost.known ? round(this.cost.sum, 6) : null,
         costEstimated: this.costEstimated,
         errors: this.errors,
+        overrides: this.overrides,
       },
     };
   }

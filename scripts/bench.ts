@@ -83,10 +83,12 @@ async function playOne(): Promise<Result> {
       if (e.type === 'call') {
         r.calls += 1;
         r.cost += e.costUsd ?? 0;
+      } else if (e.type === 'decision' && e.decision.vetoed) {
+        r.vetoes += 1;
+        if (e.decision.escape) r.turnBacks += Number(e.decision.choice === e.decision.options[1]) - Number(e.decision.vetoed === e.decision.options[1]);
       } else if (e.type === 'decision' || e.type === 'superseded') {
         const sign = e.type === 'decision' ? 1 : -1;
         if (e.decision.source === 'fallback') r.fallbacks += sign;
-        if (e.decision.vetoed) r.vetoes += sign;
         if (e.decision.escape) {
           r.escapes += sign;
           if (e.decision.choice === e.decision.options[1]) r.turnBacks += sign;

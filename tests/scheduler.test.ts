@@ -297,7 +297,7 @@ describe('Scheduler safety check', () => {
     calls[0].resolve(answerAll(calls[0].body)); // "keep going left", into Blinky
     await flush();
     expect(scheduler.decide(escapePoint(s)!, s)).toBe('right');
-    expect(ofType(events, 'superseded')).toHaveLength(1);
+    expect(ofType(events, 'superseded')).toHaveLength(0);
     expect(ofType(events, 'decision').at(-1)!.decision).toMatchObject({ source: 'jev', choice: 'right', vetoed: 'left' });
   });
 

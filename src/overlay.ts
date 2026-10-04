@@ -21,6 +21,7 @@ export function summaryRows(s: GameSummary): { game: Row[]; jev: Row[] } {
       ['Calls', String(j.calls)],
       ['Decisions', String(j.decisions)],
       ['Fallbacks', String(j.fallbacks)],
+      ['Safety overrides', String(j.overrides)],
       ['Mean latency', j.meanLatencyMs === null ? '–' : `${j.meanLatencyMs} ms`],
       ['Avg confidence', j.meanConfidence === null ? '–' : `${Math.round(j.meanConfidence * 100)}%`],
       ['Cost', j.costUsd === null ? '–' : `${j.costEstimated ? '≈' : ''}$${j.costUsd.toFixed(4)}`],
