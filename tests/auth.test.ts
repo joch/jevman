@@ -139,12 +139,12 @@ describe('session lookup, logout and /api/me', () => {
     expect(handleLogout(signedIn('/auth/logout', 'POST', sameOrigin), cfg).status).toBe(200);
   });
   it('describes the account without the key', () => {
-    const player = JSON.parse(handleMe(signedIn('/api/me'), cfg, true).body);
+    const player = JSON.parse(handleMe(signedIn('/api/me'), cfg, 'opper').body);
     expect(player).toEqual({ mode: 'player', user: { name: 'Ada' }, projectName: 'jevman', walletUrl: 'https://platform.opper.ai/wallet', loginAvailable: true });
-    expect(JSON.parse(handleMe(req('/api/me'), cfg, true).body).mode).toBe('dev');
-    expect(JSON.parse(handleMe(req('/api/me'), { ...cfg, clientId: undefined }, false).body)).toMatchObject({ mode: 'none', loginAvailable: false });
-    expect(handleMe(signedIn('/api/me'), cfg, true).body).not.toContain('op-player');
-    expect(handleMe(signedIn('/api/me'), cfg, true).headers['Cache-Control']).toBe('no-store');
+    expect(JSON.parse(handleMe(req('/api/me'), cfg, 'typesafe').body)).toMatchObject({ mode: 'dev', devProvider: 'typesafe' });
+    expect(JSON.parse(handleMe(req('/api/me'), { ...cfg, clientId: undefined }, undefined).body)).toMatchObject({ mode: 'none', loginAvailable: false });
+    expect(handleMe(signedIn('/api/me'), cfg, 'opper').body).not.toContain('op-player');
+    expect(handleMe(signedIn('/api/me'), cfg, 'opper').headers['Cache-Control']).toBe('no-store');
   });
 });
 

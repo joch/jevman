@@ -70,6 +70,15 @@ describe('fetchMe', () => {
   });
 });
 
+describe('fetchMe dev provider', () => {
+  it('passes through which API the dev key calls, and drops unknown values', async () => {
+    reply({ mode: 'dev', devProvider: 'typesafe', walletUrl: WALLET, loginAvailable: false });
+    await expect(fetchMe()).resolves.toMatchObject({ mode: 'dev', devProvider: 'typesafe' });
+    reply({ mode: 'dev', devProvider: 'elsewhere', walletUrl: WALLET, loginAvailable: false });
+    expect((await fetchMe()).devProvider).toBeUndefined();
+  });
+});
+
 describe('accountNotice', () => {
   const me = (extra: Partial<Me> = {}): Me => ({ mode: 'none', walletUrl: WALLET, loginAvailable: true, ...extra });
 

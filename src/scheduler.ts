@@ -7,7 +7,7 @@ export type Transport = (body: SystemOneRequest) => Promise<DecideResponse>;
 
 export type SchedulerEvent =
   | { type: 'decision'; decision: Decision; latencyMs: number | null; fruitOnBoard: boolean }
-  | { type: 'call'; actors: ActorId[]; latencyMs: number; usage: DecideResponse['usage']; costUsd: number | null; traceId: string | null }
+  | { type: 'call'; actors: ActorId[]; latencyMs: number; usage: DecideResponse['usage']; costUsd: number | null; costEstimated?: boolean; traceId: string | null }
   | { type: 'stale'; actor: ActorId; key: string }
   | { type: 'error'; message: string };
 
@@ -103,6 +103,7 @@ export class Scheduler implements Controls {
             latencyMs: res.latencyMs,
             usage: res.usage,
             costUsd: res.costUsd,
+            costEstimated: res.costEstimated === true,
             traceId: res.traceId,
           });
           for (const p of batch) {

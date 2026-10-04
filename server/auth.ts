@@ -162,11 +162,12 @@ export function handleLogout(req: HttpRequest, cfg: AuthConfig): HttpResponse {
   return json(200, { ok: true }, [clearSessionCookie(cfg)]);
 }
 
-export function handleMe(req: HttpRequest, cfg: AuthConfig, hasDevKey: boolean): HttpResponse {
+/** `devProvider` is where the server's own key sends calls when nobody is signed in (undefined: no dev key). */
+export function handleMe(req: HttpRequest, cfg: AuthConfig, devProvider: 'opper' | 'typesafe' | undefined): HttpResponse {
   const session = sessionFrom(req, cfg);
   const base = { walletUrl: WALLET_URL, loginAvailable: loginConfigured(cfg) };
   if (session) {
     return json(200, { mode: 'player', user: session.user, ...(session.projectName ? { projectName: session.projectName } : {}), ...base });
   }
-  return json(200, { mode: hasDevKey ? 'dev' : 'none', ...base });
+  return json(200, devProvider ? { mode: 'dev', devProvider, ...base } : { mode: 'none', ...base });
 }

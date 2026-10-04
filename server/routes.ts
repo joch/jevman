@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { handleCallback, handleLogin, handleLogout, handleMe, json, loginConfigured, opperExchange, redirect, type AuthConfig, type HttpRequest, type HttpResponse } from './auth.ts';
 import { handleDecideRequest, rejectDecideRequest } from './decide.ts';
+import { devTargetFromEnv, type JevTarget } from './jev.ts';
 
 /** Largest /api/decide body read; a game state plus five questions is a few KB. */
 export const MAX_BODY_BYTES = 256 * 1024;
@@ -36,16 +37,20 @@ export function authConfigFromEnv(env: Record<string, string>, warn: (msg: strin
   };
 }
 
-/** The local dev key, unless this is a deployment (https redirect URI), where it would pay for every visitor. */
-export function devKeyFromEnv(env: Record<string, string>, cfg: AuthConfig, warn: (msg: string) => void): string | undefined {
-  const key = env.OPPER_API_KEY || undefined;
-  if (!key || !cfg.redirectUri.startsWith('https:')) return key;
+/**
+ * The server's own key (TYPESAFE_API_KEY, else OPPER_API_KEY), unless this is a deployment (https redirect URI),
+ * where it would pay for every visitor.
+ */
+export function devKeyFromEnv(env: Record<string, string>, cfg: AuthConfig, warn: (msg: string) => void): JevTarget | undefined {
+  const target = devTargetFromEnv(env);
+  if (!target || !cfg.redirectUri.startsWith('https:')) return target;
+  const name = target.provider === 'typesafe' ? 'TYPESAFE_API_KEY' : 'OPPER_API_KEY';
   if (env.JEV_ALLOW_DEV_KEY !== '1') {
-    warn('[jev] OPPER_API_KEY is ignored because OPPER_REDIRECT_URI is https — a deployed site must not pay for visitors with a server key. Set JEV_ALLOW_DEV_KEY=1 to use it anyway.');
+    warn(`[jev] ${name} is ignored because OPPER_REDIRECT_URI is https — a deployed site must not pay for visitors with a server key. Set JEV_ALLOW_DEV_KEY=1 to use it anyway.`);
     return undefined;
   }
-  warn('[jev] JEV_ALLOW_DEV_KEY=1: OPPER_API_KEY pays for every signed-out visitor of this https deployment');
-  return key;
+  warn(`[jev] JEV_ALLOW_DEV_KEY=1: ${name} pays for every signed-out visitor of this https deployment`);
+  return target;
 }
 
 const toHttp = (req: IncomingMessage): HttpRequest => ({ method: req.method ?? 'GET', url: req.url ?? '/', headers: req.headers });
@@ -91,8 +96,8 @@ function readBody(req: IncomingMessage, limit: number): Promise<string | null> {
 export function createJevMiddleware(env: Record<string, string>, logger: RouteLogger, opts: { quiet?: boolean } = {}): Middleware {
   const cfg = authConfigFromEnv(env, (m) => logger.warn(m));
   const devKey = devKeyFromEnv(env, cfg, (m) => logger.warn(m));
-  if (!devKey && !loginConfigured(cfg) && !opts.quiet) logger.warn('[jev] neither OPPER_API_KEY nor OPPER_CLIENT_ID/SECRET is set — jev cannot play');
-  const redactSecrets = (s: string) => [cfg.clientSecret, devKey].reduce<string>((acc, k) => (k ? acc.split(k).join('[redacted]') : acc), s);
+  if (!devKey && !loginConfigured(cfg) && !opts.quiet) logger.warn('[jev] none of TYPESAFE_API_KEY, OPPER_API_KEY or OPPER_CLIENT_ID/SECRET is set — jev cannot play');
+  const redactSecrets = (s: string) => [cfg.clientSecret, devKey?.apiKey].reduce<string>((acc, k) => (k ? acc.split(k).join('[redacted]') : acc), s);
   const baseExchange = opperExchange(cfg);
   // handleCallback maps any failure to /?auth_error=exchange; log why (message only, redacted, capped) so a misconfigured app is diagnosable.
   const exchange: typeof baseExchange = async (code) => {
@@ -115,13 +120,13 @@ export function createJevMiddleware(env: Record<string, string>, logger: RouteLo
       return;
     }
     if (path === '/auth/logout') return send(res, handleLogout(http, cfg));
-    if (path === '/api/me') return send(res, handleMe(http, cfg, Boolean(devKey)));
+    if (path === '/api/me') return send(res, handleMe(http, cfg, devKey?.provider));
     if (path !== '/api/decide') return next();
 
     // Refuse what needs no body (wrong method, cross-site, not JSON, signed out) before reading any of it.
     const refused = rejectDecideRequest(http, cfg, devKey);
     if (refused) return send(res, refused);
-    const redact = (s: string) => (devKey ? s.split(devKey).join('[redacted]') : s);
+    const redact = (s: string) => (devKey ? s.split(devKey.apiKey).join('[redacted]') : s);
     readBody(req, MAX_BODY_BYTES)
       .then(async (raw) => {
         if (raw === null) return send(res, json(413, { error: 'Request body too large' }, [], { Connection: 'close' }));

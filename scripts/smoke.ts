@@ -4,6 +4,10 @@ import { optionFeatures } from '../src/features';
 import { createGame, nextDecisionPoint } from '../src/sim';
 import { ACTOR_IDS } from '../src/types';
 import { handleDecide } from '../server/decide';
+import { devTargetFromEnv, modelFor } from '../server/jev';
+
+// TYPESAFE_API_KEY calls api.typesafe.ai directly; otherwise OPPER_API_KEY goes through Opper.
+const target = devTargetFromEnv(process.env);
 
 const state = createGame();
 state.mode = 'chase';
@@ -21,9 +25,11 @@ if (batch.length !== 5) {
   process.exit(1);
 }
 
+console.log(`smoke via ${target?.provider ?? 'no key'} (${target ? modelFor(target.provider) : '-'})`);
 const result = await handleDecide(buildRequest(state, batch), {
-  apiKey: process.env.OPPER_API_KEY,
-  baseUrl: process.env.OPPER_BASE_URL || 'https://api.opper.ai',
+  apiKey: target?.apiKey,
+  baseUrl: target?.baseUrl ?? '',
+  provider: target?.provider,
   fetch,
   now: () => performance.now(),
   timeoutMs: 5000,

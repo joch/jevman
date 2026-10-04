@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SESSION_COOKIE, type AuthConfig, type HttpRequest } from '../server/auth';
+import type { JevTarget } from '../server/jev';
 import { handleDecide, handleDecideRequest, JEV_MODEL, rejectDecideRequest, resolveKey, type DecideDeps } from '../server/decide';
 import { sealSession } from '../server/session';
 
@@ -135,30 +136,33 @@ describe('player keys', () => {
 
 describe('resolveKey', () => {
   const session = { v: 1 as const, apiKey: 'op-player', user: {}, issuedAt: 0 };
-  it('prefers the signed-in player, then the dev key, else none', () => {
-    expect(resolveKey(session, 'op-dev')).toEqual({ apiKey: 'op-player', mode: 'player' });
-    expect(resolveKey(null, 'op-dev')).toEqual({ apiKey: 'op-dev', mode: 'dev' });
-    expect(resolveKey(null, '')).toBeNull();
-    expect(resolveKey(null, undefined)).toBeNull();
+  const opperDev: JevTarget = { provider: 'opper', apiKey: 'op-dev', baseUrl: 'https://api.opper.ai' };
+  const typesafeDev: JevTarget = { provider: 'typesafe', apiKey: 'ts-dev', baseUrl: 'https://api.typesafe.ai' };
+  it('prefers the signed-in player (always via Opper), then the dev key, else none', () => {
+    expect(resolveKey(session, typesafeDev, 'https://api.opper.ai')).toEqual({ apiKey: 'op-player', mode: 'player', provider: 'opper', baseUrl: 'https://api.opper.ai' });
+    expect(resolveKey(null, opperDev, 'https://api.opper.ai')).toEqual({ ...opperDev, mode: 'dev' });
+    expect(resolveKey(null, typesafeDev, 'https://api.opper.ai')).toEqual({ ...typesafeDev, mode: 'dev' });
+    expect(resolveKey(null, undefined, 'https://api.opper.ai')).toBeNull();
   });
 });
 
 describe('handleDecideRequest', () => {
+  const DEV: JevTarget = { provider: 'opper', apiKey: 'op-dev', baseUrl: 'https://api.opper.ai' };
   const cfg: AuthConfig = { redirectUri: 'http://localhost:5173/auth/callback', opperUrl: 'https://api.opper.ai', sessionSecret: 's'.repeat(64) };
   const playerCookie = () => `${SESSION_COOKIE}=${encodeURIComponent(sealSession({ v: 1, apiKey: 'op-player', user: {}, issuedAt: Date.now() }, cfg.sessionSecret))}`;
   const post = (headers: HttpRequest['headers'] = {}, method = 'POST'): HttpRequest => ({ method, url: '/api/decide', headers: { 'content-type': 'application/json', ...headers } });
-  const run = (req: HttpRequest, raw: string, devKey: string | undefined, fetchImpl: typeof fetch = ok(), extra: { log?: (l: string) => void; logError?: (l: string) => void } = {}) =>
+  const run = (req: HttpRequest, raw: string, devKey: JevTarget | undefined, fetchImpl: typeof fetch = ok(), extra: { log?: (l: string) => void; logError?: (l: string) => void } = {}) =>
     handleDecideRequest(req, raw, cfg, devKey, { fetch: fetchImpl, now: () => 0, ...extra });
 
   it('answers 405 with Allow for anything but POST', async () => {
-    const r = await run(post({}, 'GET'), '', 'op-dev');
+    const r = await run(post({}, 'GET'), '', DEV);
     expect(r.status).toBe(405);
     expect(r.headers.Allow).toBe('POST');
   });
 
   it('answers 415 for a non-JSON body (CSRF guard)', async () => {
     const fetchMock = ok();
-    expect((await run(post({ 'content-type': 'text/plain' }), JSON.stringify(body), 'op-dev', fetchMock)).status).toBe(415);
+    expect((await run(post({ 'content-type': 'text/plain' }), JSON.stringify(body), DEV, fetchMock)).status).toBe(415);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -170,14 +174,14 @@ describe('handleDecideRequest', () => {
     [{ origin: 'null', host: 'localhost:5173' }],
   ])('answers 403 for a cross-site request %j', async (headers) => {
     const fetchMock = ok();
-    const r = await run(post(headers), JSON.stringify(body), 'op-dev', fetchMock);
+    const r = await run(post(headers), JSON.stringify(body), DEV, fetchMock);
     expect(r.status).toBe(403);
     expect(JSON.parse(r.body)).toEqual({ error: 'Cross-site request refused' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('allows same-origin requests', async () => {
-    const r = await run(post({ 'sec-fetch-site': 'same-origin', origin: 'http://localhost:5173', host: 'localhost:5173' }), JSON.stringify(body), 'op-dev');
+    const r = await run(post({ 'sec-fetch-site': 'same-origin', origin: 'http://localhost:5173', host: 'localhost:5173' }), JSON.stringify(body), DEV);
     expect(r.status).toBe(200);
   });
 
@@ -188,15 +192,15 @@ describe('handleDecideRequest', () => {
     expect(JSON.parse(r.body)).toEqual({ error: 'Sign in with Opper to let jev play', signedOut: true });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(rejectDecideRequest(post(), cfg, undefined)?.status).toBe(401);
-    expect(rejectDecideRequest(post(), cfg, 'op-dev')).toBeNull();
+    expect(rejectDecideRequest(post(), cfg, DEV)).toBeNull();
   });
 
   it('answers 400 for unparseable JSON', async () => {
-    expect((await run(post(), '{nope', 'op-dev')).status).toBe(400);
+    expect((await run(post(), '{nope', DEV)).status).toBe(400);
   });
 
   it('returns the answers as no-store JSON', async () => {
-    const r = await run(post(), JSON.stringify(body), 'op-dev');
+    const r = await run(post(), JSON.stringify(body), DEV);
     expect(r.status).toBe(200);
     expect(r.headers['Content-Type']).toBe('application/json');
     expect(r.headers['Cache-Control']).toBe('no-store');
@@ -204,7 +208,7 @@ describe('handleDecideRequest', () => {
   });
 
   it('turns clearSession into a Set-Cookie that clears the session, and keeps it out of the body', async () => {
-    const r = await run(post({ cookie: playerCookie() }), JSON.stringify(body), 'op-dev', vi.fn<typeof fetch>(async () => new Response('{}', { status: 401 })));
+    const r = await run(post({ cookie: playerCookie() }), JSON.stringify(body), DEV, vi.fn<typeof fetch>(async () => new Response('{}', { status: 401 })));
     expect(r.status).toBe(401);
     expect(JSON.parse(r.body)).toEqual({ error: 'Your Opper sign-in has expired — sign in again', signedOut: true });
     expect(String(r.headers['Set-Cookie'])).toMatch(new RegExp(`^${SESSION_COOKIE}=; Max-Age=0`));
@@ -215,7 +219,7 @@ describe('handleDecideRequest', () => {
     const log = () => {
       throw new Error('log failed for op-player and op-dev');
     };
-    const r = await run(post({ cookie: playerCookie() }), JSON.stringify(body), 'op-dev', ok(), { log, logError });
+    const r = await run(post({ cookie: playerCookie() }), JSON.stringify(body), DEV, ok(), { log, logError });
     expect(r.status).toBe(500);
     expect(JSON.parse(r.body)).toEqual({ error: 'internal error in /api/decide' });
     const logged = JSON.stringify(logError.mock.calls);

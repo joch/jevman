@@ -1,7 +1,8 @@
 import { clearSessionCookie, crossSite, header, json, sessionFrom, WALLET_URL, type AuthConfig, type HttpRequest, type HttpResponse } from './auth.ts';
+import { endpointFor, modelFor, TYPESAFE_USD_PER_INPUT_TOKEN, type JevProvider, type JevTarget } from './jev.ts';
 import type { SessionData } from './session.ts';
 
-export const JEV_MODEL = 'typesafe/jev-1.13.0';
+export const JEV_MODEL = modelFor('opper');
 
 export interface DecideDeps {
   apiKey: string | undefined;
@@ -11,6 +12,8 @@ export interface DecideDeps {
   timeoutMs?: number;
   log?: (line: string) => void;
   keyMode?: 'player' | 'dev';
+  /** Which System One API `baseUrl` points at (default Opper). */
+  provider?: JevProvider;
 }
 
 export interface DecideResult {
@@ -44,7 +47,8 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
   const redact = (s: string): string => (apiKey ? s.split(apiKey).join('[redacted]') : s);
   const rawLog = deps.log ?? (() => {});
   const log = (line: string): void => rawLog(redact(line));
-  const tag = deps.keyMode ? `[jev ${deps.keyMode}]` : '[jev]';
+  const provider = deps.provider ?? 'opper';
+  const tag = `[${['jev', deps.keyMode, provider === 'typesafe' ? 'typesafe' : undefined].filter(Boolean).join(' ')}]`;
   const timeoutMs = deps.timeoutMs ?? 2000;
   if (!deps.apiKey) return { status: 500, body: { error: 'No OPPER_API_KEY in .env — all decisions are fallbacks' } };
   if (!isDecideInput(input)) return { status: 400, body: { error: 'Expected { state, questions } with at least one question' } };
@@ -52,14 +56,14 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
   const actors = Object.keys(input.questions).join(',');
   const started = deps.now();
   try {
-    const res = await deps.fetch(`${deps.baseUrl.replace(/\/+$/, '')}/v3/compat/v1/systemone`, {
+    const res = await deps.fetch(endpointFor({ provider, apiKey: deps.apiKey, baseUrl: deps.baseUrl }), {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${deps.apiKey}`,
         'Content-Type': 'application/json',
-        'X-Opper-Name': 'jevman-decide',
+        ...(provider === 'opper' ? { 'X-Opper-Name': 'jevman-decide' } : {}),
       },
-      body: JSON.stringify({ model: JEV_MODEL, state: input.state, questions: input.questions }),
+      body: JSON.stringify({ model: modelFor(provider), state: input.state, questions: input.questions }),
       signal: AbortSignal.timeout(timeoutMs),
     });
     const text = await res.text();
@@ -75,6 +79,14 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
       return { status: 502, body: { error } };
     }
     const json = JSON.parse(text) as { answers?: Record<string, unknown>; usage?: { input_tokens: number; output_tokens: number } };
+    const usage = json.usage ?? { input_tokens: 0, output_tokens: 0 };
+    if (provider === 'typesafe') {
+      // TypeSafe sends no cost header; estimate from its published input-token price.
+      const costUsd = (Number(usage.input_tokens) || 0) * TYPESAFE_USD_PER_INPUT_TOKEN;
+      const requestId = res.headers.get('x-typesafe-request-id');
+      log(`${tag} ${actors} ok in ${latencyMs} ms, cost ≈${Number(costUsd.toPrecision(2))} USD, request ${requestId ?? '?'}`);
+      return { status: 200, body: { answers: json.answers ?? {}, usage, latencyMs, costUsd, costEstimated: true, traceId: requestId } };
+    }
     const cost = res.headers.get('x-opper-cost');
     const traceId = res.headers.get('x-opper-trace-id');
     log(`${tag} ${actors} ok in ${latencyMs} ms, cost ${cost ?? '?'} USD, trace ${traceId ?? '?'}`);
@@ -82,7 +94,7 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
       status: 200,
       body: {
         answers: json.answers ?? {},
-        usage: json.usage ?? { input_tokens: 0, output_tokens: 0 },
+        usage,
         latencyMs,
         costUsd: cost === null ? null : Number(cost),
         traceId,
@@ -97,10 +109,10 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
   }
 }
 
-/** The key a decide call uses: the signed-in player's, else the local dev key, else none. */
-export function resolveKey(session: SessionData | null, devKey?: string): { apiKey: string; mode: 'player' | 'dev' } | null {
-  if (session) return { apiKey: session.apiKey, mode: 'player' };
-  if (devKey) return { apiKey: devKey, mode: 'dev' };
+/** Where a decide call goes: the signed-in player's key (always via Opper), else the server's dev key, else nowhere. */
+export function resolveKey(session: SessionData | null, devKey: JevTarget | undefined, opperUrl: string): (JevTarget & { mode: 'player' | 'dev' }) | null {
+  if (session) return { provider: 'opper', apiKey: session.apiKey, baseUrl: opperUrl, mode: 'player' };
+  if (devKey) return { ...devKey, mode: 'dev' };
   return null;
 }
 
@@ -116,20 +128,20 @@ export interface DecideRequestDeps {
  * 405 for anything but POST, 403 cross-site, 415 unless JSON (a cross-site form can post text/plain
  * without a CORS preflight), and 401 `signedOut` when there is neither a session nor a dev key.
  */
-export function rejectDecideRequest(req: HttpRequest, cfg: AuthConfig, devKey: string | undefined): HttpResponse | null {
+export function rejectDecideRequest(req: HttpRequest, cfg: AuthConfig, devKey: JevTarget | undefined): HttpResponse | null {
   if (req.method !== 'POST') return json(405, { error: 'POST only' }, [], { Allow: 'POST' });
   if (crossSite(req)) return json(403, { error: 'Cross-site request refused' });
   if (!header(req, 'content-type').toLowerCase().startsWith('application/json')) return json(415, { error: 'Expected application/json' });
-  if (!resolveKey(sessionFrom(req, cfg), devKey)) return json(401, { error: 'Sign in with Opper to let jev play', signedOut: true });
+  if (!resolveKey(sessionFrom(req, cfg), devKey, cfg.opperUrl)) return json(401, { error: 'Sign in with Opper to let jev play', signedOut: true });
   return null;
 }
 
 /** /api/decide, independent of the HTTP server: picks the key, calls jev, and turns `clearSession` into a Set-Cookie. */
-export async function handleDecideRequest(req: HttpRequest, rawBody: string, cfg: AuthConfig, devKey: string | undefined, deps: DecideRequestDeps): Promise<HttpResponse> {
+export async function handleDecideRequest(req: HttpRequest, rawBody: string, cfg: AuthConfig, devKey: JevTarget | undefined, deps: DecideRequestDeps): Promise<HttpResponse> {
   const refused = rejectDecideRequest(req, cfg, devKey);
   if (refused) return refused;
-  const key = resolveKey(sessionFrom(req, cfg), devKey)!;
-  const redact = (s: string) => [key.apiKey, devKey].reduce<string>((acc, k) => (k ? acc.split(k).join('[redacted]') : acc), s);
+  const key = resolveKey(sessionFrom(req, cfg), devKey, cfg.opperUrl)!;
+  const redact = (s: string) => [key.apiKey, devKey?.apiKey].reduce<string>((acc, k) => (k ? acc.split(k).join('[redacted]') : acc), s);
   try {
     let input: unknown = null;
     try {
@@ -137,7 +149,7 @@ export async function handleDecideRequest(req: HttpRequest, rawBody: string, cfg
     } catch {
       // handled as a 400 by handleDecide
     }
-    const result = await handleDecide(input, { apiKey: key.apiKey, keyMode: key.mode, baseUrl: cfg.opperUrl, fetch: deps.fetch, now: deps.now, log: deps.log });
+    const result = await handleDecide(input, { apiKey: key.apiKey, keyMode: key.mode, provider: key.provider, baseUrl: key.baseUrl, fetch: deps.fetch, now: deps.now, log: deps.log });
     const { clearSession, ...body } = result.body as Record<string, unknown>;
     return json(result.status, body, clearSession ? [clearSessionCookie(cfg)] : []);
   } catch (err) {

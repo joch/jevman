@@ -6,6 +6,8 @@ export interface Me {
   loginAvailable: boolean;
   /** True when /api/me could not be read, so the server's real state is unknown. */
   unavailable?: boolean;
+  /** In dev mode: whether the server's key calls Opper or TypeSafe directly. */
+  devProvider?: 'opper' | 'typesafe';
 }
 
 export type AccountView = {
@@ -44,6 +46,7 @@ function parseMe(body: unknown): Me | null {
   }
   const projectName = text(b.projectName);
   if (projectName) me.projectName = projectName;
+  if (b.devProvider === 'opper' || b.devProvider === 'typesafe') me.devProvider = b.devProvider;
   return me;
 }
 
@@ -141,7 +144,7 @@ export function renderAccount(root: HTMLElement, view: AccountView): void {
     out.addEventListener('click', () => void signOut());
     parts.push(out);
   } else if (view.kind === 'dev') {
-    parts.push(el('span', 'Playing with the local dev key from .env'));
+    parts.push(el('span', me.devProvider === 'typesafe' ? 'Playing with your TypeSafe key from .env (calls go straight to TypeSafe)' : 'Playing with the local dev key from .env'));
     if (me.loginAvailable && !retry) parts.push(signInButton(me));
   } else if (view.kind === 'demo') {
     parts.push(el('span', 'Recorded demo — sign in with Opper to let jev play live (calls bill your own Opper wallet)'));

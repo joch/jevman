@@ -41,6 +41,8 @@ export interface DecideResponse {
   usage: { input_tokens: number; output_tokens: number };
   latencyMs: number;
   costUsd: number | null;
+  /** True when costUsd is estimated from token usage (TypeSafe's API sends no cost). */
+  costEstimated?: boolean;
   traceId: string | null;
 }
 

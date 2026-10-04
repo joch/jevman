@@ -265,14 +265,37 @@ describe('deploy safety', () => {
   it('uses the dev key over https only with JEV_ALLOW_DEV_KEY=1, still warning', () => {
     const env = { ...HTTPS, SESSION_SECRET: SECRET, OPPER_API_KEY: 'op-dev', JEV_ALLOW_DEV_KEY: '1' };
     const warn = vi.fn();
-    expect(devKeyFromEnv(env, authConfigFromEnv(env, vi.fn()), warn)).toBe('op-dev');
+    expect(devKeyFromEnv(env, authConfigFromEnv(env, vi.fn()), warn)).toMatchObject({ provider: 'opper', apiKey: 'op-dev' });
     expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it('ignores a TypeSafe key over https too, unless JEV_ALLOW_DEV_KEY=1', () => {
+    const env = { ...HTTPS, SESSION_SECRET: SECRET, TYPESAFE_API_KEY: 'ts-dev' };
+    const warn = vi.fn();
+    expect(devKeyFromEnv(env, authConfigFromEnv(env, vi.fn()), warn)).toBeUndefined();
+    expect(String(warn.mock.calls[0][0])).toMatch(/TYPESAFE_API_KEY.*ignored/);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('ts-dev');
+  });
+
+  it('sends dev calls straight to TypeSafe when TYPESAFE_API_KEY is set', async () => {
+    const calls: [string, RequestInit][] = [];
+    vi.stubGlobal('fetch', vi.fn(async (u: string, init: RequestInit) => {
+      calls.push([u, init]);
+      return new Response(JSON.stringify({ answers: {}, usage: { input_tokens: 100, output_tokens: 1 } }), { status: 200 });
+    }));
+    const { handler } = mount({ TYPESAFE_API_KEY: 'ts-dev', OPPER_API_KEY: 'op-dev' });
+    expect(bodyOf(call(handler, 'GET', '/api/me').res)).toMatchObject({ mode: 'dev', devProvider: 'typesafe' });
+    const { res } = call(handler, 'POST', '/api/decide', JSON_POST, decideBody);
+    await vi.waitFor(() => expect(res.end).toHaveBeenCalled());
+    expect(calls[0][0]).toBe('https://api.typesafe.ai/v1/systemone');
+    expect((calls[0][1].headers as Record<string, string>).Authorization).toBe('Bearer ts-dev');
+    expect(bodyOf(res)).toMatchObject({ costEstimated: true });
   });
 
   it('uses the dev key over http without a warning', () => {
     const env = { SESSION_SECRET: SECRET, OPPER_API_KEY: 'op-dev' };
     const warn = vi.fn();
-    expect(devKeyFromEnv(env, authConfigFromEnv(env, vi.fn()), warn)).toBe('op-dev');
+    expect(devKeyFromEnv(env, authConfigFromEnv(env, vi.fn()), warn)).toMatchObject({ provider: 'opper', apiKey: 'op-dev' });
     expect(warn).not.toHaveBeenCalled();
   });
 });

@@ -70,6 +70,7 @@ describe('Scheduler', () => {
     expect(decisions).toHaveLength(2);
     expect(decisions.every((e) => e.decision.source === 'jev' && e.latencyMs === 300)).toBe(true);
     expect(ofType(events, 'call')[0]).toMatchObject({ costUsd: 0.00002, usage: { input_tokens: 100 } });
+    expect(ofType(events, 'call')[0].costEstimated).toBe(false);
   });
 
   it('only remembers answered escape questions, not junctions, as consumed', async () => {
@@ -84,6 +85,14 @@ describe('Scheduler', () => {
     scheduler.update(s);
     expect(calls).toHaveLength(2);
     expect(Object.keys(calls[1].body.questions)).toEqual(['blinky']);
+  });
+
+  it('marks estimated costs on call events', async () => {
+    const { calls, events, scheduler } = harness();
+    scheduler.update(createGame());
+    calls[0].resolve({ ...answerAll(calls[0].body), costEstimated: true });
+    await flush();
+    expect(ofType(events, 'call')[0].costEstimated).toBe(true);
   });
 
   it('limits batches in flight and sends queued questions later', async () => {

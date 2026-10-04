@@ -10,7 +10,8 @@ import { createGame, escapePoint, step, type Controls } from '../src/sim';
 import { REVERSE } from '../src/maze';
 import type { DecideResponse } from '../src/brain';
 import { GHOST_IDS, type ActorId } from '../src/types';
-import { handleDecide, JEV_MODEL } from '../server/decide';
+import { handleDecide } from '../server/decide';
+import { devTargetFromEnv, modelFor } from '../server/jev';
 import { Recorder, roundDt } from '../src/replay';
 
 const { values } = parseArgs({
@@ -32,10 +33,14 @@ const jevActors: ActorId[] = [...(values.pacman === 'jev' ? ['pacman' as const] 
 const realTime = jevActors.length > 0; // jev latency only matters in real time; greedy-only games run flat out
 const FRAME = 1 / 60;
 
+// TYPESAFE_API_KEY calls api.typesafe.ai directly; otherwise OPPER_API_KEY goes through Opper.
+const target = devTargetFromEnv(process.env);
+
 const transport: Transport = async (body) => {
   const result = await handleDecide(body, {
-    apiKey: process.env.OPPER_API_KEY,
-    baseUrl: process.env.OPPER_BASE_URL || 'https://api.opper.ai',
+    apiKey: target?.apiKey,
+    baseUrl: target?.baseUrl ?? '',
+    provider: target?.provider,
     fetch,
     now: () => performance.now(),
   });
@@ -158,7 +163,7 @@ async function playOne(): Promise<Result> {
   r.pellets = pelletsEaten;
   r.level = state.level;
   if (recorder) {
-    const out = JSON.stringify(recorder.finish(state, JEV_MODEL));
+    const out = JSON.stringify(recorder.finish(state, modelFor(target?.provider ?? 'opper')));
     mkdirSync(dirname(values.record!), { recursive: true });
     writeFileSync(values.record!, out);
     console.log(`recorded ${recorder.frames.length} frames to ${values.record} (${(out.length / 1024).toFixed(0)} KB)`);
@@ -167,7 +172,7 @@ async function playOne(): Promise<Result> {
 }
 
 const label = `pacman=${values.pacman} ghosts=${values.ghosts}`;
-console.log(`bench ${label}: ${games} games, cap ${maxSeconds}s${realTime ? ' (real time)' : ''}`);
+console.log(`bench ${label}: ${games} games, cap ${maxSeconds}s${realTime ? ` (real time, via ${target?.provider ?? 'no key'})` : ''}`);
 const results = await Promise.all(Array.from({ length: games }, playOne));
 const mean = (f: (r: Result) => number) => results.reduce((a, r) => a + f(r), 0) / results.length;
 for (const [i, r] of results.entries()) {

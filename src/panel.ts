@@ -20,7 +20,7 @@ export class Panel {
   private readonly banner: HTMLElement;
   private readonly totalsEl: HTMLElement;
   private readonly log: HTMLElement;
-  private readonly totals = { calls: 0, decisions: 0, fallbacks: 0, stale: 0, inputTokens: 0, outputTokens: 0, cost: 0, latencyMs: 0 };
+  private readonly totals = { calls: 0, decisions: 0, fallbacks: 0, stale: 0, inputTokens: 0, outputTokens: 0, cost: 0, costEstimated: false, latencyMs: 0 };
 
   /** `caption` labels the panel, e.g. "recorded game" so demo totals don't read as the visitor's own spend. */
   constructor(root: HTMLElement, opts: { caption?: string } = {}) {
@@ -62,6 +62,7 @@ export class Panel {
         if (Number.isFinite(e.usage.input_tokens)) this.totals.inputTokens += e.usage.input_tokens;
         if (Number.isFinite(e.usage.output_tokens)) this.totals.outputTokens += e.usage.output_tokens;
         if (e.costUsd !== null && Number.isFinite(e.costUsd)) this.totals.cost += e.costUsd;
+        if (e.costEstimated) this.totals.costEstimated = true;
         if (Number.isFinite(e.latencyMs)) this.totals.latencyMs += e.latencyMs;
         this.banner.hidden = true;
         break;
@@ -149,7 +150,7 @@ export class Panel {
       ['stale', String(t.stale)],
       ['tokens in', String(t.inputTokens)],
       ['tokens out', String(t.outputTokens)],
-      ['cost', `$${t.cost.toFixed(5)}`],
+      ['cost', `${t.costEstimated ? '≈' : ''}$${t.cost.toFixed(5)}`],
       ['mean latency', `${mean} ms`],
     ];
     this.totalsEl.replaceChildren(
