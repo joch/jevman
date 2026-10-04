@@ -22,8 +22,15 @@ export class Panel {
   private readonly log: HTMLElement;
   private readonly totals = { calls: 0, decisions: 0, fallbacks: 0, stale: 0, inputTokens: 0, outputTokens: 0, cost: 0, latencyMs: 0 };
 
-  constructor(root: HTMLElement) {
+  /** `caption` labels the panel, e.g. "recorded game" so demo totals don't read as the visitor's own spend. */
+  constructor(root: HTMLElement, opts: { caption?: string } = {}) {
     root.innerHTML = `<h2>jev decisions</h2><div class="banner" role="alert" hidden></div><div class="totals"></div><div class="cards"></div><h3>Decision log</h3><ol class="log"></ol>`;
+    if (opts.caption) {
+      const caption = document.createElement('span');
+      caption.className = 'caption';
+      caption.textContent = opts.caption;
+      root.querySelector('h2')!.append(' ', caption);
+    }
     this.banner = root.querySelector<HTMLElement>('.banner')!;
     this.totalsEl = root.querySelector<HTMLElement>('.totals')!;
     this.log = root.querySelector<HTMLElement>('.log')!;

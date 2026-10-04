@@ -1,22 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { greedyChoice, optionFeatures } from '../src/features';
-import { Recorder, Replay, roundDt, type Recording } from '../src/replay';
-import { createGame, step } from '../src/sim';
-
-/** Plays a greedy game while recording, like `npm run bench -- --record`, but offline. */
-function recordGreedy(frames: number): Recording {
-  const state = createGame();
-  const rec = new Recorder();
-  let frame = 0;
-  const ctl = rec.wrap({ decide: (p) => greedyChoice(state, p, optionFeatures(state, p)) }, () => frame);
-  for (; frame < frames && state.status !== 'gameover'; frame++) {
-    const dt = roundDt(1 / 60 + (frame % 3) * 0.0011);
-    rec.frames.push(dt);
-    step(state, dt, ctl);
-  }
-  return rec.finish(state, 'greedy');
-}
+import { Recorder, Replay, type Recording } from '../src/replay';
+import { createGame } from '../src/sim';
+import { recordGreedy } from './support/greedy-recording';
 
 describe('Replay', () => {
   it('replays a recording to the same final state', () => {
