@@ -217,6 +217,21 @@ export function fruitRoute(state: GameState, point: DecisionPoint, feats: Option
   return ok.length ? ok.reduce((best, f) => (f.fruitDistance! < best.fruitDistance! ? f : best)).dir : null;
 }
 
+/** A route Pac-Man should not take: a ghost in its corridor, one about to touch him, or one that cuts off its junction. */
+export const isUnsafe = (f: OptionFeatures): boolean => f.dangerInCorridor.length > 0 || (f.nearestDangerGhost ?? 999) <= 2 || isTrap(f);
+
+/**
+ * jev answers from a snapshot taken before Pac-Man reached the junction; ghosts have moved since. When its pick has
+ * become unsafe and a safe route exists, return the safe route jev itself rated highest; otherwise null (keep the pick).
+ */
+export function saferChoice(choice: Dir, probabilities: Partial<Record<Dir, number>>, feats: OptionFeatures[]): Dir | null {
+  const picked = feats.find((f) => f.dir === choice);
+  if (!picked || !isUnsafe(picked)) return null;
+  const safe = feats.filter((f) => !isUnsafe(f));
+  if (!safe.length) return null;
+  return safe.reduce((best, f) => ((probabilities[f.dir] ?? 0) > (probabilities[best.dir] ?? 0) ? f : best)).dir;
+}
+
 /** Deterministic stand-in used when jev cannot answer in time. */
 export function greedyChoice(state: GameState, point: DecisionPoint, feats: OptionFeatures[]): Dir {
   const lowest = (pool: OptionFeatures[], score: (f: OptionFeatures) => number) =>

@@ -21,6 +21,7 @@ const { values } = parseArgs({
     ghosts: { type: 'string', default: 'greedy' },
     max: { type: 'string', default: '120' },
     record: { type: 'string' },
+    safety: { type: 'string', default: 'on' },
   },
 });
 const games = Number(values.games);
@@ -63,11 +64,12 @@ interface Result {
   cost: number;
   fruitSpawned: number;
   fruitEaten: number;
+  vetoes: number;
 }
 
 async function playOne(): Promise<Result> {
   const state = createGame();
-  const r: Result = { deathsBy: {}, escapes: 0, turnBacks: 0, survived: 0, score: 0, pellets: 0, deaths: 0, level: 1, calls: 0, fallbacks: 0, cost: 0, fruitSpawned: 0, fruitEaten: 0 };
+  const r: Result = { deathsBy: {}, escapes: 0, turnBacks: 0, survived: 0, score: 0, pellets: 0, deaths: 0, level: 1, calls: 0, fallbacks: 0, cost: 0, fruitSpawned: 0, fruitEaten: 0, vetoes: 0 };
   const stats = new GameStats();
   const recorder = values.record ? new Recorder() : null;
   let frame = 0;
@@ -75,6 +77,7 @@ async function playOne(): Promise<Result> {
     transport,
     now: () => performance.now(),
     actors: jevActors,
+    safetyCheck: values.safety !== 'off',
     onEvent: (e) => {
       recorder?.record(frame, e);
       if (e.type === 'call') {
@@ -83,6 +86,7 @@ async function playOne(): Promise<Result> {
       } else if (e.type === 'decision' || e.type === 'superseded') {
         const sign = e.type === 'decision' ? 1 : -1;
         if (e.decision.source === 'fallback') r.fallbacks += sign;
+        if (e.decision.vetoed) r.vetoes += sign;
         if (e.decision.escape) {
           r.escapes += sign;
           if (e.decision.choice === e.decision.options[1]) r.turnBacks += sign;
@@ -176,5 +180,5 @@ const deathsBy: Record<string, number> = {};
 for (const r of results) for (const [k, v] of Object.entries(r.deathsBy)) deathsBy[k] = (deathsBy[k] ?? 0) + v;
 console.log(`deaths by situation: ${JSON.stringify(deathsBy)}`);
 console.log(
-  `MEAN ${label}: survived ${mean((r) => r.survived).toFixed(1)}s, score ${mean((r) => r.score).toFixed(0)}, pellets ${mean((r) => r.pellets).toFixed(0)}, pellets/life ${mean((r) => r.pellets / Math.max(1, r.deaths)).toFixed(0)}, fallbacks ${mean((r) => r.fallbacks).toFixed(1)}, fruit eaten ${results.reduce((a, r) => a + r.fruitEaten, 0)}/${results.reduce((a, r) => a + r.fruitSpawned, 0)}, cost $${mean((r) => r.cost).toFixed(4)}/game`,
+  `MEAN ${label}: survived ${mean((r) => r.survived).toFixed(1)}s, score ${mean((r) => r.score).toFixed(0)}, pellets ${mean((r) => r.pellets).toFixed(0)}, pellets/life ${mean((r) => r.pellets / Math.max(1, r.deaths)).toFixed(0)}, fallbacks ${mean((r) => r.fallbacks).toFixed(1)}, vetoes ${mean((r) => r.vetoes).toFixed(1)}, fruit eaten ${results.reduce((a, r) => a + r.fruitEaten, 0)}/${results.reduce((a, r) => a + r.fruitSpawned, 0)}, cost $${mean((r) => r.cost).toFixed(4)}/game`,
 );

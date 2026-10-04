@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fruitRoute, goalFor, greedyChoice, isTrap, optionFeatures, type OptionFeatures } from '../src/features';
+import { fruitRoute, goalFor, greedyChoice, isTrap, optionFeatures, saferChoice, type OptionFeatures } from '../src/features';
 import { FRUIT_TILE, SCATTER_CORNERS } from '../src/layout';
 import { createGame, escapePoint, nextDecisionPoint, type GameState } from '../src/sim';
 import { GHOST_IDS, type Dir } from '../src/types';
@@ -221,6 +221,21 @@ describe('fruitRoute', () => {
     dir, goalDistance: null, pacmanDistance: null, nearestPellet: 5, corridorPellets: 0, nearestDangerGhost: null,
     dangerInCorridor: [], nearestFrightenedGhost: null, frightenedGhostSteps: [], fruitDistance: null, nearestPowerPellet: null,
     dangerApproaching: false, dangerNearby: 0, junctionSteps: 3, junctionGhost: null, ...over,
+  });
+
+  it('saferChoice swaps an unsafe pick for the safe route jev rated highest, and only then', () => {
+    const feats = [
+      feat('up', { dangerInCorridor: ['blinky'] }),
+      feat('left', {}),
+      feat('down', { nearestDangerGhost: 2 }),
+      feat('right', {}),
+    ];
+    const p = { up: 0.6, left: 0.1, down: 0.05, right: 0.25 };
+    expect(saferChoice('up', p, feats)).toBe('right');
+    expect(saferChoice('down', p, feats)).toBe('right');
+    expect(saferChoice('left', p, feats)).toBeNull();
+    const cornered = [feat('up', { dangerInCorridor: ['blinky'] }), feat('down', { junctionGhost: { id: 'inky', steps: 1 } })];
+    expect(saferChoice('up', { up: 0.9, down: 0.1 }, cornered)).toBeNull();
   });
 
   it('picks the fastest route that reaches the fruit in time and is not dangerous', () => {

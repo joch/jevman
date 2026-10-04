@@ -58,6 +58,8 @@ export interface Decision {
   reason?: string;
   /** Answer to a mid-corridor escape question rather than a junction choice. */
   escape?: boolean;
+  /** jev's own pick, replaced at the junction because ghosts had made it unsafe since jev answered. */
+  vetoed?: Dir;
 }
 
 /** Name of a point's question in the System One request (Pac-Man can have two open at once). */

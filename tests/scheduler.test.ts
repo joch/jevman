@@ -10,7 +10,7 @@ interface Call {
   reject: (e: Error) => void;
 }
 
-function harness(opts: { maxInFlight?: number; actors?: readonly ActorId[] } = {}) {
+function harness(opts: { maxInFlight?: number; actors?: readonly ActorId[]; safetyCheck?: boolean } = {}) {
   const calls: Call[] = [];
   const events: SchedulerEvent[] = [];
   const clock = { now: 0 };
@@ -160,7 +160,7 @@ describe('Scheduler', () => {
   });
 
   it('asks escape questions next to the junction question and never re-asks an answered one', async () => {
-    const { calls, scheduler } = harness({ actors: ['pacman'] });
+    const { calls, scheduler } = harness({ actors: ['pacman'], safetyCheck: false });
     const s = createGame();
     s.status = 'playing';
     Object.assign(s.pacman, { tile: { x: 10, y: 29 }, dir: 'left', progress: 0.5 });
@@ -283,5 +283,32 @@ describe('Scheduler and fruit', () => {
       expect(ofType(events, 'decision').at(-1)!.decision.source).toBe(secondsLeft === 8 ? 'jev' : 'fallback');
       expect(ofType(events, 'superseded')).toHaveLength(secondsLeft === 8 ? 0 : 1);
     }
+  });
+});
+
+describe('Scheduler safety check', () => {
+  it('replaces a jev pick that ghosts made unsafe with the safe option jev rated highest', async () => {
+    const { calls, events, scheduler } = harness({ actors: ['pacman'] });
+    const s = createGame();
+    s.status = 'playing';
+    Object.assign(s.pacman, { tile: { x: 10, y: 29 }, dir: 'left', progress: 0.5 });
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 5, y: 29 }, dir: 'right', progress: 0 });
+    scheduler.update(s);
+    calls[0].resolve(answerAll(calls[0].body)); // "keep going left", into Blinky
+    await flush();
+    expect(scheduler.decide(escapePoint(s)!, s)).toBe('right');
+    expect(ofType(events, 'superseded')).toHaveLength(1);
+    expect(ofType(events, 'decision').at(-1)!.decision).toMatchObject({ source: 'jev', choice: 'right', vetoed: 'left' });
+  });
+
+  it('keeps a jev pick that is still safe', async () => {
+    const { calls, events, scheduler } = harness({ actors: ['pacman'] });
+    const s = createGame();
+    scheduler.update(s);
+    calls[0].resolve(answerAll(calls[0].body));
+    await flush();
+    const point = nextDecisionPoint(s, 'pacman')!;
+    expect(scheduler.decide(point, s)).toBe(point.options[0]);
+    expect(ofType(events, 'superseded')).toHaveLength(0);
   });
 });
