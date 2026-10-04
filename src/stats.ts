@@ -39,6 +39,12 @@ export interface GameSummary {
 
 const GHOST_POINTS = new Set(['200', '400', '800', '1600']);
 
+/**
+ * In the frame of contact the ghost is always in Pac-Man's corridor. It only counts as "ran into" or "caught up from
+ * behind" if it had been there at least this long, time enough to turn back; otherwise it cut him off at a junction.
+ */
+export const REACT_SECONDS = 0.4;
+
 /** What Pac-Man was doing in the frame before he was caught (for keyboard or jev play alike). */
 export function deathContext(state: GameState): DeathContext | null {
   if (state.status !== 'playing') return null;
@@ -65,7 +71,7 @@ export function deathLabel(d: Death): string {
     case 'ghost from behind':
       return `${who} caught up from behind`;
     case 'at/near junction':
-      return `caught by ${who} at a junction`;
+      return `${who} cut him off at a junction`;
   }
 }
 
@@ -88,6 +94,8 @@ export class GameStats {
   private costEstimated = false;
   private errors = 0;
   private overrides = 0;
+  /** This life's recent situations, oldest first, trimmed to a little more than REACT_SECONDS. */
+  private recent: { seconds: number; context: DeathContext | null }[] = [];
   private before: {
     status: GameState['status'];
     pelletsEaten: number;
@@ -122,8 +130,19 @@ export class GameStats {
     if (fruit && !state.fruit && state.popups.some((p) => !b.popups.has(p) && p.text === String(fruit.points) && sameTile(p.tile, fruit.tile))) {
       this.fruit.push({ kind: fruit.kind, points: fruit.points });
     }
+    if (b.status === 'playing') {
+      this.recent.push({ seconds: this.seconds, context: b.context });
+      while (this.recent.length > 1 && this.recent[1].seconds <= this.seconds - REACT_SECONDS - 0.5) this.recent.shift();
+    }
     if (b.status === 'playing' && state.status === 'dying') {
-      this.deaths.push({ ghost: state.caughtBy, context: b.context ?? 'at/near junction', seconds: Math.round(this.seconds * 10) / 10 });
+      let context = b.context ?? 'at/near junction';
+      if (context === 'ghost ahead in corridor' || context === 'ghost from behind') {
+        let since = this.seconds;
+        for (let i = this.recent.length - 1; i >= 0 && this.recent[i].context === context; i--) since = this.recent[i].seconds;
+        if (this.seconds - since < REACT_SECONDS) context = 'at/near junction';
+      }
+      this.deaths.push({ ghost: state.caughtBy, context, seconds: Math.round(this.seconds * 10) / 10 });
+      this.recent = [];
     }
     this.before = null;
   }

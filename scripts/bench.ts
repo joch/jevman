@@ -12,7 +12,7 @@ import { GHOST_IDS, type ActorId } from '../src/types';
 import { handleDecide } from '../server/decide';
 import { devTargetFromEnv, modelFor } from '../server/jev';
 import { Recorder, roundDt } from '../src/replay';
-import { deathContext, GameStats } from '../src/stats';
+import { GameStats } from '../src/stats';
 
 const { values } = parseArgs({
   options: {
@@ -131,7 +131,6 @@ async function playOne(): Promise<Result> {
       recorder.frames.push(dt);
     }
     scheduler.update(state);
-    const before = deathContext(state);
     const fruitBefore = state.fruit;
     stats.beforeStep(state);
     step(state, dt, ctl);
@@ -143,9 +142,6 @@ async function playOne(): Promise<Result> {
       if (!state.maze.isWalkable(a.tile) || (a.progress > 0 && !state.maze.isWalkable(into))) {
         throw new Error(`${a.id} left the maze at (${a.tile.x},${a.tile.y}) heading ${a.dir}, progress ${a.progress.toFixed(2)}`);
       }
-    }
-    if (state.status === 'dying' && before) {
-      r.deathsBy[before] = (r.deathsBy[before] ?? 0) + 1;
     }
     if (state.status === 'playing') r.survived += dt;
     if (state.pelletsEaten !== lastPellets) {
@@ -160,6 +156,7 @@ async function playOne(): Promise<Result> {
   }
   r.score = state.score;
   r.fruitEaten = stats.summary(state).fruit.length;
+  for (const d of stats.summary(state).deaths) r.deathsBy[d.context] = (r.deathsBy[d.context] ?? 0) + 1;
   r.pellets = pelletsEaten;
   r.level = state.level;
   if (recorder) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameStats, deathContext, deathLabel } from '../src/stats';
 import { createGame, DYING_SECONDS, step, type Controls, type GameState } from '../src/sim';
+import { REVERSE } from '../src/maze';
 import { GHOST_IDS } from '../src/types';
 
 const never: Controls = { decide: () => null };
@@ -66,8 +67,10 @@ describe('GameStats', () => {
   it('records who caught Pac-Man and in what situation', () => {
     const s = playing();
     const stats = new GameStats();
-    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 10, y: 23 }, dir: 'right', progress: 0 });
-    run(stats, s, 0.3);
+    // A straight stretch of the bottom corridor: Blinky is in sight for over half a second.
+    Object.assign(s.pacman, { tile: { x: 11, y: 29 }, dir: 'left', progress: 0 });
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 3, y: 29 }, dir: 'right', progress: 0 });
+    run(stats, s, 0.7);
     run(stats, s, DYING_SECONDS + 0.05);
     const { deaths } = stats.summary(s);
     expect(deaths).toHaveLength(1);
@@ -213,5 +216,22 @@ describe('GameStats superseded answers', () => {
     stats.onSchedulerEvent({ type: 'decision', decision: d, latencyMs: 200, fruitOnBoard: false });
     stats.onSchedulerEvent({ type: 'decision', decision: { ...d, choice: 'down', vetoed: 'up' }, latencyMs: null, fruitOnBoard: false });
     expect(stats.summary(createGame()).jev).toMatchObject({ decisions: 1, overrides: 1, meanConfidence: 0.7 });
+  });
+});
+
+describe('GameStats death situations', () => {
+  it('calls it a cut-off when the ghost appeared in his corridor too late to turn back', () => {
+    const s = playing();
+    const stats = new GameStats();
+    run(stats, s, 0.6); // nothing near Pac-Man on his way left along the bottom corridor
+    // A ghost turns up right in front of him (e.g. out of a side corridor).
+    const ahead = s.maze.neighbor(s.maze.neighbor(s.pacman.tile, s.pacman.dir), s.pacman.dir);
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: ahead, dir: REVERSE[s.pacman.dir], progress: 0, waiting: false });
+    expect(deathContext(s)).toBe('ghost ahead in corridor'); // what the last frame alone would say
+    run(stats, s, 0.3);
+    const { deaths } = stats.summary(s);
+    expect(deaths).toHaveLength(1);
+    expect(deaths[0]).toMatchObject({ ghost: 'blinky', context: 'at/near junction' });
+    expect(deathLabel(deaths[0])).toBe('Blinky cut him off at a junction');
   });
 });
