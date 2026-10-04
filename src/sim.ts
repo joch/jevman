@@ -57,6 +57,8 @@ export interface GameState {
   fruitsSpawned: number;
   lifeTime: number;
   popups: Popup[];
+  /** The ghost whose collision cost the current life (set while dying). */
+  caughtBy: GhostId | null;
 }
 
 export interface DecisionPoint {
@@ -140,6 +142,7 @@ export function createGame(opts: { pacmanControl?: PacmanControl } = {}): GameSt
     fruitsSpawned: 0,
     lifeTime: 0,
     popups: [],
+    caughtBy: null,
   };
   resetPositions(state);
   return state;
@@ -171,6 +174,7 @@ export function resetPositions(state: GameState): void {
   state.frightChain = 0;
   state.lifeTime = 0;
   state.keyDir = null;
+  state.caughtBy = null;
 }
 
 export const actorOf = (state: GameState, id: ActorId): Actor =>
@@ -490,6 +494,7 @@ function checkCollisions(state: GameState): void {
     } else {
       state.status = 'dying';
       state.statusTimer = DYING_SECONDS;
+      state.caughtBy = g.id;
       return;
     }
   }

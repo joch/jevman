@@ -1,8 +1,8 @@
 import { ACTOR_NAMES } from './brain';
 import { REVERSE } from './maze';
 import type { SchedulerEvent } from './scheduler';
-import { actorPosition, escapePoint, type GameState } from './sim';
-import { GHOST_IDS, sameTile, type GhostId, type Tile } from './types';
+import { escapePoint, type GameState } from './sim';
+import { sameTile, type GhostId, type Tile } from './types';
 
 export type DeathContext = 'waiting at junction' | 'ghost ahead in corridor' | 'ghost from behind' | 'at/near junction';
 
@@ -67,21 +67,6 @@ export function deathLabel(d: Death): string {
   }
 }
 
-/** The normal ghost nearest Pac-Man: the one that just caught him. */
-function nearestGhost(state: GameState): GhostId | null {
-  const p = actorPosition(state.pacman);
-  let best: { id: GhostId; d: number } | null = null;
-  for (const id of GHOST_IDS) {
-    const g = state.ghosts[id];
-    if (g.state !== 'normal') continue;
-    const q = actorPosition(g);
-    const dx = Math.abs(p.x - q.x);
-    const d = Math.min(dx, state.maze.width - dx) + Math.abs(p.y - q.y);
-    if (!best || d < best.d) best = { id, d };
-  }
-  return best?.id ?? null;
-}
-
 /**
  * Per-game statistics for the game-over screen. The game loop calls beforeStep/afterStep around each
  * sim step and forwards scheduler events; nothing here changes the game.
@@ -135,7 +120,7 @@ export class GameStats {
       this.fruit.push({ kind: fruit.kind, points: fruit.points });
     }
     if (b.status === 'playing' && state.status === 'dying') {
-      this.deaths.push({ ghost: nearestGhost(state), context: b.context ?? 'at/near junction', seconds: Math.round(this.seconds * 10) / 10 });
+      this.deaths.push({ ghost: state.caughtBy, context: b.context ?? 'at/near junction', seconds: Math.round(this.seconds * 10) / 10 });
     }
     this.before = null;
   }
