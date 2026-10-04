@@ -48,9 +48,8 @@ Cost is returned in the `X-Opper-Cost` response header.
 
 Measured on 2026-10-03: ~340 ms round-trip for a small state with one question;
 correct choice with confidence 0.99. Org-level personal keys are rejected
-("System One requires a project-scoped Opper API key"); the key from the
-`chadda` CLI slot works. The `gw` slot key is currently invalid and should
-replace `chadda` once re-issued.
+("System One requires a project-scoped Opper API key"); a project-scoped
+key works.
 
 ## Architecture
 
