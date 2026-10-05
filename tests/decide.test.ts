@@ -267,15 +267,19 @@ describe('warming a model up', () => {
   });
 
   it('waits far longer than a game call, since a cold model can take many seconds', async () => {
-    let signal: AbortSignal | undefined;
-    const slow = vi.fn<typeof fetch>(async (_url, init) => {
-      signal = init?.signal ?? undefined;
-      return new Response(JSON.stringify({ answers: {}, usage: { input_tokens: 1, output_tokens: 1 } }), { status: 200 });
-    });
-    await handleDecideRequest(post, JSON.stringify({ model: 'opper/clef' }), cfg, DEV, { fetch: slow, now: () => 0 }, { warm: true });
-    expect(signal).toBeDefined();
-    expect(WARM_TIMEOUT_MS).toBeGreaterThanOrEqual(20_000);
-  });
+    // Answers after 2.2 s: past a game call's 2 s timeout, well within a warm-up's.
+    const slow = vi.fn<typeof fetch>(
+      (_url, init) =>
+        new Promise((resolve, reject) => {
+          const t = setTimeout(() => resolve(new Response(JSON.stringify({ answers: {}, usage: { input_tokens: 1, output_tokens: 1 } }), { status: 200 })), 2200);
+          init?.signal?.addEventListener('abort', () => (clearTimeout(t), reject(init.signal!.reason)));
+        }),
+    );
+    const decide: HttpRequest = { ...post, url: '/api/decide' };
+    expect((await handleDecideRequest(decide, JSON.stringify(body), cfg, DEV, { fetch: slow, now: () => 0 })).status).toBe(504);
+    expect((await handleDecideRequest(post, JSON.stringify({ model: 'opper/clef' }), cfg, DEV, { fetch: slow, now: () => 0 }, { warm: true })).status).toBe(200);
+    expect(WARM_TIMEOUT_MS).toBeLessThan(30_000); // leaves room in the 35 s shutdown deadline after its 5 s drain
+  }, 10_000);
 
   it('still refuses unlisted models and cross-site requests', async () => {
     const fetchMock = ok();

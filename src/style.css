@@ -75,7 +75,7 @@ button:hover { border-color: var(--accent); }
 .account .signin:disabled { opacity: 0.5; cursor: not-allowed; }
 .account .notice, .account .notice a { color: var(--danger); }
 @media (max-width: 640px) { .account { width: 100%; justify-content: space-between; } }
-button:disabled { opacity: 0.45; cursor: not-allowed; }
+button:disabled, button[aria-disabled] { opacity: 0.45; cursor: not-allowed; }
 button:disabled:hover { border-color: #3a3a5a; }
 .account .hint { color: var(--muted); font-size: 12px; }
 .account .hint a { color: var(--muted); text-decoration: underline; }

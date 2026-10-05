@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL } from '../shared/models';
 import { ACTOR_NAMES } from './brain';
 import { REVERSE } from './maze';
 import type { SchedulerEvent } from './scheduler';
@@ -67,7 +68,7 @@ export function deathLabel(d: Death): string {
   const who = d.ghost ? ACTOR_NAMES[d.ghost] : 'a ghost';
   switch (d.context) {
     case 'waiting at junction':
-      return `caught by ${who} while waiting for jev at a junction`;
+      return `caught by ${who} while waiting for the model at a junction`;
     case 'ghost ahead in corridor':
       return `ran into ${who} in a corridor`;
     case 'ghost from behind':
@@ -154,6 +155,8 @@ export class GameStats {
   onSchedulerEvent(e: SchedulerEvent): void {
     if (e.type === 'call') {
       this.calls += 1;
+      // Every model that was called (and billed), named as listed: TypeSafe's own id for jev reads as jev.
+      if (e.model) this.models.add(e.model === 'jev-1.13.0' ? DEFAULT_MODEL : e.model);
       if (Number.isFinite(e.latencyMs)) {
         this.latency.sum += e.latencyMs;
         this.latency.n += 1;
@@ -168,7 +171,6 @@ export class GameStats {
     } else if (e.type === 'decision' && e.decision.vetoed) {
       this.overrides += 1;
     } else if (e.type === 'decision' || e.type === 'superseded') {
-      if (e.type === 'decision' && e.decision.model) this.models.add(e.decision.model);
       const sign = e.type === 'decision' ? 1 : -1;
       this.decisions += sign;
       if (e.decision.source === 'fallback') this.fallbacks += sign;

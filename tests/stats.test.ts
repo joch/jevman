@@ -112,7 +112,7 @@ describe('GameStats', () => {
     s.pacmanControl = 'jev';
     s.pacman.waiting = true;
     expect(deathContext(s)).toBe('waiting at junction');
-    expect(deathLabel({ ghost: 'inky', context: 'waiting at junction', seconds: 0 })).toBe('caught by Inky while waiting for jev at a junction');
+    expect(deathLabel({ ghost: 'inky', context: 'waiting at junction', seconds: 0 })).toBe('caught by Inky while waiting for the model at a junction');
   });
 });
 
@@ -195,6 +195,17 @@ describe('GameStats ghost counting within one frame', () => {
     expect(s.maze.powerPellets.has(s.maze.key({ x: 1, y: 23 }))).toBe(false);
     expect(s.frightChain).toBe(0);
     expect(stats.summary(s).ghostsEaten).toBe(1);
+  });
+});
+
+describe('GameStats models', () => {
+  it('lists every model that was called, naming TypeSafe\'s jev id as jev', () => {
+    const stats = new GameStats();
+    const call = (model: string) => ({ type: 'call' as const, model, actors: ['pacman' as const], usage: { input_tokens: 1, output_tokens: 1 }, traceId: null, latencyMs: 200, costUsd: null });
+    stats.onSchedulerEvent(call('opper/clef'));
+    stats.onSchedulerEvent(call('jev-1.13.0'));
+    stats.onSchedulerEvent(call('opper/clef'));
+    expect(stats.summary(createGame()).jev.models).toEqual(['opper/clef', 'typesafe/jev-1.13.0']);
   });
 });
 

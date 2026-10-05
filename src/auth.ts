@@ -149,7 +149,7 @@ export function renderAccount(root: HTMLElement, view: AccountView): void {
   if (view.kind === 'player') {
     const who = me.user?.name ?? me.user?.email ?? 'Opper user';
     line('Live', `Signed in as ${who}${me.projectName ? ` · ${me.projectName}` : ''}`);
-    text.append(el('p', 'jev plays live; calls bill your Opper wallet.', 'hint'));
+    text.append(el('p', 'The AI plays live; calls bill your Opper wallet.', 'hint'));
     const wallet = el('a', 'My wallet ↗', 'button');
     wallet.href = me.walletUrl;
     wallet.target = '_blank';
@@ -166,7 +166,7 @@ export function renderAccount(root: HTMLElement, view: AccountView): void {
     text.append(runItYourself('Calls bill your own Opper wallet, or '));
     if (!retry) actions.append(signInButton(me));
   } else {
-    line('Signed out', 'Sign in with Opper to keep jev playing');
+    line('Signed out', 'Sign in with Opper to keep the AI playing');
     text.append(runItYourself('Or '));
     if (!retry) actions.append(signInButton(me));
   }

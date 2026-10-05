@@ -94,7 +94,7 @@ export function showPlay(root: HTMLElement, me: Me, opts: { mode: PlayMode; onSe
       button.addEventListener('click', signIn);
     } else {
       // Login with Opper isn't configured here (its route answers 503): don't offer a broken action.
-      card.append(el('p', 'This server has no jev key and Login with Opper is not configured. Clone the repo and add your own key to play.'));
+      card.append(el('p', 'This server has no API key and Login with Opper is not configured. Clone the repo and add your own key to play.'));
       button.disabled = true;
     }
     card.append(button);
@@ -147,10 +147,16 @@ export function showPlay(root: HTMLElement, me: Me, opts: { mode: PlayMode; onSe
   play.addEventListener('click', opts.onPlay);
   card.append(play, el('p', 'or press Space / Enter', 'muted small'));
   show(root, card, play);
+  // aria-disabled, not disabled: the button keeps focus while models wake, and repeat presses are ignored by onPlay.
+  const status = el('p', undefined, 'muted small');
+  status.setAttribute('aria-live', 'polite');
   const busy = (note: string | null) => {
-    play.disabled = note !== null;
+    play.toggleAttribute('aria-disabled', note !== null);
+    play.setAttribute('aria-busy', String(note !== null));
     label.textContent = note ?? 'Play';
+    status.textContent = note ?? '';
   };
+  card.append(status);
   return { action: opts.onPlay, select, busy };
 }
 

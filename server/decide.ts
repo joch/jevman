@@ -150,16 +150,16 @@ export function rejectDecideRequest(req: HttpRequest, cfg: AuthConfig, devKey: J
   return null;
 }
 
-/** /api/decide, independent of the HTTP server: picks the key, calls jev, and turns `clearSession` into a Set-Cookie. */
 /** A cold Opper-hosted model can take many seconds to answer its first call after being idle. */
-export const WARM_TIMEOUT_MS = 30_000;
+export const WARM_TIMEOUT_MS = 25_000; // under the 35 s shutdown deadline minus the 5 s drain
 
 /** The fixed question /api/warm sends: the client only picks the model, never the content. */
 const WARM_UP = { state: { note: 'warm-up' }, questions: { warmup: { type: 'choice', instructions: 'Pick one.', criteria: { a: 'Option A', b: 'Option B' } } } };
 
 /**
- * /api/decide, or with `warm` /api/warm: one tiny call with a long timeout so a model that has been idle is awake
- * before it has to play.
+ * /api/decide, independent of the HTTP server: picks the key, calls the model, and turns `clearSession` into a
+ * Set-Cookie. With `warm` it is /api/warm: one fixed tiny call with a long timeout, so a model that has been idle is
+ * awake before it has to play.
  */
 export async function handleDecideRequest(req: HttpRequest, rawBody: string, cfg: AuthConfig, devKey: JevTarget | undefined, deps: DecideRequestDeps, opts: { warm?: boolean } = {}): Promise<HttpResponse> {
   const refused = rejectDecideRequest(req, cfg, devKey);
@@ -190,7 +190,7 @@ export async function handleDecideRequest(req: HttpRequest, rawBody: string, cfg
     const { clearSession, ...body } = result.body as Record<string, unknown>;
     return json(result.status, body, clearSession ? [clearSessionCookie(cfg)] : []);
   } catch (err) {
-    deps.logError?.(`[jev] /api/decide failure: ${redact((err as Error)?.message ?? String(err))}`);
+    deps.logError?.(`[jev] /api/${opts.warm ? 'warm' : 'decide'} failure: ${redact((err as Error)?.message ?? String(err))}`);
     return json(500, { error: 'internal error in /api/decide' });
   }
 }

@@ -11,6 +11,7 @@ import { GameStats } from './stats';
 import { createHttpTransport, warmUp } from './transport';
 import { initialChoice, loadStoredChoice, modelOptions, requestModel, saveChoice, type ModelChoice } from './choice';
 import type { ModelPicking } from './picker';
+import { effectiveChoice, ModelWarming } from './warming';
 import { DEFAULT_MODEL, modelName } from '../shared/models';
 import type { Dir } from './types';
 
@@ -107,21 +108,16 @@ if (rec) {
   // cold one doesn't turn the next moves into fallbacks.
   let wanted: ModelChoice = initialChoice(me, loadStoredChoice());
   let choice: ModelChoice = { ...wanted };
-  const warming = new Map<string, { at: number; done: Promise<boolean>; ok?: boolean }>();
-  const warm = (model: string): Promise<boolean> => {
-    const w = warming.get(model);
-    if (w && (w.ok === undefined || Date.now() - w.at < 120_000)) return w.done;
-    const entry: { at: number; done: Promise<boolean>; ok?: boolean } = { at: Date.now(), done: Promise.resolve(false) };
-    entry.done = warmUp(model === defaultModel ? undefined : model).then((ok) => ((entry.ok = ok), ok));
-    warming.set(model, entry);
-    return entry.done;
-  };
-  // Settled either way: a model that failed to wake still takes over, so its fallbacks show the problem.
-  const isWarm = (model: string) => warming.get(model)?.ok !== undefined;
-  const adopt = () => {
-    choice = Object.fromEntries(Object.entries(wanted).map(([id, m]) => [id, isWarm(m) ? m : choice[id as keyof ModelChoice]])) as ModelChoice;
-  };
+  const warming = new ModelWarming({ warmUp: (m) => warmUp(m === defaultModel ? undefined : m), now: () => Date.now() });
   const playedModels = () => [...new Set(jevActors(state).map((id) => wanted[id]))];
+  const adopt = () => {
+    choice = effectiveChoice(wanted, choice, (m) => warming.isWarm(m), defaultModel);
+  };
+  /** Warm the models that play now; each takes over as soon as it is awake. */
+  const warmPlayed = () => {
+    for (const m of playedModels()) void warming.warm(m).then(adopt);
+    adopt();
+  };
   const picking: ModelPicking = {
     options: modelOptions(me),
     choice: () => wanted,
@@ -129,9 +125,8 @@ if (rec) {
       wanted = next;
       saveChoice(next);
       panel.syncModels();
-      if (!started) choice = { ...next }; // Play waits for them below
-      for (const m of new Set(Object.values(next))) void warm(m).then(adopt);
-      adopt();
+      if (!started) choice = { ...next }; // Play waits for them
+      warmPlayed();
     },
   };
   panel = new Panel(panelEl, { models: picking });
@@ -148,6 +143,7 @@ if (rec) {
       now: () => clockMs,
       onEvent: (e) => {
         if (gameStats !== stats) return;
+        if (e.type === 'call' && e.model) warming.touch(e.model === 'jev-1.13.0' ? DEFAULT_MODEL : e.model);
         panel.handle(e);
         stats.onSchedulerEvent(e);
         // A request still in flight at game over reports afterwards; keep the card's numbers complete.
@@ -166,19 +162,19 @@ if (rec) {
   /** Play: wake the chosen models first (a few seconds when one has been idle), then start. */
   const play = (): void => {
     if (waking || started) return;
-    const cold = playedModels().filter((m) => !isWarm(m));
-    if (!cold.length) return begin();
     waking = true;
-    playCard.busy(`Waking up ${cold.map(modelName).join(' and ')}…`);
-    void Promise.all(cold.map(warm)).then(() => {
-      waking = false;
-      playCard.busy(null);
-      choice = { ...wanted };
-      begin();
-    });
+    void warming
+      .warmAll(playedModels, (cold) => playCard.busy(`Waking up ${cold.map(modelName).join(' and ')}…`))
+      .then(() => {
+        waking = false;
+        playCard.busy(null);
+        choice = { ...wanted };
+        begin();
+      });
   };
   const begin = (): void => {
     started = true;
+    panel.enableModelPickers();
     selectPlayMode = null;
     restartBtn.disabled = false;
     overlayAction = null;
@@ -191,7 +187,7 @@ if (rec) {
     toggleBtn.textContent = `Pac-Man: ${control === 'jev' ? 'AI' : 'you'}`;
     toggleBtn.setAttribute('aria-pressed', String(control === 'jev'));
     selectPlayMode?.(control);
-    for (const m of playedModels()) void warm(m).then(adopt);
+    if (started) warmPlayed();
   };
   const togglePacman = (): void => setPacmanControl(state.pacmanControl === 'jev' ? 'keyboard' : 'jev');
   const restart = (): void => {
