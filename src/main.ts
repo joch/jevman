@@ -8,7 +8,7 @@ import { greedyChoice, optionFeatures } from './features';
 import { Scheduler } from './scheduler';
 import { createGame, fruitForLevel, jevActors, step, type Controls, type GameState } from './sim';
 import { GameStats } from './stats';
-import { createHttpTransport, warmUp } from './transport';
+import { createHttpTransport, warmUp, type TransportHooks } from './transport';
 import { initialChoice, loadStoredChoice, modelOptions, requestModel, saveChoice, type ModelChoice } from './choice';
 import type { ModelPicking } from './picker';
 import { effectiveChoice, ModelWarming } from './warming';
@@ -124,7 +124,7 @@ if (me.mode === 'none') {
 } else {
   let signedOutShown = false;
   let walletShown = false;
-  const transport = createHttpTransport({
+  const hooks: TransportHooks = {
     onSignedOut: () => {
       if (signedOutShown) return; // render the aria-live region once per signed-in -> signed-out transition
       signedOutShown = true;
@@ -135,7 +135,8 @@ if (me.mode === 'none') {
       walletShown = true;
       showAccount({ ...account, ...walletNotice(url) });
     },
-  });
+  };
+  const transport = createHttpTransport(hooks);
   // Who steers Pac-Man in the next live game (the demo's own state is a recording).
   let liveControl: 'jev' | 'keyboard' = 'jev';
   const played = () => jevActors(started ? state : ({ pacmanControl: liveControl } as GameState));
@@ -148,7 +149,16 @@ if (me.mode === 'none') {
   const linked = new URLSearchParams(location.search).get('pacman');
   if (linked && modelOptions(me).some((o) => o.id === linked)) wanted = { ...wanted, pacman: linked };
   let choice: ModelChoice = { ...wanted };
-  const warming = new ModelWarming({ warmUp: (m) => warmUp(m === defaultModel ? undefined : m), now: () => Date.now() });
+  // The last sign-in or wallet problem a warm-up hit: Play says that, not "didn't wake up".
+  let accountProblem: string | null = null;
+  const warming = new ModelWarming({
+    warmUp: async (m) => {
+      const r = await warmUp(m === defaultModel ? undefined : m, hooks);
+      accountProblem = !r.ok && r.account ? r.error : null;
+      return r.ok;
+    },
+    now: () => Date.now(),
+  });
   const playedModels = () => [...new Set(played().map((id) => wanted[id]))];
   const adopt = () => {
     choice = effectiveChoice(wanted, choice, (m) => warming.isWarm(m), defaultModel);
@@ -213,7 +223,7 @@ if (me.mode === 'none') {
         card.busy(null);
         if (failed.length) {
           const names = failed.map(modelName).join(' and ');
-          return card.note(`${names} didn't wake up in time. Press Play to try again, or pick another model.`);
+          return card.note(accountProblem ?? `${names} didn't wake up in time. Press Play to try again, or pick another model.`);
         }
         choice = { ...wanted };
         newGame();

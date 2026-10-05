@@ -44,11 +44,14 @@ export function createHttpTransport(hooks: TransportHooks = {}): Transport {
 
 export const httpTransport: Transport = createHttpTransport();
 
+export type WarmResult = { ok: true } | { ok: false; error: string; account: boolean };
+
 /**
  * One tiny call (POST /api/warm) so a model that has been idle (Opper scales them down) is awake before it has to
- * play. It bills one small call. Resolves true when the model answered; `model` undefined warms the server's default.
+ * play. It bills one small call; `model` undefined warms the server's default. An expired sign-in or an empty wallet
+ * goes through the same hooks as a game call, and comes back as an account problem rather than a sleepy model.
  */
-export async function warmUp(model: string | undefined): Promise<boolean> {
+export async function warmUp(model: string | undefined, hooks: TransportHooks = {}): Promise<WarmResult> {
   try {
     const res = await fetch('/api/warm', {
       method: 'POST',
@@ -56,8 +59,18 @@ export async function warmUp(model: string | undefined): Promise<boolean> {
       body: JSON.stringify(model ? { model } : {}),
       signal: AbortSignal.timeout(35_000),
     });
-    return res.ok;
+    if (res.ok) return { ok: true };
+    const json = (await res.json().catch(() => ({}))) as { error?: string; signedOut?: boolean; walletUrl?: unknown };
+    const signedOut = json.signedOut === true;
+    const wallet = res.status === 402 && typeof json.walletUrl === 'string';
+    try {
+      if (signedOut) hooks.onSignedOut?.();
+      if (wallet) hooks.onWalletEmpty?.(json.walletUrl as string);
+    } catch {
+      // a faulty hook must not hide the result
+    }
+    return { ok: false, error: json.error ?? `HTTP ${res.status}`, account: signedOut || wallet };
   } catch {
-    return false;
+    return { ok: false, error: 'no answer', account: false };
   }
 }

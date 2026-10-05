@@ -35,7 +35,8 @@ export function leaderboardRows(board: Leaderboard): LeaderboardRow[] {
     ['Cheapest', best(entries, (e) => e.costPerGame, true)],
   ];
   return entries.map((e, i) => ({
-    rank: i + 1,
+    // Joint leaders share first place; the next model is third.
+    rank: tied && i === 1 ? 1 : i + 1,
     model: e.model,
     name: e.name,
     maker: DECISION_MODELS.find((m) => m.id === e.model)?.maker ?? '',

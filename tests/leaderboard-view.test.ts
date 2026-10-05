@@ -32,6 +32,7 @@ describe('leaderboardRows', () => {
       entry({ model: 'opper/kev-4b', name: 'Kev 4B', meanScore: 1445, scoreStdError: 22 }),
     ]));
     expect(rows.map((r) => r.badges.includes('Joint top score'))).toEqual([true, true, false]);
+    expect(rows.map((r) => r.rank)).toEqual([1, 1, 3]);
     expect(rows.flatMap((r) => r.badges)).not.toContain('Most points');
     expect(rows[0].scoreLabel).toBe('3,181 points ± 372');
   });

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createHttpTransport, httpTransport } from '../src/transport';
+import { createHttpTransport, httpTransport, warmUp } from '../src/transport';
 import type { SystemOneRequest } from '../src/brain';
 
 const req = { state: {}, questions: {} } as unknown as SystemOneRequest;
@@ -85,5 +85,25 @@ describe('createHttpTransport hooks', () => {
     await expect(t(req)).rejects.toThrow('expired');
     stub(json({ error: 'empty', walletUrl: 'https://platform.opper.ai/wallet' }, 402));
     await expect(t(req)).rejects.toThrow('empty');
+  });
+});
+
+describe('warmUp', () => {
+  it('reports an expired sign-in or an empty wallet through the same hooks as a game call', async () => {
+    const onSignedOut = vi.fn();
+    const onWalletEmpty = vi.fn();
+    stub(async () => new Response(JSON.stringify({ error: 'Your Opper sign-in has expired — sign in again', signedOut: true }), { status: 401 }));
+    expect(await warmUp('opper/clef', { onSignedOut, onWalletEmpty })).toEqual({ ok: false, error: 'Your Opper sign-in has expired — sign in again', account: true });
+    expect(onSignedOut).toHaveBeenCalledOnce();
+    stub(async () => new Response(JSON.stringify({ error: 'Your Opper wallet is empty — top up to keep playing', walletUrl: 'https://platform.opper.ai/wallet' }), { status: 402 }));
+    expect(await warmUp('opper/clef', { onSignedOut, onWalletEmpty })).toMatchObject({ ok: false, account: true });
+    expect(onWalletEmpty).toHaveBeenCalledWith('https://platform.opper.ai/wallet');
+  });
+
+  it('tells a model that did not answer apart from an account problem', async () => {
+    stub(async () => new Response(JSON.stringify({ error: 'Clef timed out after 25000 ms' }), { status: 504 }));
+    expect(await warmUp('opper/clef')).toEqual({ ok: false, error: 'Clef timed out after 25000 ms', account: false });
+    stub(async () => new Response(JSON.stringify({ answers: {} }), { status: 200 }));
+    expect(await warmUp(undefined)).toEqual({ ok: true });
   });
 });
