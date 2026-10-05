@@ -197,17 +197,20 @@ if (me.mode === 'none') {
   // No live game runs, and no model is called, until the player presses Play in the card.
   let started = false;
   let gameOverShown = false;
-  let waking = false;
   let playCard: ReturnType<typeof showPlay> | null = null;
+  /** The card whose Play is waiting for models to wake; closing that card cancels the start. */
+  let waitingFor: ReturnType<typeof showPlay> | null = null;
   /** The card's Play: wake the chosen models first (a few seconds when one has been idle), then start. */
   const play = (): void => {
-    if (waking || started) return;
-    waking = true;
+    const card = playCard;
+    if (started || !card || waitingFor === card) return;
+    waitingFor = card;
     void warming
-      .warmAll(playedModels, (cold) => playCard?.busy(`Waking up ${cold.map(modelName).join(' and ')}…`))
+      .warmAll(playedModels, (cold) => card.busy(`Waking up ${cold.map(modelName).join(' and ')}…`))
       .then(() => {
-        waking = false;
-        playCard?.busy(null);
+        if (waitingFor === card) waitingFor = null;
+        if (playCard !== card) return; // closed while waking: stay on the demo, start nothing
+        card.busy(null);
         choice = { ...wanted };
         newGame();
       });
