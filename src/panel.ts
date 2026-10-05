@@ -150,15 +150,22 @@ export class Panel {
     card.el.classList.remove('fallback');
   }
 
-  /** A note above the cards that stays until the next one (call errors use the banner, which clears on success). */
-  alert(text: string): void {
+  /** What the note is about (e.g. a model, a side switch), so only that thing's success clears it. */
+  private alertKey: string | null = null;
+
+  /** A note above the cards that stays until replaced or cleared (call errors use the banner, which clears on success). */
+  alert(text: string, key: string): void {
     const note = this.root.querySelector<HTMLElement>('.note')!;
     note.textContent = text;
     note.hidden = false;
+    this.alertKey = key;
   }
 
-  clearAlert(): void {
+  /** Clears the note if it is about `key`. */
+  clearAlert(key: string): void {
+    if (this.alertKey !== key) return;
     this.root.querySelector<HTMLElement>('.note')!.hidden = true;
+    this.alertKey = null;
   }
 
   enableModelPickers(): void {

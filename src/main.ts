@@ -176,8 +176,9 @@ if (me.mode === 'none') {
   const warming = new ModelWarming({
     warmUp: async (m) => {
       const r = await warmUp(m === defaultModel ? undefined : m, hooks);
-      if (!r.ok && r.account) warmProblems.set(m, r.error);
-      else warmProblems.delete(m);
+      // A refusal holds until the model actually answers (a later timeout doesn't make it less true).
+      if (r.ok) warmProblems.delete(m);
+      else if (r.account) warmProblems.set(m, r.error);
       return r.ok;
     },
     now: () => Date.now(),
@@ -187,15 +188,10 @@ if (me.mode === 'none') {
     choice = effectiveChoice(wanted, choice, (m) => warming.isWarm(m), defaultModel);
   };
   /** Warm the models that play now; each takes over as soon as it is awake. */
-  /** The model the panel's "didn't wake up" note is about. */
-  let alertFor: string | null = null;
   const warmPlayed = () => {
     for (const m of playedModels()) {
       void warming.warm(m).then((ok) => {
-        if (ok && alertFor === m) {
-          panel.clearAlert(); // that model's retry worked: its "still playing …" note no longer holds
-          alertFor = null;
-        }
+        if (ok) panel.clearAlert(`model:${m}`); // that model's retry worked: its "still playing …" note no longer holds
         if (!ok && started) {
           // The pick never took over: show what is really playing, and say why.
           const stuck = played().filter((id) => wanted[id] === m && choice[id] !== m);
@@ -203,8 +199,7 @@ if (me.mode === 'none') {
             wanted = { ...wanted, ...Object.fromEntries(stuck.map((id) => [id, choice[id]])) };
             saveChoice(wanted);
             panel.syncModels();
-            panel.alert(problemOf([m]) ?? `${modelName(m)} didn't wake up; still playing ${modelName(choice[stuck[0]])}. Pick it again to retry.`);
-            alertFor = m;
+            panel.alert(problemOf([m]) ?? `${modelName(m)} didn't wake up; still playing ${modelName(choice[stuck[0]])}. Pick it again to retry.`, `model:${m}`);
           }
         }
         adopt();
@@ -300,6 +295,7 @@ if (me.mode === 'none') {
       if (started) {
         state.pacmanControl = control;
         state.keyDir = null;
+        panel.clearAlert('switch');
       }
       toggleBtn.textContent = `Pac-Man: ${control === 'jev' ? 'AI' : 'you'}`;
       toggleBtn.setAttribute('aria-pressed', String(control === 'jev'));
@@ -317,7 +313,7 @@ if (me.mode === 'none') {
       if (failed.length) {
         // The current side plays on; say why the switch didn't happen.
         toggleBtn.textContent = `Pac-Man: ${liveControl === 'jev' ? 'AI' : 'you'}`;
-        panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the sides didn't switch. Press J to try again.`);
+        panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the sides didn't switch. Press J to try again.`, 'switch');
         return;
       }
       adopt();
@@ -337,7 +333,7 @@ if (me.mode === 'none') {
       restarting = false;
       if (failed.length) {
         // Stay where we are (the game-over card, or the game) rather than start on a model that isn't there.
-        panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the game didn't restart. Try again, or pick another model on the cards.`);
+        panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the game didn't restart. Try again, or pick another model on the cards.`, 'restart');
         return;
       }
       adopt();
@@ -368,9 +364,10 @@ if (me.mode === 'none') {
     if (!started) return true;
     const failed = await warming.warmAll(playedModels, () => {});
     if (failed.length) {
-      panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the game stays paused. Press Resume to try again.`);
+      panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the game stays paused. Press Resume to try again.`, 'resume');
       return false;
     }
+    panel.clearAlert('resume');
     adopt();
     return true;
   };
