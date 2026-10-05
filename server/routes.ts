@@ -121,7 +121,7 @@ export function createJevMiddleware(env: Record<string, string>, logger: RouteLo
     }
     if (path === '/auth/logout') return send(res, handleLogout(http, cfg));
     if (path === '/api/me') return send(res, handleMe(http, cfg, devKey?.provider));
-    if (path !== '/api/decide') return next();
+    if (path !== '/api/decide' && path !== '/api/warm') return next();
 
     // Refuse what needs no body (wrong method, cross-site, not JSON, signed out) before reading any of it.
     const refused = rejectDecideRequest(http, cfg, devKey);
@@ -130,12 +130,19 @@ export function createJevMiddleware(env: Record<string, string>, logger: RouteLo
     readBody(req, MAX_BODY_BYTES)
       .then(async (raw) => {
         if (raw === null) return send(res, json(413, { error: 'Request body too large' }, [], { Connection: 'close' }));
-        const r = await handleDecideRequest(http, raw, cfg, devKey, {
-          fetch,
-          now: () => performance.now(),
-          log: (line) => logger.info(line, { timestamp: true }),
-          logError: (line) => logger.error(line),
-        });
+        const r = await handleDecideRequest(
+          http,
+          raw,
+          cfg,
+          devKey,
+          {
+            fetch,
+            now: () => performance.now(),
+            log: (line) => logger.info(line, { timestamp: true }),
+            logError: (line) => logger.error(line),
+          },
+          { warm: path === '/api/warm' },
+        );
         send(res, r);
       })
       .catch((err) => {

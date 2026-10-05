@@ -103,6 +103,7 @@ describe('GameStats', () => {
       costEstimated: true,
       errors: 0,
       overrides: 0,
+      models: [],
     });
   });
 
@@ -122,15 +123,15 @@ describe('summaryRows', () => {
       score: 3500, level: 2, seconds: 84.4, pellets: 234, ghostsEaten: 3,
       fruit: [{ kind: 'cherry', points: 100 }, { kind: 'strawberry', points: 300 }],
       deaths: [],
-      jev: { calls: 487, decisions: 560, fallbacks: 2, meanLatencyMs: 252, meanConfidence: 0.71, costUsd: 0.02301, costEstimated: true, errors: 0, overrides: 4 },
+      jev: { calls: 487, decisions: 560, fallbacks: 2, meanLatencyMs: 252, meanConfidence: 0.71, costUsd: 0.02301, costEstimated: true, errors: 0, overrides: 4, models: ['typesafe/jev-1.13.0', 'opper/clef'] },
     });
     expect(rows.game).toEqual([['Level', '2'], ['Time', '1:24'], ['Pellets', '234'], ['Ghosts eaten', '3'], ['Fruit', '🍒 🍓']]);
-    expect(rows.jev).toEqual([['Calls', '487'], ['Decisions', '560'], ['Fallbacks', '2'], ['Safety overrides', '4'], ['Mean latency', '252 ms'], ['Avg confidence', '71%'], ['Cost', '≈$0.0230']]);
+    expect(rows.jev).toEqual([['Calls', '487'], ['Decisions', '560'], ['Models', 'jev 1.13, Clef'], ['Fallbacks', '2'], ['Safety overrides', '4'], ['Mean latency', '252 ms'], ['Avg confidence', '71%'], ['Cost', '≈$0.0230']]);
   });
 
   it('shows dashes when nothing happened', async () => {
     const { summaryRows } = await import('../src/overlay');
-    const rows = summaryRows({ score: 0, level: 1, seconds: 3, pellets: 0, ghostsEaten: 0, fruit: [], deaths: [], jev: { calls: 0, decisions: 0, fallbacks: 0, meanLatencyMs: null, meanConfidence: null, costUsd: null, costEstimated: false, errors: 3, overrides: 0 } });
+    const rows = summaryRows({ score: 0, level: 1, seconds: 3, pellets: 0, ghostsEaten: 0, fruit: [], deaths: [], jev: { calls: 0, decisions: 0, fallbacks: 0, meanLatencyMs: null, meanConfidence: null, costUsd: null, costEstimated: false, errors: 3, overrides: 0, models: [] } });
     expect(rows.game.find(([k]) => k === 'Fruit')![1]).toBe('–');
     expect(rows.jev.slice(4)).toEqual([['Mean latency', '–'], ['Avg confidence', '–'], ['Cost', '–'], ['Failed calls', '3']]);
   });

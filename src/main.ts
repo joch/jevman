@@ -8,7 +8,10 @@ import { greedyChoice, optionFeatures } from './features';
 import { Scheduler } from './scheduler';
 import { createGame, fruitForLevel, jevActors, step, type Controls, type GameState } from './sim';
 import { GameStats } from './stats';
-import { createHttpTransport } from './transport';
+import { createHttpTransport, warmUp } from './transport';
+import { initialChoice, loadStoredChoice, modelOptions, requestModel, saveChoice, type ModelChoice } from './choice';
+import type { ModelPicking } from './picker';
+import { DEFAULT_MODEL, modelName } from '../shared/models';
 import type { Dir } from './types';
 
 const KEYS: Record<string, Dir> = {
@@ -98,6 +101,40 @@ if (rec) {
       showAccount({ ...account, ...walletNotice(url) });
     },
   });
+  // Which model plays each character: the server default until the player picks, remembered in this browser.
+  const defaultModel = me.defaultModel ?? DEFAULT_MODEL;
+  // `wanted` is what the player picked; `choice` is what plays. A newly picked model takes over once it is awake, so a
+  // cold one doesn't turn the next moves into fallbacks.
+  let wanted: ModelChoice = initialChoice(me, loadStoredChoice());
+  let choice: ModelChoice = { ...wanted };
+  const warming = new Map<string, { at: number; done: Promise<boolean>; ok?: boolean }>();
+  const warm = (model: string): Promise<boolean> => {
+    const w = warming.get(model);
+    if (w && (w.ok === undefined || Date.now() - w.at < 120_000)) return w.done;
+    const entry: { at: number; done: Promise<boolean>; ok?: boolean } = { at: Date.now(), done: Promise.resolve(false) };
+    entry.done = warmUp(model === defaultModel ? undefined : model).then((ok) => ((entry.ok = ok), ok));
+    warming.set(model, entry);
+    return entry.done;
+  };
+  // Settled either way: a model that failed to wake still takes over, so its fallbacks show the problem.
+  const isWarm = (model: string) => warming.get(model)?.ok !== undefined;
+  const adopt = () => {
+    choice = Object.fromEntries(Object.entries(wanted).map(([id, m]) => [id, isWarm(m) ? m : choice[id as keyof ModelChoice]])) as ModelChoice;
+  };
+  const playedModels = () => [...new Set(jevActors(state).map((id) => wanted[id]))];
+  const picking: ModelPicking = {
+    options: modelOptions(me),
+    choice: () => wanted,
+    onChange: (next) => {
+      wanted = next;
+      saveChoice(next);
+      panel.syncModels();
+      if (!started) choice = { ...next }; // Play waits for them below
+      for (const m of new Set(Object.values(next))) void warm(m).then(adopt);
+      adopt();
+    },
+  };
+  panel = new Panel(panelEl, { models: picking });
   let stats = new GameStats();
   // One scheduler per game: answers still in flight from a restarted game reach its old scheduler and are ignored.
   // They share one in-flight counter, so restarting can't stack up more concurrent (billed) requests.
@@ -107,6 +144,7 @@ if (rec) {
       transport,
       slots,
       actors: jevActors,
+      modelFor: (actor) => requestModel(choice, actor, defaultModel),
       now: () => clockMs,
       onEvent: (e) => {
         if (gameStats !== stats) return;
@@ -124,6 +162,21 @@ if (rec) {
   // Nothing runs, and no jev call is made, until the player presses Play.
   let started = false;
   let gameOverShown = false;
+  let waking = false;
+  /** Play: wake the chosen models first (a few seconds when one has been idle), then start. */
+  const play = (): void => {
+    if (waking || started) return;
+    const cold = playedModels().filter((m) => !isWarm(m));
+    if (!cold.length) return begin();
+    waking = true;
+    playCard.busy(`Waking up ${cold.map(modelName).join(' and ')}…`);
+    void Promise.all(cold.map(warm)).then(() => {
+      waking = false;
+      playCard.busy(null);
+      choice = { ...wanted };
+      begin();
+    });
+  };
   const begin = (): void => {
     started = true;
     selectPlayMode = null;
@@ -135,9 +188,10 @@ if (rec) {
   const setPacmanControl = (control: 'jev' | 'keyboard'): void => {
     state.pacmanControl = control;
     state.keyDir = null;
-    toggleBtn.textContent = `Pac-Man: ${control}`;
+    toggleBtn.textContent = `Pac-Man: ${control === 'jev' ? 'AI' : 'you'}`;
     toggleBtn.setAttribute('aria-pressed', String(control === 'jev'));
     selectPlayMode?.(control);
+    for (const m of playedModels()) void warm(m).then(adopt);
   };
   const togglePacman = (): void => setPacmanControl(state.pacmanControl === 'jev' ? 'keyboard' : 'jev');
   const restart = (): void => {
@@ -146,14 +200,14 @@ if (rec) {
     scheduler.reset();
     stats = new GameStats();
     scheduler = newScheduler(stats);
-    panel = new Panel(panelEl);
+    panel = new Panel(panelEl, { models: picking });
     gameOverShown = false;
     paused = false;
     pauseBtn.textContent = 'Pause';
     begin();
   };
   restartBtn.disabled = true;
-  const playCard = showPlay(overlayEl, me, { mode: state.pacmanControl, onSelect: setPacmanControl, onPlay: begin });
+  const playCard = showPlay(overlayEl, me, { mode: state.pacmanControl, onSelect: setPacmanControl, onPlay: () => play(), models: picking });
   overlayAction = playCard.action;
   selectPlayMode = playCard.select;
   toggleBtn.addEventListener('click', togglePacman);

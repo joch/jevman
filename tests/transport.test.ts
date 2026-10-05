@@ -23,8 +23,8 @@ describe('httpTransport', () => {
   });
 
   it('throws the server error message for a non-ok response', async () => {
-    stub(async () => new Response(JSON.stringify({ error: 'jev timed out after 2000 ms' }), { status: 504 }));
-    await expect(httpTransport(req)).rejects.toThrow('jev timed out after 2000 ms');
+    stub(async () => new Response(JSON.stringify({ error: 'jev 1.13 timed out after 2000 ms' }), { status: 504 }));
+    await expect(httpTransport(req)).rejects.toThrow('jev 1.13 timed out after 2000 ms');
   });
 
   it('throws when an ok response has an invalid body', async () => {

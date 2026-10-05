@@ -53,6 +53,15 @@ describe('fetchMe', () => {
     }
   });
 
+  it('keeps the models the key can use and the server default, ignoring anything malformed', async () => {
+    reply({ mode: 'dev', walletUrl: WALLET, loginAvailable: true, defaultModel: 'opper/clef', models: ['typesafe/jev-1.13.0', 7, 'opper/clef', ''] });
+    expect(await fetchMe()).toMatchObject({ defaultModel: 'opper/clef', models: ['typesafe/jev-1.13.0', 'opper/clef'] });
+    reply({ mode: 'dev', walletUrl: WALLET, loginAvailable: true, models: 'all' });
+    const me = await fetchMe();
+    expect(me.models).toBeUndefined();
+    expect(me.defaultModel).toBeUndefined();
+  });
+
   it('treats empty user name and email as missing', async () => {
     reply({ mode: 'player', walletUrl: WALLET, loginAvailable: true, user: { name: '', email: '' } });
     const me = await fetchMe();

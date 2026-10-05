@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SESSION_COOKIE, type AuthConfig, type HttpRequest } from '../server/auth';
 import type { JevTarget } from '../server/jev';
-import { handleDecide, handleDecideRequest, JEV_MODEL, rejectDecideRequest, resolveKey, type DecideDeps } from '../server/decide';
+import { handleDecide, handleDecideRequest, JEV_MODEL, rejectDecideRequest, resolveKey, WARM_TIMEOUT_MS, type DecideDeps } from '../server/decide';
 import { sealSession } from '../server/session';
 
 const body = {
@@ -69,7 +69,7 @@ describe('handleDecide', () => {
     const log = vi.fn();
     const res = await handleDecide(body, deps(fetchMock, { log }));
     expect(res.status).toBe(502);
-    expect((res.body as { error: string }).error).toBe('jev returned HTTP 529: TypeSafe is temporarily overloaded');
+    expect((res.body as { error: string }).error).toBe('jev 1.13 returned HTTP 529: TypeSafe is temporarily overloaded');
     expect(log).toHaveBeenCalled();
   });
 
@@ -79,7 +79,7 @@ describe('handleDecide', () => {
     });
     const res = await handleDecide(body, deps(fetchMock, { timeoutMs: 2000 }));
     expect(res.status).toBe(504);
-    expect((res.body as { error: string }).error).toBe('jev timed out after 2000 ms');
+    expect((res.body as { error: string }).error).toBe('jev 1.13 timed out after 2000 ms');
   });
 
   it('never includes the key in error output', async () => {
@@ -190,7 +190,7 @@ describe('handleDecideRequest', () => {
     const fetchMock = ok();
     const r = await run(post(), JSON.stringify(body), undefined, fetchMock);
     expect(r.status).toBe(401);
-    expect(JSON.parse(r.body)).toEqual({ error: 'Sign in with Opper to let jev play', signedOut: true });
+    expect(JSON.parse(r.body)).toEqual({ error: 'Sign in with Opper to let the AI play', signedOut: true });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(rejectDecideRequest(post(), cfg, undefined)?.status).toBe(401);
     expect(rejectDecideRequest(post(), cfg, DEV)).toBeNull();
@@ -249,5 +249,39 @@ describe('handleDecideRequest', () => {
     expect(logged).toContain('[redacted]');
     expect(logged).not.toContain('op-player');
     expect(logged).not.toContain('op-dev');
+  });
+});
+
+describe('warming a model up', () => {
+  const DEV: JevTarget = { provider: 'opper', apiKey: 'op-dev', baseUrl: 'https://api.opper.ai' };
+  const cfg: AuthConfig = { redirectUri: 'http://localhost:5173/auth/callback', opperUrl: 'https://api.opper.ai', sessionSecret: 's'.repeat(64) };
+  const post: HttpRequest = { method: 'POST', url: '/api/warm', headers: { 'content-type': 'application/json' } };
+
+  it('sends a fixed tiny question to the named model, whatever else the body holds', async () => {
+    const fetchMock = ok();
+    const r = await handleDecideRequest(post, JSON.stringify({ model: 'opper/clef', questions: { big: 'x'.repeat(5000) } }), cfg, DEV, { fetch: fetchMock, now: () => 0 }, { warm: true });
+    expect(r.status).toBe(200);
+    const sent = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(sent.model).toBe('opper/clef');
+    expect(Object.keys(sent.questions)).toEqual(['warmup']);
+  });
+
+  it('waits far longer than a game call, since a cold model can take many seconds', async () => {
+    let signal: AbortSignal | undefined;
+    const slow = vi.fn<typeof fetch>(async (_url, init) => {
+      signal = init?.signal ?? undefined;
+      return new Response(JSON.stringify({ answers: {}, usage: { input_tokens: 1, output_tokens: 1 } }), { status: 200 });
+    });
+    await handleDecideRequest(post, JSON.stringify({ model: 'opper/clef' }), cfg, DEV, { fetch: slow, now: () => 0 }, { warm: true });
+    expect(signal).toBeDefined();
+    expect(WARM_TIMEOUT_MS).toBeGreaterThanOrEqual(20_000);
+  });
+
+  it('still refuses unlisted models and cross-site requests', async () => {
+    const fetchMock = ok();
+    expect((await handleDecideRequest(post, JSON.stringify({ model: 'openai/gpt-5' }), cfg, DEV, { fetch: fetchMock, now: () => 0 }, { warm: true })).status).toBe(400);
+    const cross = { ...post, headers: { ...post.headers, 'sec-fetch-site': 'cross-site' } };
+    expect((await handleDecideRequest(cross, '{}', cfg, DEV, { fetch: fetchMock, now: () => 0 }, { warm: true })).status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

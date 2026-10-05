@@ -43,3 +43,21 @@ export function createHttpTransport(hooks: TransportHooks = {}): Transport {
 }
 
 export const httpTransport: Transport = createHttpTransport();
+
+/**
+ * One tiny call (POST /api/warm) so a model that has been idle (Opper scales them down) is awake before it has to
+ * play. It bills one small call. Resolves true when the model answered; `model` undefined warms the server's default.
+ */
+export async function warmUp(model: string | undefined): Promise<boolean> {
+  try {
+    const res = await fetch('/api/warm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(model ? { model } : {}),
+      signal: AbortSignal.timeout(35_000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

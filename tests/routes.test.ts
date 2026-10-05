@@ -83,7 +83,7 @@ describe('createJevMiddleware routing', () => {
     const { res } = call(handler, 'POST', '/api/decide', JSON_POST);
     expect(res.end).toHaveBeenCalledOnce();
     expect(res.statusCode).toBe(401);
-    expect(bodyOf(res)).toEqual({ error: 'Sign in with Opper to let jev play', signedOut: true });
+    expect(bodyOf(res)).toEqual({ error: 'Sign in with Opper to let the AI play', signedOut: true });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

@@ -98,12 +98,19 @@ Opper serves several System One decision models with the same API, listed in
 `opper/clef` and `opper/clef-flash` (Cloudflare), `opper/kev-4b` (a Qwen3.5-4B fine-tune by Jared
 Palmer) and `berget/convaiinnovations/laya` (ConvAI Innovations; its 512-token context is shorter
 than one of our questions). The server forwards only these. Through Opper any of them can play; a
-TypeSafe key (option C) reaches jev only. The game itself plays the server's default (jev, or
-`JEV_MODEL`); choosing a model per character in the game comes next.
+TypeSafe key (option C) reaches jev only.
+
+In the game, pick the model in the Play dialog: Pac-Man's model in **Watch AI play**, the ghosts'
+model (one for all, or one per ghost) in **Play against AI**. Each card on the decision panel has a
+dropdown to switch mid-game. Choices are remembered in your browser; the default is the server's
+(jev, or `JEV_MODEL`), and the game only names a model when you pick another one. Opper-hosted
+models scale down when idle, so picking one sends a tiny warm-up call (`POST /api/warm`, one cheap
+call): Play waits for it ("Waking up Clef…"), and a mid-game switch takes over once the new model
+answers.
 
 ## Controls
 
-Arrows/WASD steer Pac-Man in Play against jev · `J` or the Pac-Man button switches mode · `P` pause ·
+Arrows/WASD steer Pac-Man in Play against AI · `J` or the Pac-Man button switches sides · `P` pause ·
 `R` restart · the speed slider slows the game down. Space/Enter presses Play.
 
 ## Cost

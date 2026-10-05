@@ -3,6 +3,7 @@ import { ACTOR_NAMES, type Decision } from './brain';
 import { GHOST_COLORS } from './render';
 import type { SchedulerEvent } from './scheduler';
 import { jevActors, type GameState } from './sim';
+import { modelSelect, type ModelPicking } from './picker';
 import { ACTOR_IDS, DIRS, type ActorId, type Dir } from './types';
 
 const COLORS: Record<ActorId, string> = { pacman: '#ffd800', ...GHOST_COLORS };
@@ -14,6 +15,8 @@ interface Card {
   status: HTMLElement;
   meta: HTMLElement;
   bars: Record<Dir, { row: HTMLElement; fill: HTMLElement; pct: HTMLElement }>;
+  /** Which model plays this character; shown while the AI plays it. */
+  model?: HTMLSelectElement;
 }
 
 export class Panel {
@@ -26,8 +29,12 @@ export class Panel {
   private readonly totals = { calls: 0, decisions: 0, fallbacks: 0, overrides: 0, stale: 0, inputTokens: 0, outputTokens: 0, cost: 0, costEstimated: false, latencyMs: 0 };
 
   /** `caption` labels the panel, e.g. "recorded game" so demo totals don't read as the visitor's own spend. */
-  constructor(root: HTMLElement, opts: { caption?: string } = {}) {
-    root.innerHTML = `<h2>jev decisions</h2><div class="banner" role="alert" hidden></div><div class="totals"></div><div class="cards"></div><h3>Decision log</h3><ol class="log"></ol>`;
+  private readonly models: ModelPicking | undefined;
+
+  /** `models` adds a model dropdown to each card the AI plays (live games only; a recording can't change). */
+  constructor(root: HTMLElement, opts: { caption?: string; models?: ModelPicking } = {}) {
+    this.models = opts.models;
+    root.innerHTML = `<h2>Decisions</h2><div class="banner" role="alert" hidden></div><div class="totals"></div><div class="cards"></div><h3>Decision log</h3><ol class="log"></ol>`;
     if (opts.caption) {
       const caption = document.createElement('span');
       caption.className = 'caption';
@@ -53,7 +60,14 @@ export class Panel {
           return [d, { row, fill: row.querySelector<HTMLElement>('.fill')!, pct: row.querySelector<HTMLElement>('.pct')! }];
         }),
       ) as Card['bars'];
-      this.cards.set(id, { el, status: el.querySelector<HTMLElement>('.status')!, meta: el.querySelector<HTMLElement>('.meta')!, bars });
+      let model: HTMLSelectElement | undefined;
+      if (opts.models) {
+        const p = opts.models;
+        model = modelSelect(p, p.choice()[id], (m) => p.onChange({ ...p.choice(), [id]: m }), `Model playing ${ACTOR_NAMES[id]}`);
+        model.hidden = true;
+        el.querySelector('header')!.after(model);
+      }
+      this.cards.set(id, { el, status: el.querySelector<HTMLElement>('.status')!, meta: el.querySelector<HTMLElement>('.meta')!, bars, model });
     }
     this.renderTotals();
   }
@@ -110,9 +124,10 @@ export class Panel {
       }
       // A character jev doesn't play shows who steers it instead of a stale jev decision.
       const played = jevActors(state).includes(id);
+      if (card.model) card.model.hidden = !played;
       if (played !== this.played.get(id)) {
         this.played.set(id, played);
-        this.clearCard(id, played ? 'no decision yet' : ghost ? 'classic ghost rules, not jev' : 'steered by you, not jev');
+        this.clearCard(id, played ? 'no decision yet' : ghost ? 'classic ghost rules, no AI' : 'steered by you');
       }
     }
   }
@@ -129,6 +144,13 @@ export class Panel {
     card.meta.textContent = meta;
     card.meta.classList.remove('fallback');
     card.el.classList.remove('fallback');
+  }
+
+  /** Show the current model choice in the card dropdowns (after a change in the Play dialog or another card). */
+  syncModels(): void {
+    if (!this.models) return;
+    const choice = this.models.choice();
+    for (const [id, card] of this.cards) if (card.model) card.model.value = choice[id];
   }
 
   private showOverride(d: Decision): void {
@@ -148,7 +170,7 @@ export class Panel {
       d,
       d.source === 'jev'
         ? `${d.model ? modelName(d.model) : 'jev'} · confidence ${d.confidence === null ? '?' : d.confidence.toFixed(2)} · ${e.latencyMs ?? '?'} ms`
-        : `FALLBACK (${d.reason}) · greedy rule, not jev`,
+        : `FALLBACK (${d.reason}) · greedy rule, not the model`,
       d.source === 'fallback',
     );
     const p = d.probabilities[d.choice];

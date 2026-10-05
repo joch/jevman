@@ -1,7 +1,7 @@
 import { clearSessionCookie, crossSite, header, json, sessionFrom, WALLET_URL, type AuthConfig, type HttpRequest, type HttpResponse } from './auth.ts';
 import { endpointFor, modelFor, requestedModelFor, TYPESAFE_USD_PER_INPUT_TOKEN, type JevProvider, type JevTarget } from './jev.ts';
 import type { SessionData } from './session.ts';
-import { isModelId } from '../shared/models.ts';
+import { DEFAULT_MODEL, isModelId, modelName } from '../shared/models.ts';
 
 export const JEV_MODEL = modelFor('opper');
 
@@ -62,6 +62,8 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
   }
   const model = requested === undefined ? modelFor(provider) : requestedModelFor(provider, requested);
   if (model === null) return { status: 400, body: { error: `A TypeSafe key only reaches jev; ${requested} needs an Opper key` } };
+  // For logs and errors: TypeSafe's own id for jev reads as the listed model.
+  const label = modelName(requested ?? (model === requestedModelFor('typesafe', DEFAULT_MODEL) ? DEFAULT_MODEL : model));
 
   const actors = `${Object.keys(input.questions).join(',')}${model === modelFor(provider, {}) ? '' : ` (${model})`}`;
   const started = deps.now();
@@ -79,7 +81,7 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
     const text = await res.text();
     const latencyMs = Math.round(deps.now() - started);
     if (!res.ok) {
-      const error = redact(`jev returned HTTP ${res.status}: ${upstreamMessage(redact(text))}`);
+      const error = redact(`${label} returned HTTP ${res.status}: ${upstreamMessage(redact(text))}`);
       log(`${tag} ${actors} failed after ${latencyMs} ms — ${error}`);
       if (deps.keyMode === 'player') {
         if (res.status === 401) return { status: 401, body: { error: 'Your Opper sign-in has expired — sign in again', signedOut: true, clearSession: true } };
@@ -115,7 +117,7 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
   } catch (err) {
     const e = err as Error;
     const timedOut = e?.name === 'TimeoutError' || e?.name === 'AbortError';
-    const error = timedOut ? `jev timed out after ${timeoutMs} ms` : redact(`jev request failed: ${e?.message ?? String(err)}`);
+    const error = timedOut ? `${label} timed out after ${timeoutMs} ms` : redact(`${label} request failed: ${e?.message ?? String(err)}`);
     log(`${tag} ${actors} ${error}`);
     return { status: timedOut ? 504 : 502, body: { error } };
   }
@@ -144,12 +146,22 @@ export function rejectDecideRequest(req: HttpRequest, cfg: AuthConfig, devKey: J
   if (req.method !== 'POST') return json(405, { error: 'POST only' }, [], { Allow: 'POST' });
   if (crossSite(req)) return json(403, { error: 'Cross-site request refused' });
   if (!header(req, 'content-type').toLowerCase().startsWith('application/json')) return json(415, { error: 'Expected application/json' });
-  if (!resolveKey(sessionFrom(req, cfg), devKey, cfg.opperUrl)) return json(401, { error: 'Sign in with Opper to let jev play', signedOut: true });
+  if (!resolveKey(sessionFrom(req, cfg), devKey, cfg.opperUrl)) return json(401, { error: 'Sign in with Opper to let the AI play', signedOut: true });
   return null;
 }
 
 /** /api/decide, independent of the HTTP server: picks the key, calls jev, and turns `clearSession` into a Set-Cookie. */
-export async function handleDecideRequest(req: HttpRequest, rawBody: string, cfg: AuthConfig, devKey: JevTarget | undefined, deps: DecideRequestDeps): Promise<HttpResponse> {
+/** A cold Opper-hosted model can take many seconds to answer its first call after being idle. */
+export const WARM_TIMEOUT_MS = 30_000;
+
+/** The fixed question /api/warm sends: the client only picks the model, never the content. */
+const WARM_UP = { state: { note: 'warm-up' }, questions: { warmup: { type: 'choice', instructions: 'Pick one.', criteria: { a: 'Option A', b: 'Option B' } } } };
+
+/**
+ * /api/decide, or with `warm` /api/warm: one tiny call with a long timeout so a model that has been idle is awake
+ * before it has to play.
+ */
+export async function handleDecideRequest(req: HttpRequest, rawBody: string, cfg: AuthConfig, devKey: JevTarget | undefined, deps: DecideRequestDeps, opts: { warm?: boolean } = {}): Promise<HttpResponse> {
   const refused = rejectDecideRequest(req, cfg, devKey);
   if (refused) return refused;
   const key = resolveKey(sessionFrom(req, cfg), devKey, cfg.opperUrl)!;
@@ -161,7 +173,20 @@ export async function handleDecideRequest(req: HttpRequest, rawBody: string, cfg
     } catch {
       // handled as a 400 by handleDecide
     }
-    const result = await handleDecide(input, { apiKey: key.apiKey, keyMode: key.mode, provider: key.provider, baseUrl: key.baseUrl, fetch: deps.fetch, now: deps.now, log: deps.log });
+    if (opts.warm) {
+      const model = input && typeof input === 'object' ? (input as { model?: unknown }).model : undefined;
+      input = { ...(model === undefined ? {} : { model }), ...WARM_UP };
+    }
+    const result = await handleDecide(input, {
+      apiKey: key.apiKey,
+      keyMode: key.mode,
+      provider: key.provider,
+      baseUrl: key.baseUrl,
+      fetch: deps.fetch,
+      now: deps.now,
+      log: deps.log,
+      ...(opts.warm ? { timeoutMs: WARM_TIMEOUT_MS } : {}),
+    });
     const { clearSession, ...body } = result.body as Record<string, unknown>;
     return json(result.status, body, clearSession ? [clearSessionCookie(cfg)] : []);
   } catch (err) {

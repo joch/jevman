@@ -132,7 +132,7 @@ describe('Scheduler', () => {
   it('falls back and reports the error when the transport fails', async () => {
     const { calls, events, scheduler } = harness();
     scheduler.update(createGame());
-    calls[0].reject(new Error('jev returned HTTP 529: overloaded'));
+    calls[0].reject(new Error('jev 1.13 returned HTTP 529: overloaded'));
     await flush();
     expect(ofType(events, 'error')[0].message).toMatch(/529/);
     expect(ofType(events, 'decision').every((e) => e.decision.source === 'fallback' && e.decision.reason === 'error')).toBe(true);
