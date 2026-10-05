@@ -100,6 +100,11 @@ describe('warmUp', () => {
     expect(onWalletEmpty).toHaveBeenCalledWith('https://platform.opper.ai/wallet');
   });
 
+  it('passes on a permanent refusal, such as a model not enabled for the account', async () => {
+    stub(async () => new Response(JSON.stringify({ error: 'opper/clef is not enabled for your Opper account' }), { status: 403 }));
+    expect(await warmUp('opper/clef')).toEqual({ ok: false, error: 'opper/clef is not enabled for your Opper account', account: true });
+  });
+
   it('tells a model that did not answer apart from an account problem', async () => {
     stub(async () => new Response(JSON.stringify({ error: 'Clef timed out after 25000 ms' }), { status: 504 }));
     expect(await warmUp('opper/clef')).toEqual({ ok: false, error: 'Clef timed out after 25000 ms', account: false });

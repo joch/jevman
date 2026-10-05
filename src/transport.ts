@@ -44,6 +44,10 @@ export function createHttpTransport(hooks: TransportHooks = {}): Transport {
 
 export const httpTransport: Transport = createHttpTransport();
 
+/**
+ * `account`: the server's message is the answer (signed out, empty wallet, model not enabled for the account, ...),
+ * so retrying won't help; otherwise the model just didn't answer in time.
+ */
 export type WarmResult = { ok: true } | { ok: false; error: string; account: boolean };
 
 /**
@@ -69,7 +73,8 @@ export async function warmUp(model: string | undefined, hooks: TransportHooks = 
     } catch {
       // a faulty hook must not hide the result
     }
-    return { ok: false, error: json.error ?? `HTTP ${res.status}`, account: signedOut || wallet };
+    const permanent = res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429;
+    return { ok: false, error: json.error ?? `HTTP ${res.status}`, account: signedOut || wallet || permanent };
   } catch {
     return { ok: false, error: 'no answer', account: false };
   }
