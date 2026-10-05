@@ -156,12 +156,15 @@ if (me.mode === 'none') {
   const linked = new URLSearchParams(location.search).get('pacman');
   if (linked && modelOptions(me).some((o) => o.id === linked)) wanted = { ...wanted, pacman: linked };
   let choice: ModelChoice = { ...wanted };
-  // The last sign-in or wallet problem a warm-up hit: Play says that, not "didn't wake up".
-  let accountProblem: string | null = null;
+  // A model's last permanent warm-up refusal (signed out, wallet, not enabled): Play says that, not "didn't wake up".
+  // Per model: concurrent warm-ups must not overwrite each other's answer.
+  const warmProblems = new Map<string, string>();
+  const problemOf = (models: string[]) => models.map((m) => warmProblems.get(m)).find((p) => p !== undefined);
   const warming = new ModelWarming({
     warmUp: async (m) => {
       const r = await warmUp(m === defaultModel ? undefined : m, hooks);
-      accountProblem = !r.ok && r.account ? r.error : null;
+      if (!r.ok && r.account) warmProblems.set(m, r.error);
+      else warmProblems.delete(m);
       return r.ok;
     },
     now: () => Date.now(),
@@ -187,7 +190,7 @@ if (me.mode === 'none') {
             wanted = { ...wanted, ...Object.fromEntries(stuck.map((id) => [id, choice[id]])) };
             saveChoice(wanted);
             panel.syncModels();
-            panel.alert(accountProblem ?? `${modelName(m)} didn't wake up; still playing ${modelName(choice[stuck[0]])}. Pick it again to retry.`);
+            panel.alert(problemOf([m]) ?? `${modelName(m)} didn't wake up; still playing ${modelName(choice[stuck[0]])}. Pick it again to retry.`);
             alertFor = m;
           }
         }
@@ -251,7 +254,7 @@ if (me.mode === 'none') {
         card.busy(null);
         if (failed.length) {
           const names = failed.map(modelName).join(' and ');
-          return card.note(accountProblem ?? `${names} didn't wake up in time. Press Play to try again, or pick another model.`);
+          return card.note(problemOf(failed) ?? `${names} didn't wake up in time. Press Play to try again, or pick another model.`);
         }
         choice = { ...wanted };
         newGame();
@@ -300,7 +303,7 @@ if (me.mode === 'none') {
       restarting = false;
       if (failed.length) {
         // Stay where we are (the game-over card, or the game) rather than start on a model that isn't there.
-        panel.alert(accountProblem ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the game didn't restart. Try again, or pick another model on the cards.`);
+        panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the game didn't restart. Try again, or pick another model on the cards.`);
         return;
       }
       adopt();
