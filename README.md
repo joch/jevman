@@ -9,8 +9,8 @@ dialog, or switch sides with `J` during a game. `npm run leaderboard` measures w
 
 The side panel shows each decision with its probabilities, confidence, latency, the model that made
 it and the running cost. Red entries were not the model's own choice: greedy fallbacks used when it
-could not answer
-(timeout, error or invalid answer) and safety overrides (see [How decisions work](#how-decisions-work)).
+could not answer (timeout, error or invalid answer) and safety overrides (see
+[How decisions work](#how-decisions-work)).
 
 Source: <https://github.com/joch/jevman>
 
