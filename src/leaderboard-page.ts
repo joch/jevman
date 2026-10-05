@@ -1,7 +1,7 @@
 import './style.css';
 import type { Leaderboard } from '../shared/leaderboard';
 import { leaderboardRows } from './leaderboard-view';
-import { tooCloseToCall } from '../shared/leaderboard';
+import { jointLeaders } from '../shared/leaderboard';
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -15,11 +15,11 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: 
 function render(board: Leaderboard): void {
   const { gamesPerModel, maxSeconds } = board.settings;
   const date = new Date(board.generatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const [first, second] = board.entries;
-  const dead = first && second && tooCloseToCall(first, second);
+  const tied = jointLeaders(board.entries).map((e) => e.name);
+  const names = tied.length > 2 ? `${tied.slice(0, -1).join(', ')} and ${tied.at(-1)}` : tied.join(' and ');
   $('lede').textContent =
     `${board.entries.length} decision models each played ${gamesPerModel} games of Pac-Man against the classic arcade ghosts, in real time, with no help from the game. Ranked by average score.` +
-    (dead ? ` ${first.name} and ${second.name} are too close to call: their scores are within the margin of error.` : '');
+    (tied.length ? ` ${names} are too close to call: their scores are within the margin of error.` : '');
   $('list').replaceChildren(
     ...leaderboardRows(board).map((r) => {
       const li = el('li', undefined, 'lb-entry');

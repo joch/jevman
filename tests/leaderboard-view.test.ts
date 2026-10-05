@@ -37,6 +37,17 @@ describe('leaderboardRows', () => {
     expect(rows[0].scoreLabel).toBe('3,181 points ± 372');
   });
 
+  it('counts every model within the margin of error of the leader as joint top', () => {
+    const rows = leaderboardRows(board([
+      entry({ model: 'typesafe/jev-1.13.0', meanScore: 3000, scoreStdError: 200 }),
+      entry({ model: 'opper/clef', name: 'Clef', meanScore: 2900, scoreStdError: 200 }),
+      entry({ model: 'opper/clef-flash', name: 'Clef Flash', meanScore: 2700, scoreStdError: 200 }),
+      entry({ model: 'opper/kev-4b', name: 'Kev 4B', meanScore: 1400, scoreStdError: 30 }),
+    ]));
+    expect(rows.map((r) => r.rank)).toEqual([1, 1, 1, 4]);
+    expect(rows.map((r) => r.badges.includes('Joint top score'))).toEqual([true, true, true, false]);
+  });
+
   it('copes with an empty board', () => {
     expect(leaderboardRows(board([]))).toEqual([]);
   });

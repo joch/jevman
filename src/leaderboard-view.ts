@@ -1,5 +1,5 @@
 import { DECISION_MODELS } from '../shared/models';
-import { tooCloseToCall, type Leaderboard, type LeaderboardEntry } from '../shared/leaderboard';
+import { jointLeaders, type Leaderboard, type LeaderboardEntry } from '../shared/leaderboard';
 
 export interface LeaderboardRow {
   rank: number;
@@ -27,16 +27,16 @@ export function leaderboardRows(board: Leaderboard): LeaderboardRow[] {
   const entries = board.entries;
   const top = Math.max(1, ...entries.map((e) => e.meanScore));
   // A lead within the margin of error is a tie, not a win.
-  const tied = entries.length > 1 && tooCloseToCall(entries[0], entries[1]);
+  const tied = jointLeaders(entries);
   const winners: [string, string | undefined][] = [
-    ...(tied ? entries.slice(0, 2).map((e): [string, string] => ['Joint top score', e.model]) : [['Most points', best(entries, (e) => e.meanScore)] as [string, string | undefined]]),
+    ...(tied.length ? tied.map((e): [string, string] => ['Joint top score', e.model]) : [['Most points', best(entries, (e) => e.meanScore)] as [string, string | undefined]]),
     ['Survives longest', best(entries, (e) => e.meanSurvivedSeconds)],
     ['Fastest', best(entries, (e) => e.meanLatencyMs, true)],
     ['Cheapest', best(entries, (e) => e.costPerGame, true)],
   ];
   return entries.map((e, i) => ({
     // Joint leaders share first place; the next model is third.
-    rank: tied && i === 1 ? 1 : i + 1,
+    rank: i < tied.length ? 1 : i + 1,
     model: e.model,
     name: e.name,
     maker: DECISION_MODELS.find((m) => m.id === e.model)?.maker ?? '',

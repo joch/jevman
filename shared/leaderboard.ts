@@ -89,4 +89,15 @@ export function tooCloseToCall(a: LeaderboardEntry, b: LeaderboardEntry): boolea
   return Math.abs(a.meanScore - b.meanScore) < 2 * Math.hypot(a.scoreStdError, b.scoreStdError);
 }
 
+/** The models tied for first: the leader and every model (from the top) within the margin of error of it. */
+export function jointLeaders(entries: LeaderboardEntry[]): LeaderboardEntry[] {
+  if (entries.length < 2) return [];
+  const tied = [entries[0]];
+  for (const e of entries.slice(1)) {
+    if (!tooCloseToCall(entries[0], e)) break;
+    tied.push(e);
+  }
+  return tied.length > 1 ? tied : [];
+}
+
 export const rank = (entries: LeaderboardEntry[]): LeaderboardEntry[] => [...entries].sort((a, b) => b.meanScore - a.meanScore);
