@@ -66,15 +66,30 @@ precedence over `.env`. The account area in the page header says which one is in
 - `npm test` — unit tests (includes a check that the committed demo still replays exactly).
 - `npm run build` / `npm start` — production build, then the production server on `PORT` (default 3000).
 - `npm run smoke` — one real batched call to jev with the `.env` key (TypeSafe or Opper).
-- `npm run bench` — headless games reporting survival time, score, pellets, deaths, calls,
-  fallbacks, escape questions and cost. Paid whenever jev drives a character. Flags: `--games 4`
-  (played in parallel), `--pacman jev|greedy`, `--ghosts greedy|jev`, `--max 120` (seconds per game),
-  `--safety on|off` (the safety check described below), `--record path.json` (with `--games 1`:
-  save the game for replay). The demo was recorded with
+- `npm run bench` — headless real-time games reporting survival time, score, pellets, deaths,
+  calls, fallbacks, safety overrides, latency and cost. Paid whenever a model drives a character.
+  Flags: `--games 4` (played in parallel), `--pacman jev|greedy` and `--ghosts greedy|jev` (`jev`
+  means "a decision model"), `--pacman-model` and `--ghost-model` (any id below; default jev),
+  `--max 120` (seconds per game), `--safety on|off` (the safety check described below),
+  `--record path.json` (with `--games 1`: save the game for replay). Each model gets a warm-up call
+  first, because Opper-hosted models can take many seconds to answer after being idle. The demo was recorded with
   `npm run bench -- --games 1 --pacman jev --ghosts greedy --max 120 --record public/demo/jev-demo.json`;
   re-record it if a change to the game rules makes the replay test fail.
+- `npm run leaderboard` — every decision model plays Pac-Man against the scripted ghosts, with the
+  safety check **off** so the model itself is measured. Writes `bench/leaderboard.json` (ranked by
+  mean score) and prints a table. Same flags as `bench`, plus `--models id,id` (default: all),
+  `--parallel 4` (games at a time per model); defaults to 8 games per model and a 300 s cap.
 - `npm run deaths -- game.json` — replays a recorded game and prints, for each of Pac-Man's deaths,
   his last few junction decisions with the routes as jev saw them.
+
+## Decision models
+
+Opper serves several System One decision models with the same API, listed in
+[`shared/models.ts`](shared/models.ts): `typesafe/jev-1.13.0` (TypeSafe, the default),
+`opper/clef` and `opper/clef-flash` (Cloudflare), `opper/kev-4b` (a Qwen3.5-4B fine-tune by Jared
+Palmer) and `berget/convaiinnovations/laya` (ConvAI Innovations; its 512-token context is shorter
+than one of our questions). The server forwards only these. Through Opper any of them can play; a
+TypeSafe key (option C) reaches jev only. The game itself still plays jev.
 
 ## Controls
 
