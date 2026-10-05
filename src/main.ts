@@ -243,7 +243,8 @@ if (me.mode === 'none') {
   const controls: Controls = {
     decide: (point, s) => (jevActors(s).includes(point.actor) ? scheduler.decide(point, s) : greedyChoice(s, point, optionFeatures(s, point))),
   };
-  // No live game runs, and no model is called, until the player presses Play in the card.
+  // No live game runs until the player presses Play in the card. Picking a model there does send its warm-up (one
+  // tiny call, about $0.000001) right away, so it is likely awake by the time Play is pressed.
   let started = false;
   let gameOverShown = false;
   let playCard: ReturnType<typeof showPlay> | null = null;
