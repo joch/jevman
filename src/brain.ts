@@ -1,3 +1,4 @@
+import type { ModelId } from '../shared/models';
 import { fruitRoute, goalFor, greedyChoice, isTrap, NEARBY_STEPS, optionFeatures, type OptionFeatures } from './features';
 import { occupiedTile, type DecisionPoint, type GameState } from './sim';
 import { GHOST_IDS, type ActorId, type Dir, type GhostId, type Tile } from './types';
@@ -32,6 +33,8 @@ export interface ChoiceQuestion {
 }
 
 export interface SystemOneRequest {
+  /** Which decision model answers (shared/models.ts); the server uses jev when it is missing. */
+  model?: ModelId;
   state: Record<string, unknown>;
   questions: Record<string, ChoiceQuestion>;
 }
@@ -55,6 +58,8 @@ export interface Decision {
   probabilities: Partial<Record<Dir, number>>;
   confidence: number | null;
   source: 'jev' | 'fallback';
+  /** The model that answered, for decisions a model made (source 'jev'). */
+  model?: ModelId;
   reason?: string;
   /** Answer to a mid-corridor escape question rather than a junction choice. */
   escape?: boolean;

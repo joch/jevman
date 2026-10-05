@@ -1,4 +1,5 @@
 import { buildRequest, fallbackDecision, parseAnswer, questionName, type DecideResponse, type Decision, type PendingQuestion, type SystemOneRequest } from './brain';
+import { DEFAULT_MODEL, type ModelId } from '../shared/models';
 import { fruitRoute, optionFeatures, saferChoice } from './features';
 import { decisionPoints, type Controls, type DecisionPoint, type GameState } from './sim';
 import { ACTOR_IDS, type ActorId, type Dir } from './types';
@@ -7,7 +8,7 @@ export type Transport = (body: SystemOneRequest) => Promise<DecideResponse>;
 
 export type SchedulerEvent =
   | { type: 'decision'; decision: Decision; latencyMs: number | null; fruitOnBoard: boolean }
-  | { type: 'call'; actors: ActorId[]; latencyMs: number; usage: DecideResponse['usage']; costUsd: number | null; costEstimated?: boolean; traceId: string | null }
+  | { type: 'call'; /** Missing in games recorded before models could be chosen. */ model?: ModelId; actors: ActorId[]; latencyMs: number; usage: DecideResponse['usage']; costUsd: number | null; costEstimated?: boolean; traceId: string | null }
   | { type: 'stale'; actor: ActorId; key: string }
   /** An earlier `decision` that was never used; consumers should take it back out of their totals. */
   | { type: 'superseded'; decision: Decision }
@@ -21,6 +22,8 @@ export interface SchedulerDeps {
   maxInFlight?: number;
   /** Re-check Pac-Man's answer against the ghosts where they are now, at the junction (default on). */
   safetyCheck?: boolean;
+  /** The decision model for each character (default: jev for all). Read on every request, so it can change mid-game. */
+  modelFor?: (actor: ActorId) => ModelId;
   /** Actors this scheduler asks jev about, fixed or per game state (default: all). */
   actors?: readonly ActorId[] | ((state: GameState) => readonly ActorId[]);
   /**
@@ -89,8 +92,17 @@ export class Scheduler implements Controls {
       if (p.sentAt !== null && now - p.sentAt > this.timeoutMs) this.resolve(key, fallbackDecision(state, p.q, 'timeout'), null);
     }
 
-    const queued = [...this.pending.values()].filter((p) => p.sentAt === null);
-    if (queued.length && this.slots.inFlight < this.maxInFlight) this.send(state, queued, now);
+    // One request per model: a System One request names a single model.
+    const byModel = new Map<ModelId, Pending[]>();
+    for (const p of this.pending.values()) {
+      if (p.sentAt !== null) continue;
+      const model = this.deps.modelFor?.(p.q.point.actor) ?? DEFAULT_MODEL;
+      byModel.set(model, [...(byModel.get(model) ?? []), p]);
+    }
+    for (const [model, batch] of byModel) {
+      if (this.slots.inFlight >= this.maxInFlight) break;
+      this.send(state, batch, now, model);
+    }
   }
 
   decide(point: DecisionPoint, state: GameState): Dir | null {
@@ -131,16 +143,17 @@ export class Scheduler implements Controls {
     this.consumed.clear();
   }
 
-  private send(state: GameState, batch: Pending[], now: number): void {
+  private send(state: GameState, batch: Pending[], now: number, model: ModelId): void {
     for (const p of batch) p.sentAt = now;
     this.slots.inFlight += 1;
     const isCurrent = (p: Pending) => this.pending.get(p.q.point.key) === p;
     this.deps
-      .transport(buildRequest(state, batch.map((p) => p.q)))
+      .transport({ model, ...buildRequest(state, batch.map((p) => p.q)) })
       .then(
         (res) => {
           this.deps.onEvent({
             type: 'call',
+            model,
             actors: batch.map((p) => p.q.point.actor),
             latencyMs: res.latencyMs,
             usage: res.usage,
@@ -153,7 +166,8 @@ export class Scheduler implements Controls {
               this.deps.onEvent({ type: 'stale', actor: p.q.point.actor, key: p.q.point.key });
               continue;
             }
-            const decision = parseAnswer(res.answers[questionName(p.q.point)], p.q) ?? fallbackDecision(state, p.q, 'invalid answer');
+            const parsed = parseAnswer(res.answers[questionName(p.q.point)], p.q);
+            const decision = parsed ? { ...parsed, model } : fallbackDecision(state, p.q, 'invalid answer');
             this.resolve(p.q.point.key, decision, res.latencyMs);
           }
         },

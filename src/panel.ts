@@ -1,3 +1,4 @@
+import { modelName } from '../shared/models';
 import { ACTOR_NAMES, type Decision } from './brain';
 import { GHOST_COLORS } from './render';
 import type { SchedulerEvent } from './scheduler';
@@ -146,7 +147,7 @@ export class Panel {
     this.drawCard(
       d,
       d.source === 'jev'
-        ? `jev · confidence ${d.confidence === null ? '?' : d.confidence.toFixed(2)} · ${e.latencyMs ?? '?'} ms`
+        ? `${d.model ? modelName(d.model) : 'jev'} · confidence ${d.confidence === null ? '?' : d.confidence.toFixed(2)} · ${e.latencyMs ?? '?'} ms`
         : `FALLBACK (${d.reason}) · greedy rule, not jev`,
       d.source === 'fallback',
     );

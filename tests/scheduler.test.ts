@@ -4,6 +4,7 @@ import { Scheduler, type SchedulerEvent, type Transport } from '../src/scheduler
 import { REVERSE } from '../src/maze';
 import { createGame, escapePoint, jevActors, nextDecisionPoint, type DecisionPoint, type GameState } from '../src/sim';
 import type { ActorId, Dir } from '../src/types';
+import type { ModelId } from '../shared/models';
 
 interface Call {
   body: SystemOneRequest;
@@ -11,7 +12,7 @@ interface Call {
   reject: (e: Error) => void;
 }
 
-function harness(opts: { maxInFlight?: number; actors?: readonly ActorId[] | ((s: GameState) => readonly ActorId[]); safetyCheck?: boolean } = {}) {
+function harness(opts: { maxInFlight?: number; actors?: readonly ActorId[] | ((s: GameState) => readonly ActorId[]); safetyCheck?: boolean; modelFor?: (actor: ActorId) => ModelId } = {}) {
   const calls: Call[] = [];
   const events: SchedulerEvent[] = [];
   const clock = { now: 0 };
@@ -356,5 +357,30 @@ describe('jev plays one side', () => {
     s.pacmanControl = 'keyboard';
     scheduler.update(s);
     expect(Object.keys(calls[1].body.questions)).toEqual(['blinky']);
+  });
+});
+
+describe('a model per character', () => {
+  it('asks each model about its own characters in separate requests and tags answers with the model', async () => {
+    const { calls, events, scheduler } = harness({ modelFor: (a) => (a === 'pacman' ? 'opper/kev-4b' : 'typesafe/jev-1.13.0') });
+    scheduler.update(createGame());
+    expect(calls.map((c) => [c.body.model, Object.keys(c.body.questions).sort()])).toEqual([
+      ['opper/kev-4b', ['pacman']],
+      ['typesafe/jev-1.13.0', ['blinky']],
+    ]);
+    for (const c of calls) c.resolve(answerAll(c.body));
+    await flush();
+    expect(ofType(events, 'call').map((e) => e.model).sort()).toEqual(['opper/kev-4b', 'typesafe/jev-1.13.0']);
+    const byActor = Object.fromEntries(ofType(events, 'decision').map((e) => [e.decision.actor, e.decision.model]));
+    expect(byActor).toEqual({ pacman: 'opper/kev-4b', blinky: 'typesafe/jev-1.13.0' });
+  });
+
+  it('defaults every character to jev and still respects the in-flight cap across models', () => {
+    const one = harness();
+    one.scheduler.update(createGame());
+    expect(one.calls.map((c) => c.body.model)).toEqual(['typesafe/jev-1.13.0']);
+    const capped = harness({ maxInFlight: 1, modelFor: (a) => (a === 'pacman' ? 'opper/kev-4b' : 'opper/clef') });
+    capped.scheduler.update(createGame());
+    expect(capped.calls).toHaveLength(1);
   });
 });
