@@ -16,6 +16,7 @@
           <p>Pac-Man played by AI decision models</p>
         </div>
       </div>
+      <nav class="site-nav" aria-label="Site"><a href="/leaderboard">🏆 Leaderboard</a></nav>
       <div id="account" class="account" aria-live="polite"></div>
     </header>
     <main class="layout">
@@ -29,6 +30,7 @@
         <div class="board">
           <canvas id="game" aria-label="Pac-Man game board"></canvas>
           <div id="overlay" class="overlay" role="dialog" aria-modal="false" hidden></div>
+          <button id="play-cta" class="play-cta" type="button" hidden>▶ Play</button>
         </div>
         <div class="controls">
           <button id="toggle-pacman" aria-pressed="true">Pac-Man: AI</button>
@@ -36,7 +38,7 @@
           <button id="pause">Pause</button>
           <button id="restart">Restart</button>
         </div>
-        <p class="help">Arrows/WASD steer in keyboard mode · J toggle Pac-Man · P pause · R restart</p>
+        <p class="help">Arrows/WASD steer when you play Pac-Man · J switch sides · P pause · R restart</p>
         <p class="source"><a href="/leaderboard">Which AI plays best? Leaderboard</a> · <a href="https://github.com/joch/jevman" target="_blank" rel="noopener">Source on GitHub ↗</a></p>
       </section>
       <aside id="panel" aria-label="Decisions"></aside>

@@ -84,8 +84,20 @@ export interface PlayCard {
  * The card before the first game. Signed in (or with a local key) the player picks a mode, watching jev play Pac-Man
  * by default, and `onSelect` reports each pick so the game can show it; `onPlay` starts the game.
  */
-export function showPlay(root: HTMLElement, me: Me, opts: { mode: PlayMode; onSelect: (mode: PlayMode) => void; onPlay: () => void; models?: ModelPicking }): PlayCard {
+export function showPlay(
+  root: HTMLElement,
+  me: Me,
+  opts: { mode: PlayMode; onSelect: (mode: PlayMode) => void; onPlay: () => void; models?: ModelPicking; onClose?: () => void },
+): PlayCard {
   const card = el('div', undefined, 'card');
+  if (opts.onClose) {
+    // Back to the recorded demo playing behind the card.
+    const close = el('button', '×', 'close');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Close');
+    close.addEventListener('click', opts.onClose);
+    card.append(close);
+  }
   if (me.mode === 'none') {
     card.append(el('h2', 'Sign in to play'));
     const button = el('button', 'Sign in with Opper', 'primary');
