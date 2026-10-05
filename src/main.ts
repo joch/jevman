@@ -57,18 +57,18 @@ const playCta = $<HTMLButtonElement>('#play-cta');
 const help = $('.help');
 const hud = { score: $('#score'), level: $('#level'), lives: $('#lives'), fruit: $('#fruit-hud') };
 
-/** Set by a live game: resolves once the models that play are awake again (they doze off during a long pause). */
-let beforeResume: (() => Promise<void>) | null = null;
+/** Set by a live game: wakes the models that play (they doze off during a long pause); false keeps the game paused. */
+let beforeResume: (() => Promise<boolean>) | null = null;
 let resuming = false;
 function togglePause(): void {
   if (!overlayEl.hidden || resuming) return; // nothing is running behind the Play / game-over card
   if (paused && beforeResume) {
     resuming = true;
     pauseBtn.textContent = 'Waking up…';
-    void beforeResume().then(() => {
+    void beforeResume().then((ok) => {
       resuming = false;
-      paused = false;
-      pauseBtn.textContent = 'Pause';
+      paused = !ok;
+      pauseBtn.textContent = ok ? 'Pause' : 'Resume';
     });
     return;
   }
@@ -312,8 +312,14 @@ if (me.mode === 'none') {
     if (incoming.every((m) => warming.isWarm(m))) return apply();
     switching = true;
     toggleBtn.textContent = 'Waking up…';
-    void warming.warmAll(() => incoming, () => {}).then(() => {
+    void warming.warmAll(() => incoming, () => {}).then((failed) => {
       switching = false;
+      if (failed.length) {
+        // The current side plays on; say why the switch didn't happen.
+        toggleBtn.textContent = `Pac-Man: ${liveControl === 'jev' ? 'AI' : 'you'}`;
+        panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the sides didn't switch. Press J to try again.`);
+        return;
+      }
       adopt();
       apply();
     });
@@ -358,7 +364,16 @@ if (me.mode === 'none') {
     speedOut.textContent = `${speed.toFixed(2)}×`;
   });
   keyActions.set('j', togglePacman).set('r', restart);
-  beforeResume = () => (started ? warming.warmAll(playedModels, () => {}).then(adopt) : Promise.resolve());
+  beforeResume = async () => {
+    if (!started) return true;
+    const failed = await warming.warmAll(playedModels, () => {});
+    if (failed.length) {
+      panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the game stays paused. Press Resume to try again.`);
+      return false;
+    }
+    adopt();
+    return true;
+  };
   steer = (dir) => {
     if (started) state.keyDir = dir;
   };
