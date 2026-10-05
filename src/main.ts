@@ -360,6 +360,13 @@ if (me.mode === 'none') {
     speedOut.textContent = `${speed.toFixed(2)}×`;
   });
   keyActions.set('j', togglePacman).set('r', restart);
+  // A hidden tab pauses a live game (and the browser stops the clock anyway); resuming wakes the models first.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && started && !paused && overlayEl.hidden) {
+      paused = true;
+      pauseBtn.textContent = 'Resume';
+    }
+  });
   beforeResume = async () => {
     if (!started) return true;
     const failed = await warming.warmAll(playedModels, () => {});

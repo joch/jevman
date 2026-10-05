@@ -36,7 +36,7 @@ export function leaderboardRows(board: Leaderboard): LeaderboardRow[] {
   ];
   return entries.map((e, i) => ({
     // Joint leaders share first place; the next model is third.
-    rank: i < tied.length ? 1 : i + 1,
+    rank: tied.includes(e) ? 1 : i + 1,
     model: e.model,
     name: e.name,
     maker: DECISION_MODELS.find((m) => m.id === e.model)?.maker ?? '',

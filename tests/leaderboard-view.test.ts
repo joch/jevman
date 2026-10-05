@@ -48,6 +48,16 @@ describe('leaderboardRows', () => {
     expect(rows.map((r) => r.badges.includes('Joint top score'))).toEqual([true, true, true, false]);
   });
 
+  it('finds a high-variance model tied with the leader even below a model that is not', () => {
+    const rows = leaderboardRows(board([
+      entry({ model: 'typesafe/jev-1.13.0', meanScore: 3000, scoreStdError: 50 }),
+      entry({ model: 'opper/clef', name: 'Clef', meanScore: 2800, scoreStdError: 40 }),
+      entry({ model: 'opper/clef-flash', name: 'Clef Flash', meanScore: 2700, scoreStdError: 400 }),
+    ]));
+    expect(rows.map((r) => r.rank)).toEqual([1, 2, 1]);
+    expect(rows[2].badges).toContain('Joint top score');
+  });
+
   it('copes with an empty board', () => {
     expect(leaderboardRows(board([]))).toEqual([]);
   });
