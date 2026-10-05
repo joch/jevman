@@ -10,6 +10,7 @@
     "smoke": "node --env-file=.env --import tsx scripts/smoke.ts",
     "bench": "node --env-file=.env --import tsx scripts/bench.ts",
     "deaths": "node --import tsx scripts/deaths.mts",
+    "leaderboard": "node --env-file=.env --import tsx scripts/bench.ts --models all",
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/main.ts"
