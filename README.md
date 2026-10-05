@@ -1,13 +1,15 @@
 # jevman
 
-Pac-Man where the characters are driven by the jev decision model (`typesafe/jev-1.13.0`), called
-through Opper or straight from TypeSafe. jev plays one side at a time. In **Watch jev play** (the
-default) jev steers Pac-Man and the ghosts follow the classic scripted rules. In **Play against jev**
-you steer Pac-Man and jev plays the four ghosts. Pick the mode in the Play dialog, or switch with `J`
-during a game.
+Pac-Man where the characters are driven by System One decision models: TypeSafe's jev
+(`typesafe/jev-1.13.0`, the default) and the others Opper serves, called through Opper or (jev only)
+straight from TypeSafe. A model plays one side at a time. In **Watch AI play** (the default) a model
+steers Pac-Man and the ghosts follow the classic scripted rules. In **Play against AI** you steer
+Pac-Man and models play the four ghosts. Pick the mode and the [models](#decision-models) in the Play
+dialog, or switch sides with `J` during a game. `npm run leaderboard` measures which model plays best.
 
-The side panel shows each of jev's decisions with its probabilities, confidence, latency and the
-running cost. Red entries were not jev's own choice: greedy fallbacks used when jev could not answer
+The side panel shows each decision with its probabilities, confidence, latency, the model that made
+it and the running cost. Red entries were not the model's own choice: greedy fallbacks used when it
+could not answer
 (timeout, error or invalid answer) and safety overrides (see [How decisions work](#how-decisions-work)).
 
 Source: <https://github.com/joch/jevman>
