@@ -86,7 +86,11 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
       if (deps.keyMode === 'player') {
         if (res.status === 401) return { status: 401, body: { error: 'Your Opper sign-in has expired — sign in again', signedOut: true, clearSession: true } };
         if (res.status === 402) return { status: 402, body: { error: 'Your Opper wallet is empty — top up to keep playing', walletUrl: WALLET_URL } };
-        if (res.status === 403) return { status: 403, body: { error: `${model} is not enabled for your Opper account` } };
+      }
+      // Any key (a player's or the local one) can lack access to a listed model; that is not a passing upstream error.
+      if (res.status === 403) {
+        const whose = deps.keyMode === 'player' ? 'your Opper account' : 'this API key';
+        return { status: 403, body: { error: `${label} is not enabled for ${whose}` } };
       }
       return { status: 502, body: { error } };
     }
