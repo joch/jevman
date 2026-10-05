@@ -61,6 +61,13 @@ A signed-in Login-with-Opper player always plays on their own key, through Opper
 server uses `TYPESAFE_API_KEY` if set, else `OPPER_API_KEY`. Variables exported in your shell take
 precedence over `.env`. The account area in the page header says which one is in use.
 
+### Another model
+
+jev is the default, but any model that speaks the System One API can play: set `JEV_MODEL` to its
+name, for example `opper/kev-4b` or `opper/clef` through Opper. It applies to the game, `npm run smoke`
+and `npm run bench`, and recordings note the model that played. Through TypeSafe directly (option C)
+the cost estimate still uses jev's price.
+
 ## Scripts
 
 - `npm test` — unit tests (includes a check that the committed demo still replays exactly).

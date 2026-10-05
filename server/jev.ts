@@ -16,7 +16,12 @@ export const TYPESAFE_USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
 const MODELS: Record<JevProvider, string> = { opper: 'typesafe/jev-1.13.0', typesafe: 'jev-1.13.0' };
 const PATHS: Record<JevProvider, string> = { opper: '/v3/compat/v1/systemone', typesafe: '/v1/systemone' };
 
-export const modelFor = (provider: JevProvider): string => MODELS[provider];
+/**
+ * The System One model to call. JEV_MODEL overrides it for both providers, so the same game can drive
+ * any model that speaks the System One API, e.g. `opper/kev-4b` or `opper/clef` through Opper.
+ */
+export const modelFor = (provider: JevProvider, env: Record<string, string | undefined> = process.env): string =>
+  env.JEV_MODEL?.trim() || MODELS[provider];
 
 export const endpointFor = (t: JevTarget): string => `${t.baseUrl.replace(/\/+$/, '')}${PATHS[t.provider]}`;
 
