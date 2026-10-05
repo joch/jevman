@@ -81,6 +81,7 @@ export function createApp(opts: AppOptions): App {
       return notFound(res);
     }
     if (path.endsWith('/')) path += 'index.html';
+    else if (!extname(path)) path += '.html'; // clean URLs: /leaderboard serves leaderboard.html
     const file = resolve(join(root, path));
     if (!file.startsWith(root + sep)) return notFound(res);
     const info = await stat(file).catch(() => null);

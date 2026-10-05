@@ -12,6 +12,8 @@ const events: { event: string; [k: string]: unknown }[] = [];
 function makeDist(): string {
   const dir = mkdtempSync(join(tmpdir(), 'jevman-dist-'));
   writeFileSync(join(dir, 'index.html'), '<!doctype html><title>jevman</title>');
+  writeFileSync(join(dir, 'leaderboard.html'), '<!doctype html><title>Which AI plays Pac-Man best?</title>');
+  writeFileSync(join(dir, 'leaderboard.json'), '{"entries":[]}');
   mkdirSync(join(dir, 'assets'));
   writeFileSync(join(dir, 'assets', 'index-abc123.js'), 'console.log(1)');
   mkdirSync(join(dir, 'demo'));
@@ -64,6 +66,16 @@ describe('production server', () => {
     const demo = await fetch(`${url}/demo/jev-demo.json`);
     expect(demo.headers.get('content-type')).toBe('application/json; charset=utf-8');
     expect(await demo.json()).toEqual({ version: 1 });
+  });
+
+  it('serves the leaderboard page at a clean URL, and its results', async () => {
+    const url = await start();
+    const page = await fetch(`${url}/leaderboard`);
+    expect(page.status).toBe(200);
+    expect(page.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    expect(await page.text()).toContain('Which AI plays Pac-Man best?');
+    expect(await (await fetch(`${url}/leaderboard.json`)).json()).toEqual({ entries: [] });
+    expect((await fetch(`${url}/nothing-here`)).status).toBe(404);
   });
 
   it('refuses paths outside the build and unknown files', async () => {

@@ -107,6 +107,9 @@ if (rec) {
   // `wanted` is what the player picked; `choice` is what plays. A newly picked model takes over once it is awake, so a
   // cold one doesn't turn the next moves into fallbacks.
   let wanted: ModelChoice = initialChoice(me, loadStoredChoice());
+  // "Watch Clef play" on the leaderboard links here with ?pacman=<model>.
+  const linked = new URLSearchParams(location.search).get('pacman');
+  if (linked && modelOptions(me).some((o) => o.id === linked)) wanted = { ...wanted, pacman: linked };
   let choice: ModelChoice = { ...wanted };
   const warming = new ModelWarming({ warmUp: (m) => warmUp(m === defaultModel ? undefined : m), now: () => Date.now() });
   const playedModels = () => [...new Set(jevActors(state).map((id) => wanted[id]))];

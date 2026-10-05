@@ -1,7 +1,7 @@
 // Headless real-time benchmark: how long does Pac-Man survive, and how well does he play?
 // Run: npm run bench -- [--games 4] [--pacman jev|greedy] [--ghosts greedy|jev] [--max 120] [--record path.json]
 //                       [--pacman-model id] [--ghost-model id] [--safety on|off]
-// Leaderboard: npm run bench -- --models all|id,id [--games 8] [--parallel 4] [--max 300] [--out bench/leaderboard.json]
+// Leaderboard: npm run bench -- --models all|id,id [--games 8] [--parallel 4] [--max 300] [--out public/leaderboard.json]
 //   plays each model as Pac-Man against the scripted ghosts with the safety check off, so the model is measured.
 // --record needs --games 1 and writes the game (steps, decisions, panel events) for src/replay.ts.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -32,7 +32,7 @@ const { values } = parseArgs({
     'ghost-model': { type: 'string' },
     models: { type: 'string' },
     parallel: { type: 'string' },
-    out: { type: 'string', default: 'bench/leaderboard.json' },
+    out: { type: 'string', default: 'public/leaderboard.json' },
   },
 });
 const leaderboard = values.models !== undefined;

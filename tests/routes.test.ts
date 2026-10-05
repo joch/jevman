@@ -49,7 +49,10 @@ describe('jevPlugin', () => {
     for (const hook of [plugin.configureServer, plugin.configurePreviewServer]) {
       const use = vi.fn();
       (hook as (s: unknown) => void)({ config: { logger: newLogger() }, middlewares: { use } });
-      expect(use).toHaveBeenCalledOnce();
+      expect(use).toHaveBeenCalledTimes(2);
+      const rewritten = { url: '/leaderboard?x=1' };
+      (use.mock.calls[1][0] as (r: { url: string }, s: unknown, n: () => void) => void)(rewritten, null, () => {});
+      expect(rewritten.url).toBe('/leaderboard.html?x=1');
       const res = fakeRes();
       (use.mock.calls[0][0] as ReturnType<typeof mount>['handler'])(Object.assign(new EventEmitter(), { method: 'GET', url: '/api/me', headers: {} }) as never, res as never, vi.fn());
       expect(bodyOf(res)).toMatchObject({ mode: 'none' });

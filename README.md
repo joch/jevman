@@ -87,8 +87,8 @@ names explicitly (`--pacman-model`, `npm run leaderboard`) must be one of the
   `npm run bench -- --games 1 --pacman jev --ghosts greedy --max 120 --record public/demo/jev-demo.json`;
   re-record it if a change to the game rules makes the replay test fail.
 - `npm run leaderboard` — every decision model plays Pac-Man against the scripted ghosts, with the
-  safety check **off** so the model itself is measured. Writes `bench/leaderboard.json` (ranked by
-  mean score) and prints a table. Same flags as `bench`, plus `--models id,id` (default: all),
+  safety check **off** so the model itself is measured. Writes `public/leaderboard.json` (ranked by
+  mean score), which the site shows at `/leaderboard`, and prints a table. Same flags as `bench`, plus `--models id,id` (default: all),
   `--parallel 4` (games at a time per model); defaults to 8 games per model and a 300 s cap.
 - `npm run deaths -- game.json` — replays a recorded game and prints, for each of Pac-Man's deaths,
   his last few junction decisions with the routes as jev saw them.

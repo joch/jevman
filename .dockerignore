@@ -3,6 +3,7 @@
 !package.json
 !package-lock.json
 !index.html
+!leaderboard.html
 !vite.config.ts
 !tsconfig.json
 !src/
