@@ -282,8 +282,13 @@ if (me.mode === 'none') {
   const restart = (): void => {
     if (!started || restarting) return;
     restarting = true;
-    void warming.warmAll(playedModels, () => {}).then(() => {
+    void warming.warmAll(playedModels, () => {}).then((failed) => {
       restarting = false;
+      if (failed.length) {
+        // Stay where we are (the game-over card, or the game) rather than start on a model that isn't there.
+        panel.alert(accountProblem ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the game didn't restart. Try again, or pick another model on the cards.`);
+        return;
+      }
       adopt();
       newGame();
     });

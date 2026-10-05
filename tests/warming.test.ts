@@ -60,6 +60,20 @@ describe('ModelWarming', () => {
   });
 });
 
+it('ignores a failure of a model the player has since swapped out', async () => {
+  const { pending, warming } = setup();
+  let models = ['opper/clef'];
+  const done = warming.warmAll(() => models, () => {});
+  models = ['typesafe/jev-1.13.0'];
+  pending[0].resolve(false);
+  await flush();
+  pending[1].resolve(false); // Clef's second attempt fails too, but nobody wants Clef now
+  await flush();
+  expect(pending.at(-1)!.model).toBe('typesafe/jev-1.13.0');
+  pending.at(-1)!.resolve(true);
+  expect(await done).toEqual([]);
+});
+
 describe('effectiveChoice', () => {
   it('keeps the playing model until the picked one is awake, else falls back to the default', () => {
     const warm = new Set(['typesafe/jev-1.13.0', 'opper/clef']);

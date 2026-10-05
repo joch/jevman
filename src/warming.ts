@@ -52,7 +52,10 @@ export class ModelWarming {
       if (!cold.length) return [];
       onWaiting(cold);
       const failed = (await Promise.all(cold.map(async (m) => ((await this.warm(m)) ? null : m)))).filter((m): m is string => m !== null);
-      if (failed.length) return failed;
+      // Only failures of models still wanted count: the player may have picked another one meanwhile.
+      const wanted = new Set(models());
+      const stillNeeded = failed.filter((m) => wanted.has(m));
+      if (stillNeeded.length) return stillNeeded;
     }
   }
 }
