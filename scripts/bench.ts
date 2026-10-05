@@ -160,7 +160,7 @@ async function playOne(): Promise<Result> {
   r.pellets = pelletsEaten;
   r.level = state.level;
   if (recorder) {
-    const out = JSON.stringify(recorder.finish(state, modelFor(target?.provider ?? 'opper')));
+    const out = JSON.stringify(recorder.finish(state, modelFor(target?.provider ?? 'opper') ?? 'unknown'));
     mkdirSync(dirname(values.record!), { recursive: true });
     writeFileSync(values.record!, out);
     console.log(`recorded ${recorder.frames.length} frames to ${values.record} (${(out.length / 1024).toFixed(0)} KB)`);

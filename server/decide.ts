@@ -1,6 +1,7 @@
 import { clearSessionCookie, crossSite, header, json, sessionFrom, WALLET_URL, type AuthConfig, type HttpRequest, type HttpResponse } from './auth.ts';
 import { endpointFor, modelFor, TYPESAFE_USD_PER_INPUT_TOKEN, type JevProvider, type JevTarget } from './jev.ts';
 import type { SessionData } from './session.ts';
+import { DEFAULT_MODEL, isModelId } from '../shared/models.ts';
 
 export const JEV_MODEL = modelFor('opper');
 
@@ -22,6 +23,8 @@ export interface DecideResult {
 }
 
 interface DecideInput {
+  /** One of shared/models.ts; jev when omitted. */
+  model?: unknown;
   state: unknown;
   questions: Record<string, unknown>;
 }
@@ -52,8 +55,12 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
   const timeoutMs = deps.timeoutMs ?? 2000;
   if (!deps.apiKey) return { status: 500, body: { error: 'No TYPESAFE_API_KEY or OPPER_API_KEY in .env — all decisions are fallbacks' } };
   if (!isDecideInput(input)) return { status: 400, body: { error: 'Expected { state, questions } with at least one question' } };
+  const requested = input.model ?? DEFAULT_MODEL;
+  if (!isModelId(requested)) return { status: 400, body: { error: `Unknown decision model: ${String(requested).slice(0, 80)}` } };
+  const model = modelFor(provider, requested);
+  if (model === null) return { status: 400, body: { error: `A TypeSafe key only reaches jev; ${requested} needs an Opper key` } };
 
-  const actors = Object.keys(input.questions).join(',');
+  const actors = `${Object.keys(input.questions).join(',')}${requested === DEFAULT_MODEL ? '' : ` (${requested})`}`;
   const started = deps.now();
   try {
     const res = await deps.fetch(endpointFor({ provider, apiKey: deps.apiKey, baseUrl: deps.baseUrl }), {
@@ -63,7 +70,7 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
         'Content-Type': 'application/json',
         ...(provider === 'opper' ? { 'X-Opper-Name': 'jevman-decide' } : {}),
       },
-      body: JSON.stringify({ model: modelFor(provider), state: input.state, questions: input.questions }),
+      body: JSON.stringify({ model, state: input.state, questions: input.questions }),
       signal: AbortSignal.timeout(timeoutMs),
     });
     const text = await res.text();

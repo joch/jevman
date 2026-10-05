@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY index.html vite.config.ts tsconfig.json ./
 COPY src ./src
+COPY shared ./shared
 COPY server ./server
 COPY public ./public
 RUN npx vite build
@@ -18,6 +19,7 @@ WORKDIR /app
 # The server uses only Node built-ins, so no node_modules ship in the runtime image.
 COPY --chown=node:node package.json ./
 COPY --chown=node:node server ./server
+COPY --chown=node:node shared ./shared
 COPY --from=build --chown=node:node /app/dist ./dist
 USER node
 EXPOSE 3000
