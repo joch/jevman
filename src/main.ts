@@ -57,8 +57,21 @@ const playCta = $<HTMLButtonElement>('#play-cta');
 const help = $('.help');
 const hud = { score: $('#score'), level: $('#level'), lives: $('#lives'), fruit: $('#fruit-hud') };
 
+/** Set by a live game: resolves once the models that play are awake again (they doze off during a long pause). */
+let beforeResume: (() => Promise<void>) | null = null;
+let resuming = false;
 function togglePause(): void {
-  if (!overlayEl.hidden) return; // nothing is running behind the Play / game-over card
+  if (!overlayEl.hidden || resuming) return; // nothing is running behind the Play / game-over card
+  if (paused && beforeResume) {
+    resuming = true;
+    pauseBtn.textContent = 'Waking up…';
+    void beforeResume().then(() => {
+      resuming = false;
+      paused = false;
+      pauseBtn.textContent = 'Pause';
+    });
+    return;
+  }
   paused = !paused;
   pauseBtn.textContent = paused ? 'Resume' : 'Pause';
 }
@@ -279,16 +292,31 @@ if (me.mode === 'none') {
     hideOverlay(overlayEl);
   };
 
+  let switching = false;
   const setPacmanControl = (control: 'jev' | 'keyboard'): void => {
-    liveControl = control;
-    if (started) {
-      state.pacmanControl = control;
-      state.keyDir = null;
-    }
-    toggleBtn.textContent = `Pac-Man: ${control === 'jev' ? 'AI' : 'you'}`;
-    toggleBtn.setAttribute('aria-pressed', String(control === 'jev'));
-    playCard?.select(control);
-    if (started) warmPlayed();
+    if (switching) return;
+    const apply = () => {
+      liveControl = control;
+      if (started) {
+        state.pacmanControl = control;
+        state.keyDir = null;
+      }
+      toggleBtn.textContent = `Pac-Man: ${control === 'jev' ? 'AI' : 'you'}`;
+      toggleBtn.setAttribute('aria-pressed', String(control === 'jev'));
+      playCard?.select(control);
+      if (started) warmPlayed();
+    };
+    if (!started) return apply();
+    // Mid-game: the side that takes over keeps waiting for its models; the current side plays on meanwhile.
+    const incoming = [...new Set(jevActors({ pacmanControl: control } as GameState).map((id) => wanted[id]))];
+    if (incoming.every((m) => warming.isWarm(m))) return apply();
+    switching = true;
+    toggleBtn.textContent = 'Waking up…';
+    void warming.warmAll(() => incoming, () => {}).then(() => {
+      switching = false;
+      adopt();
+      apply();
+    });
   };
   const togglePacman = (): void => {
     if (!started && !playCard) return; // J on the demo: nothing to switch yet
@@ -330,6 +358,7 @@ if (me.mode === 'none') {
     speedOut.textContent = `${speed.toFixed(2)}×`;
   });
   keyActions.set('j', togglePacman).set('r', restart);
+  beforeResume = () => (started ? warming.warmAll(playedModels, () => {}).then(adopt) : Promise.resolve());
   steer = (dir) => {
     if (started) state.keyDir = dir;
   };
