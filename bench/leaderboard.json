@@ -1,0 +1,107 @@
+{
+  "generatedAt": "2026-10-05T18:26:25.120Z",
+  "settings": {
+    "gamesPerModel": 8,
+    "maxSeconds": 300,
+    "safetyCheck": false,
+    "ghosts": "scripted"
+  },
+  "entries": [
+    {
+      "model": "opper/clef",
+      "name": "Clef",
+      "games": 8,
+      "meanScore": 3276,
+      "meanSurvivedSeconds": 54.5,
+      "meanPellets": 220,
+      "pelletsPerLife": 73,
+      "meanGhostsEaten": 3.1,
+      "fruitEaten": "14/16",
+      "bestLevel": 1,
+      "fallbackRate": 0.056,
+      "meanLatencyMs": 302,
+      "costPerGame": 0.0204,
+      "deathsBy": {
+        "at/near junction": 17,
+        "ghost ahead in corridor": 6,
+        "waiting at junction": 1
+      }
+    },
+    {
+      "model": "typesafe/jev-1.13.0",
+      "name": "jev 1.13",
+      "games": 8,
+      "meanScore": 2813,
+      "meanSurvivedSeconds": 56.8,
+      "meanPellets": 182,
+      "pelletsPerLife": 61,
+      "meanGhostsEaten": 2.5,
+      "fruitEaten": "12/13",
+      "bestLevel": 1,
+      "fallbackRate": 0.041,
+      "meanLatencyMs": 256,
+      "costPerGame": 0.00558,
+      "deathsBy": {
+        "at/near junction": 10,
+        "ghost ahead in corridor": 14
+      }
+    },
+    {
+      "model": "opper/clef-flash",
+      "name": "Clef Flash",
+      "games": 8,
+      "meanScore": 2429,
+      "meanSurvivedSeconds": 51.1,
+      "meanPellets": 190,
+      "pelletsPerLife": 63,
+      "meanGhostsEaten": 0.6,
+      "fruitEaten": "14/14",
+      "bestLevel": 1,
+      "fallbackRate": 0.023,
+      "meanLatencyMs": 256,
+      "costPerGame": 0.00321,
+      "deathsBy": {
+        "at/near junction": 17,
+        "ghost ahead in corridor": 7
+      }
+    },
+    {
+      "model": "opper/kev-4b",
+      "name": "Kev 4B",
+      "games": 8,
+      "meanScore": 1228,
+      "meanSurvivedSeconds": 36.7,
+      "meanPellets": 110,
+      "pelletsPerLife": 37,
+      "meanGhostsEaten": 0,
+      "fruitEaten": "8/8",
+      "bestLevel": 1,
+      "fallbackRate": 0.051,
+      "meanLatencyMs": 235,
+      "costPerGame": 0.00239,
+      "deathsBy": {
+        "ghost ahead in corridor": 10,
+        "at/near junction": 14
+      }
+    },
+    {
+      "model": "berget/convaiinnovations/laya",
+      "name": "Laya",
+      "games": 8,
+      "meanScore": 629,
+      "meanSurvivedSeconds": 37.4,
+      "meanPellets": 55,
+      "pelletsPerLife": 18,
+      "meanGhostsEaten": 0.1,
+      "fruitEaten": "1/1",
+      "bestLevel": 1,
+      "fallbackRate": 0.005,
+      "meanLatencyMs": 95,
+      "costPerGame": 0.00382,
+      "deathsBy": {
+        "at/near junction": 17,
+        "ghost ahead in corridor": 7
+      }
+    }
+  ]
+}
