@@ -114,6 +114,13 @@ const closePlay = () => {
 };
 
 if (me.mode === 'none') {
+  // From "Watch Clef play" while signed out: remember the pick through the sign-in round trip (it is checked against
+  // the models the key can use once signed in).
+  const linked = new URLSearchParams(location.search).get('pacman');
+  if (linked) {
+    const stored = loadStoredChoice();
+    saveChoice({ ...(stored && typeof stored === 'object' ? stored : {}), pacman: linked } as ModelChoice);
+  }
   // Signed out: the demo, and Play offers sign-in.
   openPlay = () => {
     playCta.hidden = true;
@@ -167,6 +174,7 @@ if (me.mode === 'none') {
   const warmPlayed = () => {
     for (const m of playedModels()) {
       void warming.warm(m).then((ok) => {
+        if (ok) panel.clearAlert(); // a retry worked: the "still playing …" note no longer holds
         if (!ok && started) {
           // The pick never took over: show what is really playing, and say why.
           const stuck = played().filter((id) => wanted[id] === m && choice[id] !== m);

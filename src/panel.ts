@@ -157,6 +157,10 @@ export class Panel {
     note.hidden = false;
   }
 
+  clearAlert(): void {
+    this.root.querySelector<HTMLElement>('.note')!.hidden = true;
+  }
+
   enableModelPickers(): void {
     this.pickersOn = true;
   }
