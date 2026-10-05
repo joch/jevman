@@ -24,30 +24,35 @@ export class ModelWarming {
     this.lastAnswer.set(model, this.deps.now());
   }
 
-  /**
-   * Resolves once the model is awake, or once its warm-up has failed: a model that can't wake still gets to play, so
-   * its fallbacks show the problem instead of the game waiting forever. One warm-up at a time per model.
-   */
-  warm(model: string): Promise<boolean> {
+  /** Resolves true once the model is awake; false if it still didn't answer after `attempts` warm-ups. */
+  warm(model: string, attempts = 2): Promise<boolean> {
     if (this.isWarm(model)) return Promise.resolve(true);
     const running = this.running.get(model);
     if (running) return running;
-    const done = this.deps.warmUp(model).then((ok) => {
-      this.running.delete(model);
-      this.lastAnswer.set(model, this.deps.now());
-      return ok;
-    });
+    const done = (async () => {
+      for (let i = 0; i < attempts; i++) {
+        if (await this.deps.warmUp(model)) {
+          this.lastAnswer.set(model, this.deps.now());
+          return true;
+        }
+      }
+      return false;
+    })().finally(() => this.running.delete(model));
     this.running.set(model, done);
     return done;
   }
 
-  /** Warm every model until all are awake (or failed); `models` is re-read, as the player may pick again meanwhile. */
-  async warmAll(models: () => string[], onWaiting: (cold: string[]) => void): Promise<void> {
+  /**
+   * Warm every model until all are awake, or some would not wake. `models` is re-read, as the player may pick again
+   * meanwhile. Resolves to the models that would not wake (none: ready to play).
+   */
+  async warmAll(models: () => string[], onWaiting: (cold: string[]) => void): Promise<string[]> {
     for (;;) {
       const cold = models().filter((m) => !this.isWarm(m));
-      if (!cold.length) return;
+      if (!cold.length) return [];
       onWaiting(cold);
-      await Promise.all(cold.map((m) => this.warm(m)));
+      const failed = (await Promise.all(cold.map(async (m) => ((await this.warm(m)) ? null : m)))).filter((m): m is string => m !== null);
+      if (failed.length) return failed;
     }
   }
 }

@@ -207,10 +207,14 @@ if (me.mode === 'none') {
     waitingFor = card;
     void warming
       .warmAll(playedModels, (cold) => card.busy(`Waking up ${cold.map(modelName).join(' and ')}…`))
-      .then(() => {
+      .then((failed) => {
         if (waitingFor === card) waitingFor = null;
         if (playCard !== card) return; // closed while waking: stay on the demo, start nothing
         card.busy(null);
+        if (failed.length) {
+          const names = failed.map(modelName).join(' and ');
+          return card.note(`${names} didn't wake up in time. Press Play to try again, or pick another model.`);
+        }
         choice = { ...wanted };
         newGame();
       });

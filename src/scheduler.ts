@@ -42,6 +42,8 @@ interface Pending {
   fruitOnBoard: boolean;
   /** Pac-Man's FRUIT route when the question was built; the answer is stale once that changes. */
   fruitRoute: Dir | null;
+  /** The model the question went to (once sent); its answer is stale once the character's model changes. */
+  model?: ModelId;
 }
 
 /**
@@ -50,7 +52,7 @@ interface Pending {
  */
 export class Scheduler implements Controls {
   private readonly pending = new Map<string, Pending>();
-  private readonly ready = new Map<string, { decision: Decision; fruitOnBoard: boolean; fruitRoute: Dir | null }>();
+  private readonly ready = new Map<string, { decision: Decision; fruitOnBoard: boolean; fruitRoute: Dir | null; model?: ModelId }>();
   /** Answers already handed to the sim whose question is still open (escape questions); never re-asked. */
   private readonly consumed = new Set<string>();
   private readonly slots: { inFlight: number };
@@ -73,6 +75,11 @@ export class Scheduler implements Controls {
       for (const point of decisionPoints(state, id)) {
         live.add(point.key);
         // Pac-Man's routes and fallback depend on the fruit, which can appear or vanish without changing the key.
+        // A character switched to another model: whatever the old one answered (or is answering) no longer counts.
+        const model = this.deps.modelFor?.(id);
+        const sent = this.pending.get(point.key);
+        if (sent && sent.sentAt !== null && sent.model !== model) this.pending.delete(point.key);
+        if (this.ready.has(point.key) && this.ready.get(point.key)!.model !== model) this.dropReady(point.key);
         if (id === 'pacman') {
           if (this.pending.get(point.key)?.fruitOnBoard === !fruitOnBoard) this.pending.delete(point.key);
           if (this.ready.get(point.key)?.fruitOnBoard === !fruitOnBoard) this.dropReady(point.key);
@@ -147,7 +154,10 @@ export class Scheduler implements Controls {
   }
 
   private send(state: GameState, batch: Pending[], now: number, requested: ModelId | undefined): void {
-    for (const p of batch) p.sentAt = now;
+    for (const p of batch) {
+      p.sentAt = now;
+      p.model = requested;
+    }
     this.slots.inFlight += 1;
     const isCurrent = (p: Pending) => this.pending.get(p.q.point.key) === p;
     this.deps
@@ -197,7 +207,7 @@ export class Scheduler implements Controls {
     const p = this.pending.get(key);
     if (!p) return;
     this.pending.delete(key);
-    this.ready.set(key, { decision, fruitOnBoard: p.fruitOnBoard, fruitRoute: p.fruitRoute });
+    this.ready.set(key, { decision, fruitOnBoard: p.fruitOnBoard, fruitRoute: p.fruitRoute, model: p.model });
     this.deps.onEvent({ type: 'decision', decision, latencyMs, fruitOnBoard: p.fruitOnBoard });
   }
 }

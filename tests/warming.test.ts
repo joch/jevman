@@ -34,12 +34,15 @@ describe('ModelWarming', () => {
     expect(pending).toHaveLength(0);
   });
 
-  it('lets a model that failed to wake play anyway', async () => {
+  it('tries twice, then reports a model that would not wake, so the game does not start on it', async () => {
     const { pending, warming } = setup();
-    const done = warming.warm('opper/clef');
+    const done = warming.warmAll(() => ['opper/clef'], () => {});
     pending[0].resolve(false);
-    expect(await done).toBe(false);
-    expect(warming.isWarm('opper/clef')).toBe(true);
+    await flush();
+    expect(pending).toHaveLength(2); // second attempt
+    pending[1].resolve(false);
+    expect(await done).toEqual(['opper/clef']);
+    expect(warming.isWarm('opper/clef')).toBe(false);
   });
 
   it('waits for models picked while it was already waiting', async () => {
@@ -52,7 +55,7 @@ describe('ModelWarming', () => {
     await flush();
     expect(pending.map((p) => p.model)).toEqual(['opper/clef', 'opper/kev-4b']);
     pending[1].resolve(true);
-    await done;
+    expect(await done).toEqual([]);
     expect(waits).toEqual([['opper/clef'], ['opper/kev-4b']]);
   });
 });

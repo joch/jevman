@@ -78,6 +78,8 @@ export interface PlayCard {
   select: (mode: PlayMode) => void;
   /** While models wake up: a note on the Play button, which stays disabled; null restores it. */
   busy: (note: string | null) => void;
+  /** A message under the Play button (e.g. a model that would not wake), or null to clear it. */
+  note: (text: string | null) => void;
 }
 
 /**
@@ -111,7 +113,7 @@ export function showPlay(
     }
     card.append(button);
     show(root, card, button);
-    return { action: me.loginAvailable ? signIn : () => {}, select: () => {}, busy: () => {} };
+    return { action: me.loginAvailable ? signIn : () => {}, select: () => {}, busy: () => {}, note: () => {} };
   }
   card.classList.add('wide');
   card.append(el('h2', 'Ready when you are'));
@@ -169,7 +171,10 @@ export function showPlay(
     status.textContent = note ?? '';
   };
   card.append(status);
-  return { action: opts.onPlay, select, busy };
+  const note = (text: string | null) => {
+    status.textContent = text ?? '';
+  };
+  return { action: opts.onPlay, select, busy, note };
 }
 
 export function showGameOver(root: HTMLElement, summary: GameSummary, onPlayAgain: () => void): void {
