@@ -165,7 +165,21 @@ if (me.mode === 'none') {
   };
   /** Warm the models that play now; each takes over as soon as it is awake. */
   const warmPlayed = () => {
-    for (const m of playedModels()) void warming.warm(m).then(adopt);
+    for (const m of playedModels()) {
+      void warming.warm(m).then((ok) => {
+        if (!ok && started) {
+          // The pick never took over: show what is really playing, and say why.
+          const stuck = played().filter((id) => wanted[id] === m && choice[id] !== m);
+          if (stuck.length) {
+            wanted = { ...wanted, ...Object.fromEntries(stuck.map((id) => [id, choice[id]])) };
+            saveChoice(wanted);
+            panel.syncModels();
+            panel.alert(accountProblem ?? `${modelName(m)} didn't wake up; still playing ${modelName(choice[stuck[0]])}. Pick it again to retry.`);
+          }
+        }
+        adopt();
+      });
+    }
     adopt();
   };
   const picking: ModelPicking = {
@@ -263,8 +277,16 @@ if (me.mode === 'none') {
     if (!started && !playCard) return; // J on the demo: nothing to switch yet
     setPacmanControl(liveControl === 'jev' ? 'keyboard' : 'jev');
   };
+  let restarting = false;
+  /** Restart / Play again (never skips the Play card): wake models that went cold on the game-over screen first. */
   const restart = (): void => {
-    if (started) newGame(); // Restart / R never skips the Play card
+    if (!started || restarting) return;
+    restarting = true;
+    void warming.warmAll(playedModels, () => {}).then(() => {
+      restarting = false;
+      adopt();
+      newGame();
+    });
   };
   openPlay = () => {
     if (started || playCard) return;

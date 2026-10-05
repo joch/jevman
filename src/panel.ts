@@ -34,9 +34,9 @@ export class Panel {
   private pickersOn = false;
 
   /** `models` adds a model dropdown to each card the AI plays (live games only; a recording can't change). */
-  constructor(root: HTMLElement, opts: { caption?: string; models?: ModelPicking } = {}) {
+  constructor(private readonly root: HTMLElement, opts: { caption?: string; models?: ModelPicking } = {}) {
     this.models = opts.models;
-    root.innerHTML = `<h2>Decisions</h2><div class="banner" role="alert" hidden></div><div class="totals"></div><div class="cards"></div><h3>Decision log</h3><ol class="log"></ol>`;
+    root.innerHTML = `<h2>Decisions</h2><div class="banner" role="alert" hidden></div><div class="note" role="status" hidden></div><div class="totals"></div><div class="cards"></div><h3>Decision log</h3><ol class="log"></ol>`;
     if (opts.caption) {
       const caption = document.createElement('span');
       caption.className = 'caption';
@@ -148,6 +148,13 @@ export class Panel {
     card.meta.textContent = meta;
     card.meta.classList.remove('fallback');
     card.el.classList.remove('fallback');
+  }
+
+  /** A note above the cards that stays until the next one (call errors use the banner, which clears on success). */
+  alert(text: string): void {
+    const note = this.root.querySelector<HTMLElement>('.note')!;
+    note.textContent = text;
+    note.hidden = false;
   }
 
   enableModelPickers(): void {
