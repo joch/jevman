@@ -87,6 +87,10 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
         if (res.status === 401) return { status: 401, body: { error: 'Your Opper sign-in has expired — sign in again', signedOut: true, clearSession: true } };
         if (res.status === 402) return { status: 402, body: { error: 'Your Opper wallet is empty — top up to keep playing', walletUrl: WALLET_URL } };
       }
+      // The local key: a rejected key or an empty wallet won't fix itself either (no sign-in to redo, though).
+      if (deps.keyMode === 'dev' && (res.status === 401 || res.status === 402)) {
+        return { status: res.status, body: { error: res.status === 401 ? 'The API key in .env was rejected' : "The API key's Opper wallet is empty" } };
+      }
       // Any key (a player's or the local one) can lack access to a listed model; that is not a passing upstream error.
       if (res.status === 403) {
         const whose = deps.keyMode === 'player' ? 'your Opper account' : 'this API key';

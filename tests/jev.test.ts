@@ -52,9 +52,9 @@ describe('handleDecide against TypeSafe directly', () => {
   });
 
   it('reports TypeSafe errors without the key', async () => {
-    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ error: 'bad key ts-key' }), { status: 401 }));
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ error: 'bad key ts-key' }), { status: 500 }));
     const res = await handleDecide(body, deps(fetchMock, { keyMode: 'dev' }));
-    expect(res).toEqual({ status: 502, body: { error: 'jev 1.13 returned HTTP 401: bad key [redacted]' } });
+    expect(res).toEqual({ status: 502, body: { error: 'jev 1.13 returned HTTP 500: bad key [redacted]' } });
   });
 
   it('redacts a key that an upstream error echoes even past the 200-character cut', async () => {

@@ -67,8 +67,8 @@ function togglePause(): void {
     pauseBtn.textContent = 'Waking up…';
     void beforeResume().then((ok) => {
       resuming = false;
-      paused = !ok;
-      pauseBtn.textContent = ok ? 'Pause' : 'Resume';
+      paused = !ok || document.hidden;
+      pauseBtn.textContent = paused ? 'Resume' : 'Pause';
     });
     return;
   }
@@ -278,8 +278,9 @@ if (me.mode === 'none') {
     panel = new Panel(panelEl, { models: picking });
     panel.enableModelPickers();
     gameOverShown = false;
-    paused = false;
-    pauseBtn.textContent = 'Pause';
+    // A game that finished waking while the tab was hidden starts paused (Resume then re-checks the models).
+    paused = document.hidden;
+    pauseBtn.textContent = paused ? 'Resume' : 'Pause';
     started = true;
     playCard = null;
     overlayAction = null;

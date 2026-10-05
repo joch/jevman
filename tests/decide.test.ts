@@ -125,8 +125,10 @@ describe('player keys', () => {
     const res = await handleDecide(body, deps(upstream(up), { keyMode: 'player' }));
     expect(res).toEqual({ status, body: bodyOut });
   });
-  it('keeps the 502 mapping for the dev key', async () => {
-    expect((await handleDecide(body, deps(upstream(401), { keyMode: 'dev' }))).status).toBe(502);
+  it('reports a rejected or unpaid dev key as such (no sign-in to redo), other failures as 502', async () => {
+    expect(await handleDecide(body, deps(upstream(401), { keyMode: 'dev' }))).toEqual({ status: 401, body: { error: 'The API key in .env was rejected' } });
+    expect(await handleDecide(body, deps(upstream(402), { keyMode: 'dev' }))).toEqual({ status: 402, body: { error: "The API key's Opper wallet is empty" } });
+    expect((await handleDecide(body, deps(upstream(500), { keyMode: 'dev' }))).status).toBe(502);
   });
   it('reports a model the dev key may not use as 403, not a passing 502', async () => {
     expect(await handleDecide(body, deps(upstream(403), { keyMode: 'dev' }))).toEqual({ status: 403, body: { error: 'jev 1.13 is not enabled for this API key' } });
