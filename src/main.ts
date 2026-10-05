@@ -171,10 +171,15 @@ if (me.mode === 'none') {
     choice = effectiveChoice(wanted, choice, (m) => warming.isWarm(m), defaultModel);
   };
   /** Warm the models that play now; each takes over as soon as it is awake. */
+  /** The model the panel's "didn't wake up" note is about. */
+  let alertFor: string | null = null;
   const warmPlayed = () => {
     for (const m of playedModels()) {
       void warming.warm(m).then((ok) => {
-        if (ok) panel.clearAlert(); // a retry worked: the "still playing …" note no longer holds
+        if (ok && alertFor === m) {
+          panel.clearAlert(); // that model's retry worked: its "still playing …" note no longer holds
+          alertFor = null;
+        }
         if (!ok && started) {
           // The pick never took over: show what is really playing, and say why.
           const stuck = played().filter((id) => wanted[id] === m && choice[id] !== m);
@@ -183,6 +188,7 @@ if (me.mode === 'none') {
             saveChoice(wanted);
             panel.syncModels();
             panel.alert(accountProblem ?? `${modelName(m)} didn't wake up; still playing ${modelName(choice[stuck[0]])}. Pick it again to retry.`);
+            alertFor = m;
           }
         }
         adopt();
