@@ -22,6 +22,18 @@ describe('leaderboardRows', () => {
     expect(rows[0].stats).toContainEqual(['Cost per game', '$0.020']);
     expect(rows[0].maker).toBe('Cloudflare');
     expect(rows[0].playUrl).toBe('/?pacman=opper%2Fclef');
+    expect(rows[0].scoreLabel).toBe('3,200 points');
+  });
+
+  it('calls a lead within the margin of error a joint top score', () => {
+    const rows = leaderboardRows(board([
+      entry({ model: 'typesafe/jev-1.13.0', meanScore: 3181, scoreStdError: 186 }),
+      entry({ model: 'opper/clef', name: 'Clef', meanScore: 3038, scoreStdError: 125 }),
+      entry({ model: 'opper/kev-4b', name: 'Kev 4B', meanScore: 1445, scoreStdError: 22 }),
+    ]));
+    expect(rows.map((r) => r.badges.includes('Joint top score'))).toEqual([true, true, false]);
+    expect(rows.flatMap((r) => r.badges)).not.toContain('Most points');
+    expect(rows[0].scoreLabel).toBe('3,181 points ± 372');
   });
 
   it('copes with an empty board', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rank, summarize, type GameResult } from '../shared/leaderboard';
+import { rank, summarize, tooCloseToCall, type GameResult } from '../shared/leaderboard';
 
 const game = (over: Partial<GameResult>): GameResult => ({
   survived: 60, score: 2000, pellets: 200, deaths: 3, level: 1, calls: 100, decisions: 90, fallbacks: 0, overrides: 0,
@@ -20,6 +20,15 @@ describe('leaderboard', () => {
     const a = summarize('opper/clef', [game({ score: 1500 })]);
     const b = summarize('typesafe/jev-1.13.0', [game({ score: 2500 })]);
     expect(rank([a, b]).map((e) => e.model)).toEqual(['typesafe/jev-1.13.0', 'opper/clef']);
+  });
+
+  it('gives the margin of error on the score, and tells a real lead from noise', () => {
+    const a = summarize('opper/clef', [1000, 3000, 2000, 2000].map((score) => game({ score })));
+    expect(a.scoreStdError).toBe(408); // sd 816 over 4 games
+    const close = summarize('typesafe/jev-1.13.0', [1500, 3500, 2500, 2500].map((score) => game({ score })));
+    const far = summarize('opper/kev-4b', [100, 200, 150, 150].map((score) => game({ score })));
+    expect(tooCloseToCall(a, close)).toBe(true);
+    expect(tooCloseToCall(a, far)).toBe(false);
   });
 
   it('reports no latency for a model that never answered', () => {

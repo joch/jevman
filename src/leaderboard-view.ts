@@ -1,5 +1,5 @@
 import { DECISION_MODELS } from '../shared/models';
-import type { Leaderboard, LeaderboardEntry } from '../shared/leaderboard';
+import { tooCloseToCall, type Leaderboard, type LeaderboardEntry } from '../shared/leaderboard';
 
 export interface LeaderboardRow {
   rank: number;
@@ -7,6 +7,8 @@ export interface LeaderboardRow {
   name: string;
   maker: string;
   score: number;
+  /** e.g. "3,181 points ± 365": the mean and its margin of error (two standard errors). */
+  scoreLabel: string;
   /** Width of the score bar, relative to the best model. */
   barPercent: number;
   badges: string[];
@@ -24,8 +26,10 @@ const best = (entries: LeaderboardEntry[], value: (e: LeaderboardEntry) => numbe
 export function leaderboardRows(board: Leaderboard): LeaderboardRow[] {
   const entries = board.entries;
   const top = Math.max(1, ...entries.map((e) => e.meanScore));
+  // A lead within the margin of error is a tie, not a win.
+  const tied = entries.length > 1 && tooCloseToCall(entries[0], entries[1]);
   const winners: [string, string | undefined][] = [
-    ['Most points', best(entries, (e) => e.meanScore)],
+    ...(tied ? entries.slice(0, 2).map((e): [string, string] => ['Joint top score', e.model]) : [['Most points', best(entries, (e) => e.meanScore)] as [string, string | undefined]]),
     ['Survives longest', best(entries, (e) => e.meanSurvivedSeconds)],
     ['Fastest', best(entries, (e) => e.meanLatencyMs, true)],
     ['Cheapest', best(entries, (e) => e.costPerGame, true)],
@@ -36,6 +40,7 @@ export function leaderboardRows(board: Leaderboard): LeaderboardRow[] {
     name: e.name,
     maker: DECISION_MODELS.find((m) => m.id === e.model)?.maker ?? '',
     score: e.meanScore,
+    scoreLabel: `${e.meanScore.toLocaleString('en-US')} points${e.scoreStdError ? ` ± ${Math.round(2 * e.scoreStdError).toLocaleString('en-US')}` : ''}`,
     barPercent: Math.round((e.meanScore / top) * 100),
     badges: winners.filter(([, m]) => m === e.model).map(([label]) => label),
     stats: [

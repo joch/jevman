@@ -24,6 +24,8 @@ export interface LeaderboardEntry {
   name: string;
   games: number;
   meanScore: number;
+  /** Standard error of the mean score: about two of these either way is the margin of error. */
+  scoreStdError?: number;
   meanSurvivedSeconds: number;
   meanPellets: number;
   pelletsPerLife: number;
@@ -60,6 +62,7 @@ export function summarize(model: ModelId, games: GameResult[]): LeaderboardEntry
     name: modelName(model),
     games: games.length,
     meanScore: round(mean((g) => g.score)),
+    scoreStdError: round(stdError(games.map((g) => g.score))),
     meanSurvivedSeconds: round(mean((g) => g.survived), 1),
     meanPellets: round(mean((g) => g.pellets)),
     pelletsPerLife: round(sum((g) => g.pellets) / Math.max(1, sum((g) => g.deaths))),
@@ -71,6 +74,19 @@ export function summarize(model: ModelId, games: GameResult[]): LeaderboardEntry
     costPerGame: round(mean((g) => g.cost), 5),
     deathsBy,
   };
+}
+
+function stdError(xs: number[]): number {
+  if (xs.length < 2) return 0;
+  const m = xs.reduce((a, x) => a + x, 0) / xs.length;
+  const variance = xs.reduce((a, x) => a + (x - m) ** 2, 0) / (xs.length - 1);
+  return Math.sqrt(variance / xs.length);
+}
+
+/** Whether two models' mean scores are within the margin of error (about two standard errors of the difference). */
+export function tooCloseToCall(a: LeaderboardEntry, b: LeaderboardEntry): boolean {
+  if (a.scoreStdError === undefined || b.scoreStdError === undefined) return false;
+  return Math.abs(a.meanScore - b.meanScore) < 2 * Math.hypot(a.scoreStdError, b.scoreStdError);
 }
 
 export const rank = (entries: LeaderboardEntry[]): LeaderboardEntry[] => [...entries].sort((a, b) => b.meanScore - a.meanScore);

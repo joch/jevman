@@ -298,6 +298,8 @@ if (rec) {
   startDemo(rec);
   if (me.mode !== 'none') tick = both; // signed in, one tick plays the demo until a live game starts
   overlayAction = openPlay;
+  // From "Watch Clef play" on the leaderboard: straight to the Play card, with that model picked.
+  if (new URLSearchParams(location.search).has('pacman')) openPlay();
 } else {
   // No recording to show: open the card straight away, as before.
   for (const control of LIVE_CONTROLS) control.disabled = me.mode === 'none';

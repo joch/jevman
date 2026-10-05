@@ -64,7 +64,7 @@ const transport: Transport = async (body) => {
 async function warmUp(model: ModelId | undefined): Promise<string | null> {
   const body = { ...(model ? { model } : {}), state: { note: 'warm-up' }, questions: { warmup: { type: 'choice', instructions: 'Pick one.', criteria: { a: 'Option A', b: 'Option B' } } } };
   const started = performance.now();
-  for (let attempt = 1; performance.now() - started < 120_000; attempt++) {
+  for (let attempt = 1; performance.now() - started < 300_000; attempt++) {
     const t0 = performance.now();
     const res = await decide(body, 30_000);
     const ms = Math.round(performance.now() - t0);
@@ -75,7 +75,7 @@ async function warmUp(model: ModelId | undefined): Promise<string | null> {
     }
     if (res.status !== 200 && res.status !== 504) return `${(res.body as { error: string }).error}`;
   }
-  return 'did not answer within 1.8 s in 2 minutes of trying';
+  return 'did not answer within 1.8 s in 5 minutes of trying';
 }
 
 /** A model's display name; undefined is the server's default. */
