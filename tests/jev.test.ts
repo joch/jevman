@@ -16,6 +16,8 @@ describe('jev targets', () => {
     expect(endpointFor({ provider: 'typesafe', apiKey: 'k', baseUrl: 'https://api.typesafe.ai' })).toBe('https://api.typesafe.ai/v1/systemone');
     expect(modelFor('opper')).toBe('typesafe/jev-1.13.0');
     expect(modelFor('typesafe')).toBe('jev-1.13.0');
+    expect(modelFor('opper', { JEV_MODEL: 'opper/clef' })).toBe('opper/clef');
+    expect(modelFor('typesafe', { JEV_MODEL: ' ' })).toBe('jev-1.13.0');
   });
 
   it('prefers TYPESAFE_API_KEY over OPPER_API_KEY and honours base URL overrides', () => {

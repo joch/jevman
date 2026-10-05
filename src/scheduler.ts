@@ -1,5 +1,5 @@
 import { buildRequest, fallbackDecision, parseAnswer, questionName, type DecideResponse, type Decision, type PendingQuestion, type SystemOneRequest } from './brain';
-import { DEFAULT_MODEL, type ModelId } from '../shared/models';
+import type { ModelId } from '../shared/models';
 import { fruitRoute, optionFeatures, saferChoice } from './features';
 import { decisionPoints, type Controls, type DecisionPoint, type GameState } from './sim';
 import { ACTOR_IDS, type ActorId, type Dir } from './types';
@@ -8,7 +8,7 @@ export type Transport = (body: SystemOneRequest) => Promise<DecideResponse>;
 
 export type SchedulerEvent =
   | { type: 'decision'; decision: Decision; latencyMs: number | null; fruitOnBoard: boolean }
-  | { type: 'call'; /** Missing in games recorded before models could be chosen. */ model?: ModelId; actors: ActorId[]; latencyMs: number; usage: DecideResponse['usage']; costUsd: number | null; costEstimated?: boolean; traceId: string | null }
+  | { type: 'call'; /** The model that answered; missing in games recorded before models could be chosen. */ model?: string; actors: ActorId[]; latencyMs: number; usage: DecideResponse['usage']; costUsd: number | null; costEstimated?: boolean; traceId: string | null }
   | { type: 'stale'; actor: ActorId; key: string }
   /** An earlier `decision` that was never used; consumers should take it back out of their totals. */
   | { type: 'superseded'; decision: Decision }
@@ -22,8 +22,11 @@ export interface SchedulerDeps {
   maxInFlight?: number;
   /** Re-check Pac-Man's answer against the ghosts where they are now, at the junction (default on). */
   safetyCheck?: boolean;
-  /** The decision model for each character (default: jev for all). Read on every request, so it can change mid-game. */
-  modelFor?: (actor: ActorId) => ModelId;
+  /**
+   * The decision model for each character. Read on every request, so it can change mid-game. Without one (or when it
+   * returns undefined) the request names no model and the server uses its default: JEV_MODEL, else jev.
+   */
+  modelFor?: (actor: ActorId) => ModelId | undefined;
   /** Actors this scheduler asks jev about, fixed or per game state (default: all). */
   actors?: readonly ActorId[] | ((state: GameState) => readonly ActorId[]);
   /**
@@ -93,10 +96,10 @@ export class Scheduler implements Controls {
     }
 
     // One request per model: a System One request names a single model.
-    const byModel = new Map<ModelId, Pending[]>();
+    const byModel = new Map<ModelId | undefined, Pending[]>();
     for (const p of this.pending.values()) {
       if (p.sentAt !== null) continue;
-      const model = this.deps.modelFor?.(p.q.point.actor) ?? DEFAULT_MODEL;
+      const model = this.deps.modelFor?.(p.q.point.actor);
       byModel.set(model, [...(byModel.get(model) ?? []), p]);
     }
     for (const [model, batch] of byModel) {
@@ -143,14 +146,15 @@ export class Scheduler implements Controls {
     this.consumed.clear();
   }
 
-  private send(state: GameState, batch: Pending[], now: number, model: ModelId): void {
+  private send(state: GameState, batch: Pending[], now: number, requested: ModelId | undefined): void {
     for (const p of batch) p.sentAt = now;
     this.slots.inFlight += 1;
     const isCurrent = (p: Pending) => this.pending.get(p.q.point.key) === p;
     this.deps
-      .transport({ model, ...buildRequest(state, batch.map((p) => p.q)) })
+      .transport({ ...(requested ? { model: requested } : {}), ...buildRequest(state, batch.map((p) => p.q)) })
       .then(
         (res) => {
+          const model = res.model ?? requested;
           this.deps.onEvent({
             type: 'call',
             model,

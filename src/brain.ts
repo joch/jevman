@@ -40,6 +40,8 @@ export interface SystemOneRequest {
 }
 
 export interface DecideResponse {
+  /** The model the server called (missing from older servers). */
+  model?: string;
   answers: Record<string, unknown>;
   usage: { input_tokens: number; output_tokens: number };
   latencyMs: number;
@@ -59,7 +61,7 @@ export interface Decision {
   confidence: number | null;
   source: 'jev' | 'fallback';
   /** The model that answered, for decisions a model made (source 'jev'). */
-  model?: ModelId;
+  model?: string;
   reason?: string;
   /** Answer to a mid-corridor escape question rather than a junction choice. */
   escape?: boolean;

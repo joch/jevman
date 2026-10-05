@@ -30,6 +30,7 @@ describe('handleDecide', () => {
     const res = await handleDecide(body, deps(fetchMock));
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
+      model: 'typesafe/jev-1.13.0',
       answers,
       usage: { input_tokens: 5, output_tokens: 2 },
       latencyMs: 170,

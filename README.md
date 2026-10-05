@@ -61,6 +61,15 @@ A signed-in Login-with-Opper player always plays on their own key, through Opper
 server uses `TYPESAFE_API_KEY` if set, else `OPPER_API_KEY`. Variables exported in your shell take
 precedence over `.env`. The account area in the page header says which one is in use.
 
+### Another model
+
+jev is the default, but any model that speaks the System One API can play: set `JEV_MODEL` to its
+name, for example `opper/kev-4b` or `opper/clef` through Opper. It applies to the game, `npm run smoke`
+and `npm run bench`, and recordings note the model that played. Through TypeSafe directly (option C)
+the cost estimate still uses jev's price. It is the server's default: a model the game or the bench
+names explicitly (`--pacman-model`, `npm run leaderboard`) must be one of the
+[decision models](#decision-models) and wins over it.
+
 ## Scripts
 
 - `npm test` — unit tests (includes a check that the committed demo still replays exactly).
@@ -89,7 +98,8 @@ Opper serves several System One decision models with the same API, listed in
 `opper/clef` and `opper/clef-flash` (Cloudflare), `opper/kev-4b` (a Qwen3.5-4B fine-tune by Jared
 Palmer) and `berget/convaiinnovations/laya` (ConvAI Innovations; its 512-token context is shorter
 than one of our questions). The server forwards only these. Through Opper any of them can play; a
-TypeSafe key (option C) reaches jev only. The game itself still plays jev.
+TypeSafe key (option C) reaches jev only. The game itself plays the server's default (jev, or
+`JEV_MODEL`); choosing a model per character in the game comes next.
 
 ## Controls
 

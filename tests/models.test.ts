@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DECISION_MODELS, DEFAULT_MODEL, isModelId, modelName } from '../shared/models';
 import { handleDecide, type DecideDeps } from '../server/decide';
-import { modelFor } from '../server/jev';
+import { modelFor, requestedModelFor } from '../server/jev';
 
 const body = { state: { maze: ['#'] }, questions: { blinky: { type: 'choice', instructions: 'chase', criteria: { left: 'a', up: 'b' } } } };
 const answers = { blinky: { type: 'choice', choice: 'up', confidence: 0.9, probabilities: { up: 0.9, left: 0.1 } } };
@@ -20,10 +20,10 @@ describe('decision models', () => {
   });
 
   it('maps a model to the id each provider expects; TypeSafe only serves jev', () => {
-    expect(modelFor('opper', 'opper/kev-4b')).toBe('opper/kev-4b');
-    expect(modelFor('opper')).toBe('typesafe/jev-1.13.0');
-    expect(modelFor('typesafe', 'typesafe/jev-1.13.0')).toBe('jev-1.13.0');
-    expect(modelFor('typesafe', 'opper/kev-4b')).toBeNull();
+    expect(requestedModelFor('opper', 'opper/kev-4b')).toBe('opper/kev-4b');
+    expect(requestedModelFor('typesafe', 'typesafe/jev-1.13.0')).toBe('jev-1.13.0');
+    expect(requestedModelFor('typesafe', 'opper/kev-4b')).toBeNull();
+    expect(modelFor('opper', {})).toBe('typesafe/jev-1.13.0');
   });
 });
 
@@ -35,6 +35,21 @@ describe('handleDecide with a model', () => {
     const f2 = ok();
     await handleDecide(body, deps(f2));
     expect(sentModel(f2)).toBe('typesafe/jev-1.13.0');
+  });
+
+  it('uses JEV_MODEL when the request names no model, and still checks a named one against the list', async () => {
+    vi.stubEnv('JEV_MODEL', 'opper/kev-4b');
+    try {
+      const f = ok();
+      const res = await handleDecide(body, deps(f));
+      expect(sentModel(f)).toBe('opper/kev-4b');
+      expect((res.body as { model: string }).model).toBe('opper/kev-4b');
+      const named = ok();
+      await handleDecide({ ...body, model: 'opper/clef' }, deps(named));
+      expect(sentModel(named)).toBe('opper/clef');
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('refuses models outside the list, and non-jev models on a TypeSafe key', async () => {

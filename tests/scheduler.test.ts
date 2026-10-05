@@ -375,10 +375,13 @@ describe('a model per character', () => {
     expect(byActor).toEqual({ pacman: 'opper/kev-4b', blinky: 'typesafe/jev-1.13.0' });
   });
 
-  it('defaults every character to jev', () => {
+  it('names no model unless one was chosen, so the server default (JEV_MODEL or jev) applies', async () => {
     const one = harness();
     one.scheduler.update(createGame());
-    expect(one.calls.map((c) => c.body.model)).toEqual(['typesafe/jev-1.13.0']);
+    expect(one.calls.map((c) => c.body.model)).toEqual([undefined]);
+    one.calls[0].resolve({ ...answerAll(one.calls[0].body), model: 'opper/clef' });
+    await flush();
+    expect(ofType(one.events, 'decision').map((e) => e.decision.model)).toEqual(['opper/clef', 'opper/clef']);
   });
 
   it('sends the waiting model next when a slot frees up, so no model starves', async () => {

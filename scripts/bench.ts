@@ -13,7 +13,7 @@ import { createGame, step, type Controls } from '../src/sim';
 import type { DecideResponse } from '../src/brain';
 import { GHOST_IDS, type ActorId } from '../src/types';
 import { handleDecide } from '../server/decide';
-import { devTargetFromEnv } from '../server/jev';
+import { devTargetFromEnv, modelFor } from '../server/jev';
 import { Recorder, roundDt } from '../src/replay';
 import { GameStats } from '../src/stats';
 import { DECISION_MODELS, DEFAULT_MODEL, isModelId, modelName, type ModelId } from '../shared/models';
@@ -27,8 +27,9 @@ const { values } = parseArgs({
     max: { type: 'string' },
     record: { type: 'string' },
     safety: { type: 'string' },
-    'pacman-model': { type: 'string', default: DEFAULT_MODEL },
-    'ghost-model': { type: 'string', default: DEFAULT_MODEL },
+    // Without these the server's default plays: JEV_MODEL, else jev.
+    'pacman-model': { type: 'string' },
+    'ghost-model': { type: 'string' },
     models: { type: 'string' },
     parallel: { type: 'string' },
     out: { type: 'string', default: 'bench/leaderboard.json' },
@@ -60,8 +61,8 @@ const transport: Transport = async (body) => {
  * Opper-hosted models scale down when idle and the first calls can take many seconds; a game would turn them into
  * fallbacks. Call until one answer comes back quickly.
  */
-async function warmUp(model: ModelId): Promise<string | null> {
-  const body = { model, state: { note: 'warm-up' }, questions: { warmup: { type: 'choice', instructions: 'Pick one.', criteria: { a: 'Option A', b: 'Option B' } } } };
+async function warmUp(model: ModelId | undefined): Promise<string | null> {
+  const body = { ...(model ? { model } : {}), state: { note: 'warm-up' }, questions: { warmup: { type: 'choice', instructions: 'Pick one.', criteria: { a: 'Option A', b: 'Option B' } } } };
   const started = performance.now();
   for (let attempt = 1; performance.now() - started < 120_000; attempt++) {
     const t0 = performance.now();
@@ -69,7 +70,7 @@ async function warmUp(model: ModelId): Promise<string | null> {
     const ms = Math.round(performance.now() - t0);
     // Fast enough for the game's 2 s timeout, with room to spare.
     if (res.status === 200 && ms < 1800) {
-      console.log(`  warm: ${modelName(model)} answered in ${ms} ms (attempt ${attempt})`);
+      console.log(`  warm: ${nameOf(model)} answered in ${ms} ms (attempt ${attempt})`);
       return null;
     }
     if (res.status !== 200 && res.status !== 504) return `${(res.body as { error: string }).error}`;
@@ -77,7 +78,10 @@ async function warmUp(model: ModelId): Promise<string | null> {
   return 'did not answer within 1.8 s in 2 minutes of trying';
 }
 
-async function playOne(opts: { pacman: 'jev' | 'greedy'; ghosts: 'jev' | 'greedy'; pacmanModel: ModelId; ghostModel: ModelId; safetyCheck: boolean }): Promise<GameResult> {
+/** A model's display name; undefined is the server's default. */
+const nameOf = (model: ModelId | undefined) => modelName(model ?? modelFor(target?.provider ?? 'opper'));
+
+async function playOne(opts: { pacman: 'jev' | 'greedy'; ghosts: 'jev' | 'greedy'; pacmanModel?: ModelId; ghostModel?: ModelId; safetyCheck: boolean }): Promise<GameResult> {
   const jevActors: ActorId[] = [...(opts.pacman === 'jev' ? ['pacman' as const] : []), ...(opts.ghosts === 'jev' ? GHOST_IDS : [])];
   const realTime = jevActors.length > 0; // model latency only matters in real time; greedy-only games run flat out
   const state = createGame();
@@ -157,7 +161,7 @@ async function playOne(opts: { pacman: 'jev' | 'greedy'; ghosts: 'jev' | 'greedy
   });
   for (const d of summary.deaths) r.deathsBy[d.context] = (r.deathsBy[d.context] ?? 0) + 1;
   if (recorder) {
-    const out = JSON.stringify(recorder.finish(state, opts.pacmanModel));
+    const out = JSON.stringify(recorder.finish(state, opts.pacmanModel ?? modelFor(target?.provider ?? 'opper')));
     mkdirSync(dirname(values.record!), { recursive: true });
     writeFileSync(values.record!, out);
     console.log(`recorded ${recorder.frames.length} frames to ${values.record} (${(out.length / 1024).toFixed(0)} KB)`);
@@ -198,7 +202,7 @@ if (leaderboard) {
       write();
       continue;
     }
-    const results = await playMany(games, parallel, () => playOne({ pacman: 'jev', ghosts: 'greedy', pacmanModel: model, ghostModel: DEFAULT_MODEL, safetyCheck }));
+    const results = await playMany(games, parallel, () => playOne({ pacman: 'jev', ghosts: 'greedy', pacmanModel: model, safetyCheck }));
     for (const [i, r] of results.entries()) console.log(`  game ${i + 1}: ${line(r)}`);
     const entry = summarize(model, results);
     console.log(`  MEAN score ${entry.meanScore}, survived ${entry.meanSurvivedSeconds}s, pellets/life ${entry.pelletsPerLife}, fallbacks ${(entry.fallbackRate * 100).toFixed(1)}%, latency ${entry.meanLatencyMs} ms, $${entry.costPerGame}/game`);
@@ -215,10 +219,11 @@ if (leaderboard) {
 } else {
   const pacman = values.pacman === 'greedy' ? 'greedy' : 'jev';
   const ghosts = values.ghosts === 'jev' ? 'jev' : 'greedy';
-  const opts = { pacman, ghosts, pacmanModel: asModel(values['pacman-model']!), ghostModel: asModel(values['ghost-model']!), safetyCheck } as const;
-  const label = `pacman=${pacman === 'jev' ? modelName(opts.pacmanModel) : 'greedy'} ghosts=${ghosts === 'jev' ? modelName(opts.ghostModel) : 'greedy'}`;
+  const pick = (v: string | undefined) => (v === undefined ? undefined : asModel(v));
+  const opts = { pacman, ghosts, pacmanModel: pick(values['pacman-model']), ghostModel: pick(values['ghost-model']), safetyCheck } as const;
+  const label = `pacman=${pacman === 'jev' ? nameOf(opts.pacmanModel) : 'greedy'} ghosts=${ghosts === 'jev' ? nameOf(opts.ghostModel) : 'greedy'}`;
   console.log(`bench ${label}: ${games} games, cap ${maxSeconds}s, safety check ${safetyCheck ? 'on' : 'off'}${pacman === 'jev' || ghosts === 'jev' ? ` (real time, via ${target?.provider ?? 'no key'})` : ''}`);
-  const warm = async (model: ModelId) => {
+  const warm = async (model: ModelId | undefined) => {
     const problem = await warmUp(model);
     if (problem) fail(`${model}: ${problem}`);
   };
@@ -226,7 +231,7 @@ if (leaderboard) {
   if (ghosts === 'jev' && (pacman !== 'jev' || opts.ghostModel !== opts.pacmanModel)) await warm(opts.ghostModel);
   const results = await playMany(games, games, () => playOne(opts));
   for (const [i, r] of results.entries()) console.log(`  game ${i + 1}: ${line(r)}`);
-  const e = summarize(opts.pacmanModel, results);
+  const e = summarize(opts.pacmanModel ?? DEFAULT_MODEL, results);
   console.log(`deaths by situation: ${JSON.stringify(e.deathsBy)}`);
   console.log(`MEAN ${label}: score ${e.meanScore}, survived ${e.meanSurvivedSeconds}s, pellets ${e.meanPellets}, pellets/life ${e.pelletsPerLife}, ghosts ${e.meanGhostsEaten}, fruit eaten ${e.fruitEaten}, fallbacks ${(e.fallbackRate * 100).toFixed(1)}%, latency ${e.meanLatencyMs ?? '–'} ms, cost $${e.costPerGame.toFixed(4)}/game`);
 }

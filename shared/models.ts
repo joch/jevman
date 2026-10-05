@@ -16,4 +16,5 @@ export const DEFAULT_MODEL: ModelId = 'typesafe/jev-1.13.0';
 
 export const isModelId = (v: unknown): v is ModelId => DECISION_MODELS.some((m) => m.id === v);
 
-export const modelName = (id: ModelId): string => DECISION_MODELS.find((m) => m.id === id)!.name;
+/** The display name of a listed model; any other System One model (say, from JEV_MODEL) shows its id. */
+export const modelName = (id: string): string => DECISION_MODELS.find((m) => m.id === id)?.name ?? id;

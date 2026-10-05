@@ -17,12 +17,19 @@ export const TYPESAFE_USD_PER_INPUT_TOKEN = 0.042 / 1_000_000;
 
 const PATHS: Record<JevProvider, string> = { opper: '/v3/compat/v1/systemone', typesafe: '/v1/systemone' };
 
-/** The model id to send: Opper takes any listed model by its catalog id; TypeSafe's own API only serves jev. */
-export function modelFor(provider: 'opper', model?: ModelId): string;
-export function modelFor(provider: JevProvider, model?: ModelId): string | null;
-export function modelFor(provider: JevProvider, model: ModelId = DEFAULT_MODEL): string | null {
+const DEFAULTS: Record<JevProvider, string> = { opper: DEFAULT_MODEL, typesafe: 'jev-1.13.0' };
+
+/**
+ * The server's default System One model, for requests that name none. JEV_MODEL overrides it for both providers, so
+ * the same game can drive any model that speaks the System One API, e.g. `opper/kev-4b` or `opper/clef` through Opper.
+ */
+export const modelFor = (provider: JevProvider, env: Record<string, string | undefined> = process.env): string =>
+  env.JEV_MODEL?.trim() || DEFAULTS[provider];
+
+/** The id to send for a model the game asked for (one of shared/models.ts). TypeSafe's own API only serves jev. */
+export function requestedModelFor(provider: JevProvider, model: ModelId): string | null {
   if (provider === 'opper') return model;
-  return model === DEFAULT_MODEL ? 'jev-1.13.0' : null;
+  return model === DEFAULT_MODEL ? DEFAULTS.typesafe : null;
 }
 
 export const endpointFor = (t: JevTarget): string => `${t.baseUrl.replace(/\/+$/, '')}${PATHS[t.provider]}`;
