@@ -1,3 +1,4 @@
+import { DECISION_MODELS, DEFAULT_MODEL } from '../shared/models.ts';
 import { randomBytes } from 'node:crypto';
 import { openSession, parseCookies, safeEqual, sealSession, serializeCookie, SESSION_MAX_AGE_S, type SessionData } from './session.ts';
 
@@ -163,11 +164,16 @@ export function handleLogout(req: HttpRequest, cfg: AuthConfig): HttpResponse {
 }
 
 /** `devProvider` is where the server's own key sends calls when nobody is signed in (undefined: no dev key). */
-export function handleMe(req: HttpRequest, cfg: AuthConfig, devProvider: 'opper' | 'typesafe' | undefined): HttpResponse {
+export function handleMe(req: HttpRequest, cfg: AuthConfig, devProvider: 'opper' | 'typesafe' | undefined, env: Record<string, string | undefined> = process.env): HttpResponse {
   const session = sessionFrom(req, cfg);
   const base = { walletUrl: WALLET_URL, loginAvailable: loginConfigured(cfg) };
+  // Which decision models this key can play, and the one used when the game names none (JEV_MODEL, else jev).
+  const models = (provider: 'opper' | 'typesafe') => ({
+    defaultModel: env.JEV_MODEL?.trim() || DEFAULT_MODEL,
+    models: provider === 'opper' ? DECISION_MODELS.map((m) => m.id) : [DEFAULT_MODEL],
+  });
   if (session) {
-    return json(200, { mode: 'player', user: session.user, ...(session.projectName ? { projectName: session.projectName } : {}), ...base });
+    return json(200, { mode: 'player', user: session.user, ...(session.projectName ? { projectName: session.projectName } : {}), ...base, ...models('opper') });
   }
-  return json(200, devProvider ? { mode: 'dev', devProvider, ...base } : { mode: 'none', ...base });
+  return json(200, devProvider ? { mode: 'dev', devProvider, ...base, ...models(devProvider) } : { mode: 'none', ...base });
 }

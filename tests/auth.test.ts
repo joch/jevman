@@ -140,8 +140,11 @@ describe('session lookup, logout and /api/me', () => {
   });
   it('describes the account without the key', () => {
     const player = JSON.parse(handleMe(signedIn('/api/me'), cfg, 'opper').body);
-    expect(player).toEqual({ mode: 'player', user: { name: 'Ada' }, projectName: 'jevman', walletUrl: 'https://platform.opper.ai/wallet', loginAvailable: true });
-    expect(JSON.parse(handleMe(req('/api/me'), cfg, 'typesafe').body)).toMatchObject({ mode: 'dev', devProvider: 'typesafe' });
+    const all = ['typesafe/jev-1.13.0', 'opper/clef', 'opper/clef-flash', 'opper/kev-4b', 'berget/convaiinnovations/laya'];
+    expect(player).toEqual({ mode: 'player', user: { name: 'Ada' }, projectName: 'jevman', walletUrl: 'https://platform.opper.ai/wallet', loginAvailable: true, defaultModel: 'typesafe/jev-1.13.0', models: all });
+    // A TypeSafe key reaches jev only; the demo needs no models.
+    expect(JSON.parse(handleMe(req('/api/me'), cfg, 'typesafe').body)).toMatchObject({ mode: 'dev', devProvider: 'typesafe', models: ['typesafe/jev-1.13.0'] });
+    expect(JSON.parse(handleMe(req('/api/me'), cfg, 'opper').body)).toMatchObject({ mode: 'dev', models: all });
     expect(JSON.parse(handleMe(req('/api/me'), { ...cfg, clientId: undefined }, undefined).body)).toMatchObject({ mode: 'none', loginAvailable: false });
     expect(handleMe(signedIn('/api/me'), cfg, 'opper').body).not.toContain('op-player');
     expect(handleMe(signedIn('/api/me'), cfg, 'opper').headers['Cache-Control']).toBe('no-store');
