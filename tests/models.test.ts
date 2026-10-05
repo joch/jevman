@@ -40,6 +40,8 @@ describe('handleDecide with a model', () => {
   it('refuses models outside the list, and non-jev models on a TypeSafe key', async () => {
     const f = ok();
     expect((await handleDecide({ ...body, model: 'openai/gpt-5' }, deps(f))).status).toBe(400);
+    expect((await handleDecide({ ...body, model: { toString: 1 } }, deps(f))).status).toBe(400);
+    expect((await handleDecide({ ...body, model: '__proto__' }, deps(f))).status).toBe(400);
     const ts = await handleDecide({ ...body, model: 'opper/kev-4b' }, deps(f, { provider: 'typesafe', baseUrl: 'https://api.typesafe.ai' }));
     expect(ts.status).toBe(400);
     expect((ts.body as { error: string }).error).toMatch(/TypeSafe key only/);

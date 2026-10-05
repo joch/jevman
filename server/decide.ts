@@ -56,7 +56,9 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
   if (!deps.apiKey) return { status: 500, body: { error: 'No TYPESAFE_API_KEY or OPPER_API_KEY in .env — all decisions are fallbacks' } };
   if (!isDecideInput(input)) return { status: 400, body: { error: 'Expected { state, questions } with at least one question' } };
   const requested = input.model ?? DEFAULT_MODEL;
-  if (!isModelId(requested)) return { status: 400, body: { error: `Unknown decision model: ${String(requested).slice(0, 80)}` } };
+  if (!isModelId(requested)) {
+    return { status: 400, body: { error: `Unknown decision model: ${typeof requested === 'string' ? requested.slice(0, 80) : typeof requested}` } };
+  }
   const model = modelFor(provider, requested);
   if (model === null) return { status: 400, body: { error: `A TypeSafe key only reaches jev; ${requested} needs an Opper key` } };
 
@@ -81,7 +83,7 @@ export async function handleDecide(input: unknown, deps: DecideDeps): Promise<De
       if (deps.keyMode === 'player') {
         if (res.status === 401) return { status: 401, body: { error: 'Your Opper sign-in has expired — sign in again', signedOut: true, clearSession: true } };
         if (res.status === 402) return { status: 402, body: { error: 'Your Opper wallet is empty — top up to keep playing', walletUrl: WALLET_URL } };
-        if (res.status === 403) return { status: 403, body: { error: 'jev is not enabled for your Opper account' } };
+        if (res.status === 403) return { status: 403, body: { error: `${requested} is not enabled for your Opper account` } };
       }
       return { status: 502, body: { error } };
     }

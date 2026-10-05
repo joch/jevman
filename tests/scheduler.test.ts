@@ -375,12 +375,20 @@ describe('a model per character', () => {
     expect(byActor).toEqual({ pacman: 'opper/kev-4b', blinky: 'typesafe/jev-1.13.0' });
   });
 
-  it('defaults every character to jev and still respects the in-flight cap across models', () => {
+  it('defaults every character to jev', () => {
     const one = harness();
     one.scheduler.update(createGame());
     expect(one.calls.map((c) => c.body.model)).toEqual(['typesafe/jev-1.13.0']);
-    const capped = harness({ maxInFlight: 1, modelFor: (a) => (a === 'pacman' ? 'opper/kev-4b' : 'opper/clef') });
-    capped.scheduler.update(createGame());
-    expect(capped.calls).toHaveLength(1);
+  });
+
+  it('sends the waiting model next when a slot frees up, so no model starves', async () => {
+    const { calls, scheduler } = harness({ maxInFlight: 1, modelFor: (a) => (a === 'pacman' ? 'opper/kev-4b' : 'opper/clef') });
+    const s = createGame();
+    scheduler.update(s);
+    expect(calls.map((c) => c.body.model)).toEqual(['opper/kev-4b']);
+    calls[0].resolve(answerAll(calls[0].body));
+    await flush();
+    scheduler.update(s);
+    expect(calls.map((c) => c.body.model)).toEqual(['opper/kev-4b', 'opper/clef']);
   });
 });

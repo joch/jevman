@@ -7,5 +7,6 @@
 !tsconfig.json
 !src/
 !server/
+!shared/
 !public/
 !Dockerfile

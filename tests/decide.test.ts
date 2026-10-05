@@ -119,7 +119,7 @@ describe('player keys', () => {
   it.each([
     [401, 401, { error: 'Your Opper sign-in has expired — sign in again', signedOut: true, clearSession: true }],
     [402, 402, { error: 'Your Opper wallet is empty — top up to keep playing', walletUrl: 'https://platform.opper.ai/wallet' }],
-    [403, 403, { error: 'jev is not enabled for your Opper account' }],
+    [403, 403, { error: 'typesafe/jev-1.13.0 is not enabled for your Opper account' }],
   ])('maps upstream %i to %i for a player key', async (up, status, bodyOut) => {
     const res = await handleDecide(body, deps(upstream(up), { keyMode: 'player' }));
     expect(res).toEqual({ status, body: bodyOut });

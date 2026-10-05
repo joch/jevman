@@ -42,6 +42,8 @@ export interface Leaderboard {
   settings: { gamesPerModel: number; maxSeconds: number; safetyCheck: boolean; ghosts: 'scripted' };
   /** Best first: by mean score. */
   entries: LeaderboardEntry[];
+  /** Models that could not play (not warm in time, not enabled for the key, ...). */
+  skipped: { model: ModelId; reason: string }[];
 }
 
 const round = (n: number, places = 0) => Math.round(n * 10 ** places) / 10 ** places;
