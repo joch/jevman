@@ -1,13 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import type { Recording } from '../src/replay';
 import { recordGame } from './record-game';
-import { createGame, decisionPoints, step } from '../src/sim';
+import { createGame, decisionPoints, step, type DecisionPoint } from '../src/sim';
 import type { Dir } from '../src/types';
 import { scriptedControls } from '../scripts/game';
 import { verifyGame } from '../scripts/verify';
 
 
 const honest = recordGame();
+
+/** Replays a recording as verifyGame does, reporting each of Pac-Man's questions with the ones open before that step. */
+function replay(rec: Recording, onQuestion: (frame: number, point: DecisionPoint, open: Set<string>) => void, onFrame?: (frame: number, open: Set<string>) => void): void {
+  const moves = new Map<string, Dir[]>();
+  for (const [f, key, dir] of rec.decisions) if (/^pacman[@~]/.test(key)) moves.set(`${f}|${key}`, [...(moves.get(`${f}|${key}`) ?? []), dir]);
+  const s = createGame();
+  const ghosts = scriptedControls();
+  for (let f = 0; f < rec.frames.length; f++) {
+    const open = new Set(decisionPoints(s, 'pacman').map((p) => p.key));
+    onFrame?.(f, open);
+    step(s, rec.frames[f], {
+      decide: (point, st) => {
+        if (point.actor !== 'pacman') return ghosts.decide(point, st);
+        onQuestion(f, point, open);
+        return moves.get(`${f}|${point.key}`)?.shift() ?? null;
+      },
+    });
+  }
+}
 const copy = (): Recording => structuredClone(honest);
 
 describe('verifyGame', () => {
@@ -73,24 +92,39 @@ describe('verifyGame', () => {
   });
 
   it('refuses an answer to a question that only came up during the step', () => {
-    // Find a question the game asks in the middle of a step, before any scheduler update could have seen it.
+    // A question the game asks in the middle of a step, before any scheduler update could have seen it.
     const rec = copy();
-    const s = createGame();
-    const ctl = scriptedControls();
     let found: [number, string, Dir] | null = null;
-    for (let f = 0; f < rec.frames.length && !found; f++) {
-      const open = new Set(decisionPoints(s, 'pacman').map((p) => p.key));
-      step(s, rec.frames[f], {
-        decide: (point, st) => {
-          if (point.actor === 'pacman' && !open.has(point.key) && !found) found = [f, point.key, point.options[0]];
-          return ctl.decide(point, st);
-        },
-      });
-    }
+    replay(rec, (f, point, open) => {
+      if (!found && !open.has(point.key)) found = [f, point.key, point.options[0]];
+    });
     expect(found).not.toBeNull();
     rec.decisions.push(found!);
     rec.decisions.sort((a, b) => a[0] - b[0]);
-    expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/not open yet/) });
+    expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/not asked yet/) });
+  });
+
+  it('refuses an answer in the very frame its question was first asked', () => {
+    // A question the game asked in the same frame it opened (Pac-Man got there and had to wait): the bench's answer
+    // arrives a frame later at the soonest. Moving the recorded answer into that frame must be refused.
+    const rec = copy();
+    const openedAt = new Map<string, number>();
+    let target: { key: string; frame: number } | null = null;
+    replay(
+      rec,
+      (f, point) => {
+        if (!target && openedAt.get(point.key) === f && rec.decisions.some(([df, key]) => key === point.key && df > f)) target = { key: point.key, frame: f };
+      },
+      (f, open) => {
+        for (const key of [...openedAt.keys()]) if (!open.has(key)) openedAt.delete(key);
+        for (const key of open) if (!openedAt.has(key)) openedAt.set(key, f);
+      },
+    );
+    expect(target).not.toBeNull();
+    const d = rec.decisions.find(([df, key]) => key === target!.key && df > target!.frame)!;
+    d[0] = target!.frame;
+    rec.decisions.sort((a, b) => a[0] - b[0]);
+    expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/not asked yet/) });
   });
 
   it('refuses negative or infinite costs and latencies', () => {

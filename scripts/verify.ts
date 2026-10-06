@@ -84,8 +84,8 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
   let used = 0;
   let illegal: string | null = null;
   let clock = 0;
-  /** When each of Pac-Man's open questions was first seen, and the escape questions already answered (as the scheduler keeps them). */
-  const firstSeen = new Map<string, number>();
+  /** When (game time, frame) each of Pac-Man's open questions was first seen, and the escape questions already answered (as the scheduler keeps them). */
+  const firstSeen = new Map<string, { at: number; frame: number }>();
   const answered = new Set<string>();
   const fingerprint = createHash('sha256');
   // To 1/100 tile: honest real-time games that make the same moves are still tens of milliseconds apart.
@@ -96,7 +96,7 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
       if (r.survived >= rules.maxSeconds) return fail(`frames go on past the ${rules.maxSeconds} s cap (frame ${f})`);
       // Like the scheduler's update before each step: questions that closed are forgotten.
       const open = new Set(decisionPoints(state, 'pacman').map((p) => p.key));
-      for (const key of open) if (!firstSeen.has(key)) firstSeen.set(key, clock);
+      for (const key of open) if (!firstSeen.has(key)) firstSeen.set(key, { at: clock, frame: f });
       for (const key of firstSeen.keys()) if (!open.has(key)) firstSeen.delete(key);
       for (const key of answered) if (!open.has(key)) answered.delete(key);
       for (const e of events.get(f) ?? []) {
@@ -118,10 +118,11 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
           used += 1;
           if (illegal !== null) return dir;
           if (!point.options.includes(dir)) illegal = `frame ${f}: ${dir} is not a way out of (${point.tile.x},${point.tile.y})`;
-          // The scheduler only knows the questions open when it updated, before the step.
-          else if (!firstSeen.has(point.key)) illegal = `frame ${f}: an answer to a question that was not open yet`;
+          // The scheduler asks about a question in the update before a step; the answer arrives after that step at the
+          // earliest, so no answer is used in the frame its question was first seen.
+          else if (!((firstSeen.get(point.key)?.frame ?? f) < f)) illegal = `frame ${f}: an answer to a question that was not asked yet`;
           else if (point.escape && answered.has(point.key)) illegal = `frame ${f}: an escape question answered twice`;
-          else if (clock - firstSeen.get(point.key)! > MAX_ANSWER_SECONDS) illegal = `frame ${f}: an answer after more than ${MAX_ANSWER_SECONDS} s`;
+          else if (clock - firstSeen.get(point.key)!.at > MAX_ANSWER_SECONDS) illegal = `frame ${f}: an answer after more than ${MAX_ANSWER_SECONDS} s`;
           if (point.escape) answered.add(point.key);
           fingerprint.update(JSON.stringify([point.key, dir, at(s.pacman), ...GHOST_IDS.map((id) => [...at(s.ghosts[id]), s.ghosts[id].state])]));
           return dir;
