@@ -218,7 +218,7 @@ describe('optionFeatures for escape questions', () => {
 describe('fruitRoute', () => {
   const at = (distance: number) => ({ ...nextDecisionPoint(setup(), 'pacman')!, distance });
   const feat = (dir: Dir, over: Partial<OptionFeatures>): OptionFeatures => ({
-    dir, goalDistance: null, pacmanDistance: null, nearestPellet: 5, corridorPellets: 0, nearestDangerGhost: null, pelletsWithin: 0, exitsAhead: { total: 0, clear: 0 }, dangerGhostSteps: {},
+    dir, goalDistance: null, pacmanDistance: null, nearestPellet: 5, corridorPellets: 0, nearestDangerGhost: null,
     dangerInCorridor: [], nearestFrightenedGhost: null, frightenedGhostSteps: [], fruitDistance: null, nearestPowerPellet: null,
     dangerApproaching: false, dangerNearby: 0, junctionSteps: 3, junctionGhost: null, ...over,
   });
@@ -277,21 +277,5 @@ describe('fruitRoute', () => {
     const point = nextDecisionPoint(s, 'pacman')!;
     const feats = [feat('up', { nearestPellet: 1, fruitDistance: 30 }), feat('left', { nearestPellet: 6, fruitDistance: 8 }), feat('right', { nearestPellet: 3 })];
     expect(greedyChoice(s, point, feats)).toBe('left');
-  });
-});
-
-describe('richer route facts', () => {
-  it('counts nearby pellets, the ways on past the next junction and each ghost by route', () => {
-    const s = setup();
-    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 9, y: 23 }, dir: 'right', progress: 0 });
-    const point = nextDecisionPoint(s, 'pacman')!;
-    const feats = byDir(optionFeatures(s, point));
-    const left = feats.left;
-    expect(left.pelletsWithin).toBeGreaterThan(0);
-    expect(left.exitsAhead.total).toBeGreaterThan(0);
-    expect(left.exitsAhead.clear).toBeLessThanOrEqual(left.exitsAhead.total);
-    expect(left.dangerGhostSteps.blinky).toBe(left.nearestDangerGhost);
-    // Blinky sits in the corridor to the left: nothing past it counts as clear that way, and the route is DANGER.
-    expect(left.dangerInCorridor).toEqual(['blinky']);
   });
 });
