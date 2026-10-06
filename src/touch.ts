@@ -12,11 +12,13 @@ export function swipeDir(x0: number, y0: number, x1: number, y1: number, min = 1
  * Phone controls: swipe anywhere on `surface` (steering as soon as the finger has moved far enough, like a joystick),
  * plus the on-screen pad's buttons (`[data-dir]` inside `pad`).
  */
-export function attachTouch(surface: HTMLElement, pad: HTMLElement, steer: (dir: Dir) => void): void {
+export function attachTouch(surface: HTMLElement, pad: HTMLElement, steer: (dir: Dir) => void, steering: () => boolean): void {
   let start: { x: number; y: number } | null = null;
   surface.addEventListener(
     'touchstart',
     (e) => {
+      // Only while the player steers, and never on a card over the board (which must still scroll).
+      if (!steering() || (e.target instanceof Element && e.target.closest('#overlay'))) return void (start = null);
       const t = e.touches[0];
       start = { x: t.clientX, y: t.clientY };
     },

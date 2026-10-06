@@ -14,7 +14,7 @@ export interface Me {
 }
 
 export type AccountView = {
-  kind: 'player' | 'dev' | 'demo' | 'signed-out';
+  kind: 'player' | 'dev' | 'demo' | 'signed-out' | 'free';
   me: Me;
   notice?: string;
   /** Makes the notice a link (opened in a new tab), e.g. to the wallet. */
@@ -161,6 +161,10 @@ export function renderAccount(root: HTMLElement, view: AccountView): void {
     line('Local key', me.devProvider === 'typesafe' ? 'Playing with your TypeSafe key from .env' : 'Playing with the local dev key from .env');
     text.append(el('p', me.devProvider === 'typesafe' ? 'Calls go straight to TypeSafe.' : 'Calls go through Opper with your key.', 'hint'));
     if (me.loginAvailable && !retry) actions.append(signInButton(me));
+  } else if (view.kind === 'free') {
+    line('Free game', 'You against the classic ghosts');
+    text.append(runItYourself('Sign in to watch the AI or face AI ghosts, or '));
+    if (!retry) actions.append(signInButton(me));
   } else if (view.kind === 'demo') {
     line('Recorded demo', 'Play free, or sign in to let the AI play live');
     text.append(runItYourself('Calls bill your own Opper wallet, or '));

@@ -25,12 +25,11 @@ const run = (s: GameState, seconds: number) => {
 };
 
 describe('sound cues', () => {
-  it('wakas on pellets, plays the start jingle once, and sounds the power pellet', () => {
+  it('wakas on pellets and sounds the power pellet', () => {
     const fresh = createGame({ pacmanControl: 'keyboard' });
     for (const id of GHOST_IDS) fresh.ghosts[id].releaseAt = Infinity;
     fresh.ghosts.blinky.state = 'house';
     const cues = run(fresh, 2);
-    expect(cues.filter((c) => c === 'start')).toHaveLength(1);
     expect(cues).toContain('pellet');
     const s = playing();
     Object.assign(s.pacman, { tile: { x: 3, y: 23 }, dir: 'left', progress: 0 });

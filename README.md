@@ -4,8 +4,12 @@ Pac-Man where the characters are driven by System One decision models: TypeSafe'
 (`typesafe/jev-1.13.0`, the default) and the others Opper serves, called through Opper or (jev only)
 straight from TypeSafe. A model plays one side at a time. In **Watch AI play** (the default) a model
 steers Pac-Man and the ghosts follow the classic scripted rules. In **Play against AI** you steer
-Pac-Man and models play the four ghosts. Pick the mode and the [models](#decision-models) in the Play
-dialog, or switch sides with `J` during a game. `npm run leaderboard` measures which model plays best.
+Pac-Man and models play the four ghosts. **Beat the AI** is free and needs no sign-in: you against the
+classic ghosts, the same game the models played for the leaderboard, and game over tells you which AIs
+you beat (with a Share button and your personal best). Pick the mode and the
+[models](#decision-models) in the Play dialog, or switch sides with `J` during a game.
+`npm run leaderboard` measures which model plays best. While a model plays, its odds are drawn on the
+board at each junction.
 
 The side panel shows each decision with its probabilities, confidence, latency, the model that made
 it and the running cost. Red entries were not the model's own choice: greedy fallbacks used when it

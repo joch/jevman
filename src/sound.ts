@@ -1,6 +1,6 @@
 import type { GameState } from './sim';
 
-/** What happened in one step of the game that deserves a sound. */
+/** What happened in one step of the game that deserves a sound ('start' is played when a new game begins). */
 export type SoundCue = 'pellet' | 'power' | 'ghost' | 'fruit' | 'death' | 'levelclear' | 'start';
 
 const GHOST_POINTS = new Set(['200', '400', '800', '1600']);
@@ -25,8 +25,6 @@ export const snapshot = (s: GameState): SoundSnapshot => ({
 /** The sounds one step calls for, from the state before and after it. */
 export function cuesBetween(before: SoundSnapshot, after: GameState): SoundCue[] {
   const cues: SoundCue[] = [];
-  // READY → playing at the very start of a game (not the respawn after a life is lost).
-  if (before.status === 'ready' && after.status === 'playing' && after.level === 1 && after.lives === 3) cues.push('start');
   if (after.frightLeft > before.frightLeft + 0.5) cues.push('power');
   else if (after.pelletsEaten > before.pelletsEaten) cues.push('pellet');
   for (const p of after.popups) {

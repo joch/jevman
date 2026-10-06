@@ -76,8 +76,10 @@ const toggleSound = () => {
 };
 muteBtn.addEventListener('click', toggleSound);
 // Browsers allow audio only after a gesture; any click or key unlocks it.
-for (const ev of ['pointerdown', 'keydown'] as const) window.addEventListener(ev, () => sound.unlock(), { passive: true });
+// (iOS only counts the end of a tap as a gesture, hence pointerup/touchend/click as well as pointerdown.)
+for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const) window.addEventListener(ev, () => sound.unlock(), { passive: true });
 const dpad = $('#dpad');
+const boardEl = $('.board');
 /** The on-screen pad shows on touch screens while the player steers Pac-Man. */
 const touchScreen = matchMedia('(pointer: coarse)').matches;
 const help = $('.help');
@@ -168,13 +170,13 @@ const writeBest = (score: number) => {
   }
 };
 /** The system share sheet on phones (where people share from), else the clipboard. */
-async function shareScore(text: string): Promise<'shared' | 'copied' | 'failed'> {
+async function shareScore(text: string): Promise<'shared' | 'copied' | 'failed' | 'cancelled'> {
   if (navigator.share && touchScreen) {
     try {
       await navigator.share({ text });
       return 'shared';
     } catch (err) {
-      if ((err as Error)?.name === 'AbortError') return 'failed'; // the player closed the sheet
+      if ((err as Error)?.name === 'AbortError') return 'cancelled'; // the player closed the sheet
     }
   }
   try {
@@ -233,8 +235,13 @@ if (me.mode === 'none') {
   /** Whether the AI has played Pac-Man the whole game, on one model, so it compares with that model's average. */
   let aiPacmanThroughout: string | null = null;
   let gameOverExtra: GameOverExtra = {};
+  /** Whether the speed slider was below 1× at any point this game: the leaderboard ran at full speed. */
+  let slowed = false;
   /** The game-over extras: you against the AIs (classic game), or the AI against its leaderboard average. */
   const resultOf = (score: number): GameOverExtra => {
+    if (slowed && (classicThroughout || aiPacmanThroughout !== null)) {
+      return { aiNote: 'Played below full speed, so this game is not compared with the leaderboard (the AIs played at 1×).' };
+    }
     if (classicThroughout) {
       const best = readBest();
       const newBest = score > best;
@@ -245,7 +252,11 @@ if (me.mode === 'none') {
       return { newBest, best, versus: versusLine(v), share: () => shareScore(text) };
     }
     const entry = aiPacmanThroughout ? board?.entries.find((e) => e.model === aiPacmanThroughout) : undefined;
-    if (entry) return { aiNote: `${entry.name} scored ${score.toLocaleString('en-US')} this game; its leaderboard average is ${entry.meanScore.toLocaleString('en-US')}.` };
+    if (entry) {
+      return {
+        aiNote: `${entry.name} scored ${score.toLocaleString('en-US')} this game; its leaderboard average is ${entry.meanScore.toLocaleString('en-US')} (there, without the game's safety check, so the model plays alone).`,
+      };
+    }
     return {};
   };
   // Which model plays each character: the server default until the player picks, remembered in this browser.
@@ -365,12 +376,16 @@ if (me.mode === 'none') {
     if (!canUseAI) {
       toggleBtn.disabled = true; // the classic game only, until signing in
       toggleBtn.title = 'Sign in with Opper to watch the AI or face AI ghosts';
+      help.textContent = 'Arrows/WASD or swipe steer · P pause · R restart · M sound';
+      if (account.kind === 'demo' || account.kind === 'signed-out') showAccount({ kind: 'free', me });
     }
-    showToggle(liveMode);
+    if (!switching) showToggle(liveMode);
     state = createGame(sides(liveMode));
     thinking.clear();
+    slowed = speed < 1;
     classicThroughout = liveMode === 'classic';
     aiPacmanThroughout = liveMode === 'jev' ? choice.pacman : null;
+    sound.play('start');
     gameOverExtra = {};
     scheduler.reset();
     stats = new GameStats();
@@ -467,6 +482,7 @@ if (me.mode === 'none') {
   speedIn.addEventListener('input', () => {
     speed = Number(speedIn.value);
     speedOut.textContent = `${speed.toFixed(2)}×`;
+    if (speed < 1) slowed = true;
   });
   keyActions.set('j', togglePacman).set('r', restart);
   // A hidden tab pauses a live game (and the browser stops the clock anyway); resuming wakes the models first.
@@ -490,7 +506,7 @@ if (me.mode === 'none') {
   steer = (dir) => {
     if (started) state.keyDir = dir;
   };
-  attachTouch($('.board'), dpad, (dir) => steer?.(dir));
+  attachTouch($('.board'), dpad, (dir) => steer?.(dir), () => started && state.pacmanControl === 'keyboard' && overlayEl.hidden === true);
   const liveTick = (dt: number) => {
     clockMs += dt * 1000;
     scheduler.update(state);
@@ -576,8 +592,10 @@ function frame(now: number): void {
   if (!paused) tick(dt);
   drawGame(ctx, state, now / 1000, paused);
   if (state.status === 'playing') thinking.draw(ctx, now);
-  const showPad = touchScreen && !demo && state.pacmanControl === 'keyboard' && overlayEl.hidden;
+  const steering = !demo && state.pacmanControl === 'keyboard' && overlayEl.hidden === true;
+  const showPad = touchScreen && steering;
   if (dpad.hidden === showPad) dpad.hidden = !showPad;
+  boardEl.classList.toggle('steering', steering);
   panel.updateActors(state);
   updateHud();
   requestAnimationFrame(frame);

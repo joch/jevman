@@ -199,7 +199,7 @@ export interface GameOverExtra {
   best?: number;
   aiNote?: string;
   /** Shares the result (system share sheet, else the clipboard); resolves to what happened. */
-  share?: () => Promise<'shared' | 'copied' | 'failed'>;
+  share?: () => Promise<'shared' | 'copied' | 'failed' | 'cancelled'>;
 }
 
 export function showGameOver(root: HTMLElement, summary: GameSummary, onPlayAgain: () => void, extra: GameOverExtra = {}): void {
@@ -218,6 +218,7 @@ export function showGameOver(root: HTMLElement, summary: GameSummary, onPlayAgai
       share.type = 'button';
       share.addEventListener('click', () => {
         void extra.share!().then((r) => {
+          if (r === 'cancelled') return; // the share sheet was closed: nothing to report
           share.textContent = r === 'copied' ? 'Copied! Paste it anywhere' : r === 'shared' ? 'Shared!' : 'Could not share';
         });
       });
