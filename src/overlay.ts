@@ -129,8 +129,8 @@ export function showPlay(
     onSelect: (sides: Sides) => void;
     onPlay: () => void;
     models?: ModelPicking;
-    /** Leaderboard averages per model, for "jev averages 3,181 points". */
-    averages?: { model: string; meanScore: number }[];
+    /** Leaderboard averages per model, for "jev averages 3,181 points" (read on every render: they load later). */
+    averages?: () => { model: string; meanScore: number }[] | undefined;
     onClose?: () => void;
   },
 ): PlayCard {
@@ -197,7 +197,7 @@ export function showPlay(
       for (const [b, sd] of otherButtons) b.setAttribute('aria-checked', String(sameSides(sd, sides)));
       const aiVsAi = sides.pacman === 'ai' && sides.ghosts === 'ai';
       if (sameSides(sides, WATCH)) {
-        const avg = opts.averages?.find((a) => a.model === c?.pacman);
+        const avg = opts.averages?.()?.find((a) => a.model === c?.pacman);
         lineText.data = avg
           ? `${name(c!.pacman)} averages ${avg.meanScore.toLocaleString('en-US')} points against the classic ghosts on the leaderboard.`
           : 'Against the classic arcade ghosts, the same game as on the leaderboard.';

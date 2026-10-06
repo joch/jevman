@@ -146,9 +146,9 @@ function endDemo(): void {
 
 // The leaderboard, to compare a game with (loaded in the background; a game over before it arrives just skips it).
 let board: Leaderboard | null = null;
-void fetch('/leaderboard.json')
+const boardLoaded = fetch('/leaderboard.json')
   .then((r) => (r.ok ? (r.json() as Promise<Leaderboard>) : null))
-  .then((b) => (board = b))
+  .then((b) => void (board = b))
   .catch(() => {});
 const SHARE_URL = 'https://jevman.apps.chadda.se';
 const BEST_KEY = 'jevman.best';
@@ -490,12 +490,14 @@ if (me.mode === 'none') {
       onSelect: setMode,
       onPlay: () => play(),
       models: picking,
-      averages: board?.entries,
+      averages: () => board?.entries,
       onClose: demo ? () => ((playCard = null), closePlay()) : undefined,
     });
     overlayAction = playCard.action;
     closeAction = demo ? () => ((playCard = null), closePlay()) : null;
   };
+  // A card opened before the leaderboard arrived (a ?pacman= link) shows the model's average once it does.
+  void boardLoaded.then(() => playCard?.select(liveMode));
   toggleBtn.addEventListener('click', togglePacman);
   restartBtn.addEventListener('click', restart);
   speedIn.addEventListener('input', () => {
