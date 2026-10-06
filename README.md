@@ -8,7 +8,7 @@ Pac-Man and models play the four ghosts. **Beat the AI** is free and needs no si
 classic ghosts, the same game the models played for the leaderboard, and game over tells you which AIs
 you beat (with a Share button and your personal best). Pick the mode and the
 [models](#decision-models) in the Play dialog, or switch sides with `J` during a game.
-`npm run leaderboard` measures which model plays best. While a model plays, its odds are drawn on the
+`npm run leaderboard` measures which model plays best, and you can [add your own](#benchmark-your-own-model). While a model plays, its odds are drawn on the
 board at each junction.
 
 The side panel shows each decision with its probabilities, confidence, latency, the model that made
@@ -136,6 +136,23 @@ Pac-Man a game makes about 1–2 calls per second, so a typical game (two to thr
 runs out of lives) costs **about $0.01**, or **about $0.35 per hour** of continuous play. When you
 steer Pac-Man and jev plays the four ghosts it makes about 4 calls per second, **about $0.75 per
 hour**. Lowering the speed makes fewer calls. `npm run bench` reports the exact cost per game.
+
+## Benchmark your own model
+
+Any model can join the [leaderboard](https://jevman.apps.chadda.se/leaderboard) as **self-reported**. Put it behind an
+HTTP endpoint that answers jevman's questions (copy [`scripts/example-endpoint.ts`](scripts/example-endpoint.ts)),
+then:
+
+```bash
+npm run bench -- --endpoint http://localhost:8787 --games 2
+npm run bench -- --endpoint http://localhost:8787 --submit submissions/my-model --name "My Model" --by your-github-handle
+npm run submissions
+```
+
+The second command plays the leaderboard's 24 games and writes them to `submissions/my-model/`; the third checks them
+the way CI will. Commit the folder and open a pull request: CI replays every game and checks its score. The request
+and answer format, the rules and what "self-reported" means are in
+[CONTRIBUTING.md](CONTRIBUTING.md#benchmark-your-own-model).
 
 ## How decisions work
 
