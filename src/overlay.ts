@@ -85,12 +85,15 @@ export interface PlayCard {
   note: (text: string | null) => void;
 }
 
-/** One line on the game the chosen sides make. */
-export function gameLine(sides: Sides, pacman: string, ghosts: string): string {
-  if (isClassic(sides)) return 'You against the classic ghosts: the game the AIs played on the leaderboard. Free.';
-  if (sides.ghosts === 'classic') return `Watch ${pacman} play Pac-Man against the classic ghosts.`;
-  if (sides.pacman === 'you') return `You steer Pac-Man (arrows, WASD or swipe) against ${ghosts}'s ghosts.`;
-  return pacman === ghosts ? `${pacman} plays both sides: Pac-Man and the ghosts.` : `${pacman} plays Pac-Man, ${ghosts} plays the ghosts.`;
+/** The heading (a call to action) and one line on the game the chosen sides make. */
+export function gamePitch(sides: Sides, pacman: string, ghosts: string): { title: string; line: string } {
+  if (isClassic(sides)) return { title: 'Beat the AI', line: 'Score more than the AIs on the leaderboard: you play the same game they did. Free.' };
+  if (sides.ghosts === 'classic') return { title: 'Watch the AI play', line: `${pacman} plays Pac-Man against the classic ghosts.` };
+  if (sides.pacman === 'you') return { title: 'Play against the AI', line: `You steer Pac-Man (arrows, WASD or swipe); ${ghosts} plays the four ghosts.` };
+  return {
+    title: 'AI vs AI',
+    line: pacman === ghosts ? `${pacman} plays both sides: who wins, Pac-Man or the ghosts?` : `${pacman} as Pac-Man against ${ghosts}'s ghosts. Who wins?`,
+  };
 }
 
 /**
@@ -102,7 +105,7 @@ export function showPlay(
   me: Me,
   opts: { sides: Sides; onSelect: (sides: Sides) => void; onPlay: () => void; models?: ModelPicking; onClose?: () => void },
 ): PlayCard {
-  const card = el('div', undefined, 'card wide');
+  const card = el('div', undefined, 'card wide play');
   if (opts.onClose) {
     // Back to the recorded demo playing behind the card.
     const close = el('button', '×', 'close');
@@ -112,7 +115,8 @@ export function showPlay(
     card.append(close);
   }
   const signedOut = me.mode === 'none';
-  card.append(el('h2', signedOut ? 'Can you beat the AI?' : 'Ready when you are'));
+  const title = el('h2', signedOut ? 'Can you beat the AI?' : 'Ready when you are');
+  card.append(title);
   const play = el('button', undefined, 'primary');
   let sides: Sides = signedOut ? { pacman: 'you', ghosts: 'classic' } : opts.sides;
   const line = el('p', undefined, 'muted');
@@ -121,9 +125,11 @@ export function showPlay(
   const render = () => {
     const m = opts.models;
     const name = (id: string | undefined) => (id ? (m?.options.find((o) => o.id === id)?.label ?? modelName(id)) : 'the AI');
-    line.textContent = gameLine(sides, name(m?.choice().pacman), name(m?.choice().blinky));
+    const pitch = gamePitch(sides, name(m?.choice().pacman), name(m?.choice().blinky));
+    if (!signedOut) title.textContent = pitch.title;
+    line.textContent = pitch.line;
     cost.textContent = isClassic(sides)
-      ? ''
+      ? 'Free: no AI, nothing billed.'
       : me.mode === 'player'
         ? `About $0.01 a game from your Opper wallet per side the AI plays (Clef about $0.02).`
         : me.devProvider === 'typesafe'
@@ -181,7 +187,8 @@ export function showPlay(
     }
     render();
   };
-  card.append(line);
+  if (signedOut) card.append(line);
+  else rows.before(line); // under the heading: what this game is
   const icon = el('span', '▶ ');
   icon.setAttribute('aria-hidden', 'true');
   const label = el('span', signedOut ? 'Play free' : 'Play');

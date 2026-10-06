@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { gameLine, isClassic } from '../src/overlay';
+import { gamePitch, isClassic } from '../src/overlay';
 
 describe('the Play card', () => {
-  it('describes the game each choice of sides makes', () => {
-    expect(gameLine({ pacman: 'you', ghosts: 'classic' }, 'jev 1.13', 'Clef')).toMatch(/^You against the classic ghosts.*Free\.$/);
-    expect(gameLine({ pacman: 'ai', ghosts: 'classic' }, 'jev 1.13', 'Clef')).toBe('Watch jev 1.13 play Pac-Man against the classic ghosts.');
-    expect(gameLine({ pacman: 'you', ghosts: 'ai' }, 'jev 1.13', 'Clef')).toMatch(/against Clef's ghosts/);
-    expect(gameLine({ pacman: 'ai', ghosts: 'ai' }, 'jev 1.13', 'Clef')).toBe('jev 1.13 plays Pac-Man, Clef plays the ghosts.');
-    expect(gameLine({ pacman: 'ai', ghosts: 'ai' }, 'Clef', 'Clef')).toBe('Clef plays both sides: Pac-Man and the ghosts.');
+  it('pitches the game each choice of sides makes', () => {
+    expect(gamePitch({ pacman: 'you', ghosts: 'classic' }, 'jev 1.13', 'Clef')).toMatchObject({ title: 'Beat the AI', line: expect.stringMatching(/Free\.$/) });
+    expect(gamePitch({ pacman: 'ai', ghosts: 'classic' }, 'jev 1.13', 'Clef')).toEqual({ title: 'Watch the AI play', line: 'jev 1.13 plays Pac-Man against the classic ghosts.' });
+    expect(gamePitch({ pacman: 'you', ghosts: 'ai' }, 'jev 1.13', 'Clef')).toMatchObject({ title: 'Play against the AI', line: expect.stringMatching(/Clef plays the four ghosts/) });
+    expect(gamePitch({ pacman: 'ai', ghosts: 'ai' }, 'jev 1.13', 'Clef')).toEqual({ title: 'AI vs AI', line: "jev 1.13 as Pac-Man against Clef's ghosts. Who wins?" });
+    expect(gamePitch({ pacman: 'ai', ghosts: 'ai' }, 'Clef', 'Clef').line).toMatch(/plays both sides/);
   });
 
   it('counts only you against the classic ghosts as the free, leaderboard game', () => {
