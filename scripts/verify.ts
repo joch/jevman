@@ -52,7 +52,9 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
   const events = new Map<number, SchedulerEvent[]>();
   for (const e of rec.events) {
     if (!Array.isArray(e) || !Number.isInteger(e[0]) || typeof e[1]?.type !== 'string') return fail('malformed event');
-    if (e[1].type === 'call' && !((e[1].costUsd === null || e[1].costUsd >= 0) && e[1].latencyMs >= 0)) return fail('a call with a negative cost or latency');
+    // Finite too: 1e400 parses to Infinity, which would reach the leaderboard as null.
+    const amount = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+    if (e[1].type === 'call' && !((e[1].costUsd === null || amount(e[1].costUsd)) && amount(e[1].latencyMs))) return fail('a call with a negative or impossible cost or latency');
     const event = (e[1].type === 'call' ? { ...e[1], traceId: null } : e[1]) as SchedulerEvent;
     const list = events.get(e[0]);
     if (list) list.push(event);

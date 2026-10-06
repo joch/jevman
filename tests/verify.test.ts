@@ -85,10 +85,12 @@ describe('verifyGame', () => {
     expect(verifyGame(late)).toMatchObject({ ok: false, error: expect.stringMatching(/an answer after more than 4.5 s/) });
   });
 
-  it('refuses negative costs and latencies', () => {
-    const rec = copy();
-    rec.events.push([0, { type: 'call', actors: ['pacman'], latencyMs: 10, costUsd: -10 } as never]);
-    expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/negative/) });
+  it('refuses negative or infinite costs and latencies', () => {
+    for (const call of [{ latencyMs: 10, costUsd: -10 }, { latencyMs: 10, costUsd: JSON.parse('1e400') }, { latencyMs: Infinity, costUsd: null }, { latencyMs: '10', costUsd: null }]) {
+      const rec = copy();
+      rec.events.push([0, { type: 'call', actors: ['pacman'], ...call } as never]);
+      expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/negative or impossible/) });
+    }
   });
 
   it('refuses files far bigger than a game, quickly', () => {
