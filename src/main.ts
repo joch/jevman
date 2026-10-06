@@ -513,7 +513,9 @@ if (me.mode === 'none') {
   });
   beforeResume = async () => {
     if (!started) return true;
+    const id = gameId;
     const failed = await warming.warmAll(playedModels, () => {});
+    if (id !== gameId) return false; // restarted meanwhile: nothing here is about the new game
     if (failed.length) {
       panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the game stays paused. Press Resume to try again.`, 'resume');
       return false;
