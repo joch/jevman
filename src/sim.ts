@@ -130,7 +130,8 @@ export function createGame(opts: { pacmanControl?: PacmanControl; ghostsByAI?: b
     pacman: { ...base, id: 'pacman' },
     ghosts,
     pacmanControl: opts.pacmanControl ?? 'jev',
-    ghostsByAI: opts.ghostsByAI ?? true,
+    // Unless asked, the AI plays one side: the ghosts when the player steers Pac-Man.
+    ghostsByAI: opts.ghostsByAI ?? (opts.pacmanControl ?? 'jev') === 'keyboard',
     keyDir: null,
     status: 'ready',
     statusTimer: READY_SECONDS,
@@ -186,13 +187,9 @@ export const actorOf = (state: GameState, id: ActorId): Actor =>
 
 const ghostList = (state: GameState): Ghost[] => GHOST_IDS.map((id) => state.ghosts[id]);
 
-/**
- * Who the AI plays: one side, so its decisions are easy to follow. With the AI on Pac-Man the ghosts follow classic
- * scripted rules; when the player steers Pac-Man, models play the ghosts, unless it is the classic (free) game.
- */
+/** Who the AI plays: Pac-Man when it steers him, the ghosts when they are played by models (else the classic rules). */
 export function jevActors(state: Pick<GameState, 'pacmanControl' | 'ghostsByAI'>): readonly ActorId[] {
-  if (state.pacmanControl === 'jev') return ['pacman'];
-  return state.ghostsByAI ? GHOST_IDS : [];
+  return [...(state.pacmanControl === 'jev' ? (['pacman'] as const) : []), ...(state.ghostsByAI ? GHOST_IDS : [])];
 }
 
 export function isJevDriven(state: GameState, id: ActorId): boolean {

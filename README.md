@@ -2,12 +2,12 @@
 
 Pac-Man where the characters are driven by System One decision models: TypeSafe's jev
 (`typesafe/jev-1.13.0`, the default) and the others Opper serves, called through Opper or (jev only)
-straight from TypeSafe. A model plays one side at a time. In **Watch AI play** (the default) a model
-steers Pac-Man and the ghosts follow the classic scripted rules. In **Play against AI** you steer
-Pac-Man and models play the four ghosts. **Beat the AI** is free and needs no sign-in: you against the
-classic ghosts, the same game the models played for the leaderboard, and game over tells you which AIs
-you beat (with a Share button and your personal best). Pick the mode and the
-[models](#decision-models) in the Play dialog, or switch sides with `J` during a game.
+straight from TypeSafe. The Play dialog sets who plays each side: Pac-Man by **you** or the **AI**, and the ghosts
+by the **classic** arcade rules or the **AI**, each with its own [model](#decision-models). By default a model plays
+Pac-Man against the classic ghosts; with the AI on both sides, two models play each other. You against the classic
+ghosts is free and needs no sign-in: the same game the models played for the leaderboard, and game over tells you
+which AIs you beat (with a Share button and your personal best). `J` hands Pac-Man to the AI or takes him back
+during a game.
 `npm run leaderboard` measures which model plays best, and you can [add your own](#benchmark-your-own-model). While a model plays, its odds are drawn on the
 board at each junction.
 
@@ -115,9 +115,8 @@ Any other model can join the leaderboard as **self-reported**: its makers run th
 endpoint and send the recorded games in a pull request, which CI replays. See
 [CONTRIBUTING.md](CONTRIBUTING.md#benchmark-your-own-model).
 
-In the game, pick the model in the Play dialog: Pac-Man's model in **Watch AI play**, the ghosts'
-model (one for all, or one per ghost) in **Play against AI**. Each card on the decision panel has a
-dropdown to switch mid-game. Choices are remembered in your browser; the default is the server's
+In the game, pick the models in the Play dialog: one for Pac-Man and one for all the ghosts. Each card on the
+decision panel has a dropdown to switch that character's model, also mid-game. Choices are remembered in your browser; the default is the server's
 (jev, or `JEV_MODEL`), and the game only names a model when you pick another one. Opper-hosted
 models scale down when idle, so picking one sends a tiny warm-up call (`POST /api/warm`, one cheap
 call): Play waits for it ("Waking up Clef…"), and a mid-game switch takes over once the new model
@@ -125,7 +124,7 @@ answers.
 
 ## Controls
 
-Arrows/WASD steer Pac-Man in Play against AI · `J` or the Pac-Man button switches sides · `P` pause ·
+Arrows/WASD steer Pac-Man when you play him · `J` or the Pac-Man button hands him to the AI or back · `P` pause ·
 `R` restart · `M` sound on/off · the speed slider slows the game down. Space/Enter presses Play. On a phone,
 swipe on the board or use the on-screen pad.
 
@@ -135,7 +134,7 @@ Each jev call costs about **$0.00005**, through Opper or straight from TypeSafe.
 Pac-Man a game makes about 1–2 calls per second, so a typical game (two to three minutes until he
 runs out of lives) costs **about $0.01**, or **about $0.35 per hour** of continuous play. When you
 steer Pac-Man and jev plays the four ghosts it makes about 4 calls per second, **about $0.75 per
-hour**. Lowering the speed makes fewer calls. `npm run bench` reports the exact cost per game.
+hour**; with the AI on both sides, about the two together. Lowering the speed makes fewer calls. `npm run bench` reports the exact cost per game.
 
 ## Benchmark your own model
 

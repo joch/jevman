@@ -35,7 +35,6 @@ export const requestModel = (choice: ModelChoice, actor: ActorId, defaultModel: 
   return model === defaultModel || !isModelId(model) ? undefined : model;
 };
 
-export const ghostsShareModel = (choice: ModelChoice): boolean => GHOST_IDS.every((id) => choice[id] === choice.blinky);
 
 export function loadStoredChoice(): unknown {
   try {

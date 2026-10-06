@@ -1,6 +1,4 @@
-import { ghostsShareModel, setGhosts, type ModelChoice } from './choice';
-import { ACTOR_NAMES } from './brain';
-import { GHOST_IDS, type ActorId } from './types';
+import type { ModelChoice } from './choice';
 
 export interface ModelPicking {
   options: { id: string; label: string }[];
@@ -15,43 +13,4 @@ export function modelSelect(p: ModelPicking, value: string, onPick: (model: stri
   for (const o of p.options) select.append(new Option(o.label, o.id, false, o.id === value));
   select.addEventListener('change', () => onPick(select.value));
   return select;
-}
-
-/**
- * The "which model plays" controls for a mode: Pac-Man's model when the AI plays him, otherwise one model for all
- * ghosts, or one per ghost.
- */
-export function renderModelPick(root: HTMLElement, pacmanByModel: boolean, p: ModelPicking): void {
-  const choice = p.choice();
-  // Each pick builds on the choice as it is then (a card may have changed it), and leaves the dropdown in place.
-  const set = (change: (now: ModelChoice) => ModelChoice) => p.onChange(change(p.choice()));
-  const row = (label: string, control: HTMLElement) => {
-    const r = document.createElement('label');
-    r.className = 'model-row';
-    r.append(Object.assign(document.createElement('span'), { textContent: label }), control);
-    return r;
-  };
-  const rows: HTMLElement[] = [];
-  if (pacmanByModel) {
-    rows.push(row('Pac-Man is played by', modelSelect(p, choice.pacman, (m) => set((c) => ({ ...c, pacman: m })), 'Model playing Pac-Man')));
-  } else {
-    const perGhost = root.dataset.perGhost === 'true' || !ghostsShareModel(choice);
-    if (perGhost) {
-      for (const id of GHOST_IDS) rows.push(row(ACTOR_NAMES[id], modelSelect(p, choice[id], (m) => set((c) => ({ ...c, [id]: m }) as Record<ActorId, string>), `Model playing ${ACTOR_NAMES[id]}`)));
-    } else {
-      rows.push(row('The ghosts are played by', modelSelect(p, choice.blinky, (m) => set((c) => setGhosts(c, m)), 'Model playing the ghosts')));
-    }
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'link';
-    toggle.textContent = perGhost ? 'Same model for all ghosts' : 'Pick a model per ghost';
-    toggle.addEventListener('click', () => {
-      root.dataset.perGhost = String(!perGhost);
-      if (perGhost) set((c) => setGhosts(c, c.blinky));
-      renderModelPick(root, pacmanByModel, p);
-      root.querySelector<HTMLElement>('button.link')?.focus();
-    });
-    rows.push(toggle);
-  }
-  root.replaceChildren(...rows);
 }

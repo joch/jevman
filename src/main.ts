@@ -1,7 +1,7 @@
 import './style.css';
 import { accountNotice, fetchMe, renderAccount, takeAuthError, walletNotice, type AccountView } from './auth';
 import { DemoPlayer, loadRecording } from './demo';
-import { hideOverlay, showGameOver, showPlay, type GameOverExtra, type PlayMode } from './overlay';
+import { hideOverlay, isClassic, showGameOver, showPlay, type GameOverExtra, type Sides } from './overlay';
 import { shareText, versus, versusLine } from './versus';
 import type { Leaderboard } from '../shared/leaderboard';
 import { Panel } from './panel';
@@ -225,10 +225,8 @@ if (me.mode === 'none') {
   const transport = createHttpTransport(hooks);
   // Who steers Pac-Man in the next live game (the demo's own state is a recording).
   const canUseAI = me.mode !== 'none';
-  let liveMode: PlayMode = canUseAI ? 'jev' : 'classic';
-  /** The human mode J returns to from watching the AI. */
-  let lastHumanMode: PlayMode = 'keyboard';
-  const sides = (m: PlayMode) => ({ pacmanControl: m === 'jev' ? ('jev' as const) : ('keyboard' as const), ghostsByAI: m === 'keyboard' });
+  let liveMode: Sides = canUseAI ? { pacman: 'ai', ghosts: 'classic' } : { pacman: 'you', ghosts: 'classic' };
+  const sides = (m: Sides) => ({ pacmanControl: m.pacman === 'ai' ? ('jev' as const) : ('keyboard' as const), ghostsByAI: m.ghosts === 'ai' });
   const played = () => jevActors(started ? state : sides(liveMode));
   /** Whether this game has been the classic game from the start, so its score compares with the leaderboard. */
   let classicThroughout = false;
@@ -340,7 +338,7 @@ if (me.mode === 'none') {
       },
     });
   let scheduler = newScheduler(stats);
-  // The AI plays one side; the other side's characters follow the scripted rules.
+  // The sides the AI doesn't play follow the scripted rules.
   const controls: Controls = {
     decide: (point, s) => (jevActors(s).includes(point.actor) ? scheduler.decide(point, s) : greedyChoice(s, point, optionFeatures(s, point))),
   };
@@ -383,8 +381,9 @@ if (me.mode === 'none') {
     state = createGame(sides(liveMode));
     thinking.clear();
     slowed = speed < 1;
-    classicThroughout = liveMode === 'classic';
-    aiPacmanThroughout = liveMode === 'jev' ? choice.pacman : null;
+    classicThroughout = isClassic(liveMode);
+    // Only against the classic ghosts does the AI's score compare with its leaderboard average.
+    aiPacmanThroughout = liveMode.pacman === 'ai' && liveMode.ghosts === 'classic' ? choice.pacman : null;
     sound.play('start');
     gameOverExtra = {};
     scheduler.reset();
@@ -404,15 +403,14 @@ if (me.mode === 'none') {
   };
 
   let switching = false;
-  const showToggle = (m: PlayMode) => {
-    toggleBtn.textContent = `Pac-Man: ${m === 'jev' ? 'AI' : 'you'}`;
-    toggleBtn.setAttribute('aria-pressed', String(m === 'jev'));
+  const showToggle = (m: Sides) => {
+    toggleBtn.textContent = `Pac-Man: ${m.pacman === 'ai' ? 'AI' : 'you'}`;
+    toggleBtn.setAttribute('aria-pressed', String(m.pacman === 'ai'));
   };
-  const setMode = (mode: PlayMode): void => {
-    if (switching || (!canUseAI && mode !== 'classic')) return;
+  const setMode = (mode: Sides): void => {
+    if (switching || (!canUseAI && !isClassic(mode))) return;
     const apply = () => {
-      if (mode !== 'jev') lastHumanMode = mode;
-      if (mode !== liveMode) {
+      if (mode.pacman !== liveMode.pacman || mode.ghosts !== liveMode.ghosts) {
         classicThroughout = false;
         aiPacmanThroughout = null;
       }
@@ -446,7 +444,8 @@ if (me.mode === 'none') {
   };
   const togglePacman = (): void => {
     if (!canUseAI || (!started && !playCard)) return; // signed out (classic only), or J on the demo
-    setMode(liveMode === 'jev' ? lastHumanMode : 'jev');
+    // J hands Pac-Man to the AI or takes him back; the ghosts stay as they are.
+    setMode({ ...liveMode, pacman: liveMode.pacman === 'ai' ? 'you' : 'ai' });
   };
   let restarting = false;
   /** Restart / Play again (never skips the Play card): wake models that went cold on the game-over screen first. */
@@ -468,7 +467,7 @@ if (me.mode === 'none') {
     if (started || playCard) return;
     playCta.hidden = true;
     playCard = showPlay(overlayEl, me, {
-      mode: liveMode,
+      sides: liveMode,
       onSelect: setMode,
       onPlay: () => play(),
       models: picking,

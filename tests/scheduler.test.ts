@@ -293,15 +293,22 @@ describe('Scheduler and fruit', () => {
   });
 });
 
-describe('jev plays one side', () => {
-  it('asks about Pac-Man only while jev plays him, and about the ghosts only while the player steers', () => {
+describe('who the AI plays', () => {
+  it('asks about Pac-Man while a model plays him, and about the ghosts while models play them', () => {
     const { calls, scheduler } = harness({ actors: jevActors });
     const s = createGame({ pacmanControl: 'jev' });
     scheduler.update(s);
     expect(Object.keys(calls[0].body.questions)).toEqual(['pacman']);
     s.pacmanControl = 'keyboard';
+    s.ghostsByAI = true;
     scheduler.update(s);
     expect(Object.keys(calls[1].body.questions)).toEqual(['blinky']);
+  });
+
+  it('asks about both sides when models play both (AI vs AI)', () => {
+    expect(jevActors(createGame({ pacmanControl: 'jev', ghostsByAI: true }))).toEqual(['pacman', 'blinky', 'pinky', 'inky', 'clyde']);
+    expect(jevActors(createGame({ pacmanControl: 'jev' }))).toEqual(['pacman']);
+    expect(jevActors(createGame({ pacmanControl: 'keyboard' }))).toEqual(['blinky', 'pinky', 'inky', 'clyde']);
   });
 });
 
