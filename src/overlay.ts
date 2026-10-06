@@ -179,8 +179,13 @@ export function showPlay(
       render();
       opts.onSelect(next);
     };
-    // AI vs AI: the ghosts' model is picked in the sentence itself, so the card keeps its size.
+    // AI vs AI: the ghosts' model is picked in the sentence itself, so the card keeps its size. The line is built once
+    // (text, then the dropdown); render only changes the text, so the dropdown keeps its focus.
+    const lineText = document.createTextNode('');
     const ghostSelect = m ? modelSelect(m, m.choice().blinky, (model) => (m.onChange(setGhosts(m.choice(), model)), render()), 'Model playing the ghosts') : null;
+    const mixedOption = new Option('per-ghost picks', '');
+    mixedOption.disabled = true;
+    line.append(lineText, ...(ghostSelect ? [ghostSelect] : []));
     render = () => {
       const pick = chipsPick(sides);
       const c = m?.choice();
@@ -190,22 +195,29 @@ export function showPlay(
       for (const chip of chips.querySelectorAll<HTMLButtonElement>('button')) chip.setAttribute('aria-checked', String(chip.dataset.model === picked));
       chips.classList.toggle('off', pick === null);
       for (const [b, sd] of otherButtons) b.setAttribute('aria-checked', String(sameSides(sd, sides)));
+      const aiVsAi = sides.pacman === 'ai' && sides.ghosts === 'ai';
       if (sameSides(sides, WATCH)) {
         const avg = opts.averages?.find((a) => a.model === c?.pacman);
-        line.textContent = avg
+        lineText.data = avg
           ? `${name(c!.pacman)} averages ${avg.meanScore.toLocaleString('en-US')} points against the classic ghosts on the leaderboard.`
           : 'Against the classic arcade ghosts, the same game as on the leaderboard.';
       } else if (sides.pacman === 'you' && sides.ghosts === 'classic') {
-        line.textContent = 'Free: you against the classic ghosts, the same game the AIs played. See which AIs you beat.';
+        lineText.data = 'Free: you against the classic ghosts, the same game the AIs played. See which AIs you beat.';
       } else if (sides.pacman === 'you') {
-        line.textContent = `You steer Pac-Man (arrows, WASD or swipe); ${ghostsMixed() ? 'your picks per ghost play' : `${name(c?.blinky ?? '')} plays`} the four ghosts.`;
-      } else if (ghostSelect) {
-        if (ghostsMixed() && !ghostSelect.querySelector('option[value=""]')) {
-          const mixed = new Option('per-ghost picks', '', true, true);
-          mixed.disabled = true;
-          ghostSelect.prepend(mixed);
+        lineText.data = `You steer Pac-Man (arrows, WASD or swipe); ${ghostsMixed() ? 'your picks per ghost play' : `${name(c?.blinky ?? '')} plays`} the four ghosts.`;
+      } else {
+        lineText.data = `Pac-Man: ${name(c!.pacman)} · Ghosts: `;
+      }
+      if (ghostSelect) {
+        ghostSelect.hidden = !aiVsAi;
+        // Show the ghosts' model as it is now (a chip may have changed it), or that they have one each.
+        if (ghostsMixed()) {
+          if (!mixedOption.parentElement) ghostSelect.prepend(mixedOption);
+          ghostSelect.value = '';
+        } else {
+          mixedOption.remove();
+          ghostSelect.value = c!.blinky;
         }
-        line.replaceChildren(`Pac-Man: ${name(c!.pacman)} · Ghosts: `, ghostSelect);
       }
       label.textContent = playLabel();
     };
@@ -331,6 +343,6 @@ export function showGameOver(root: HTMLElement, summary: GameSummary, onPlayAgai
   }
   const again = el('button', 'Play again', 'primary');
   again.addEventListener('click', onPlayAgain);
-  card.append(again, el('p', 'or press Space / Enter / R', 'muted small'));
+  card.append(again, el('p', 'or press Space / Enter', 'muted small'));
   show(root, card, again);
 }

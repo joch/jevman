@@ -121,6 +121,7 @@ a.brand { color: inherit; text-decoration: none; }
 .overlay .chips.off button { opacity: 0.45; }
 .overlay .chips.off button:hover { opacity: 1; }
 .overlay .describe { min-height: 2.6em; }
+.overlay .describe .model-select[hidden] { display: none; }
 .overlay .describe .model-select { width: auto; margin: 0; font-size: 12px; padding: 0 4px; height: 1.6em; vertical-align: baseline; }
 .overlay .more { border-top: 1px solid #2a2a40; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; align-items: center; }
 .overlay .more h3 { margin: 0; }

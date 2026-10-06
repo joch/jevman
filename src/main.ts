@@ -452,15 +452,21 @@ if (me.mode === 'none') {
         panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the game didn't restart. Try again, or pick another model on the cards.`, 'restart');
         return;
       }
+      if (!started) return; // Restart opened the Play card meanwhile: that choice wins
       adopt();
       newGame();
     });
   };
   /** Restart (the button, R): end this game and pick what to play next in the Play card. */
   const restart = (): void => {
-    if (!started) return;
+    if (!started || restarting) return;
     started = false; // nothing runs (or is billed) behind the card
     paused = false;
+    // Retire the old game: answers still in flight reach its scheduler and stats, not the card.
+    gameOverShown = false;
+    scheduler.reset();
+    stats = new GameStats();
+    scheduler = newScheduler(stats);
     pauseBtn.textContent = 'Pause';
     openPlay();
   };
