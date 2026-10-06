@@ -396,6 +396,8 @@ if (me.mode === 'none') {
   };
 
   let switching = false;
+  /** Bumped by Restart: a side switch still waking its models from before then is dropped. */
+  let switchSeq = 0;
   const showToggle = (m: Sides) => {
     toggleBtn.textContent = `Pac-Man: ${m.pacman === 'ai' ? 'AI' : 'you'}`;
     toggleBtn.setAttribute('aria-pressed', String(m.pacman === 'ai'));
@@ -423,7 +425,9 @@ if (me.mode === 'none') {
     if (incoming.every((m) => warming.isWarm(m))) return apply();
     switching = true;
     toggleBtn.textContent = 'Waking up…';
+    const seq = ++switchSeq;
     void warming.warmAll(() => incoming, () => {}).then((failed) => {
+      if (seq !== switchSeq) return; // Restart cancelled this switch
       switching = false;
       if (failed.length) {
         // The current side plays on; say why the switch didn't happen.
@@ -459,7 +463,11 @@ if (me.mode === 'none') {
   };
   /** Restart (the button, R): end this game and pick what to play next in the Play card. */
   const restart = (): void => {
-    if (!started || restarting) return;
+    // Restart wins over a Play again or a J switch still waking models: both check for it when they finish.
+    if (!started) return;
+    switchSeq += 1;
+    switching = false;
+    showToggle(liveMode);
     started = false; // nothing runs (or is billed) behind the card
     paused = false;
     // Retire the old game: answers still in flight reach its scheduler and stats, not the card.
