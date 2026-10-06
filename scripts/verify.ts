@@ -118,8 +118,10 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
           used += 1;
           if (illegal !== null) return dir;
           if (!point.options.includes(dir)) illegal = `frame ${f}: ${dir} is not a way out of (${point.tile.x},${point.tile.y})`;
+          // The scheduler only knows the questions open when it updated, before the step.
+          else if (!firstSeen.has(point.key)) illegal = `frame ${f}: an answer to a question that was not open yet`;
           else if (point.escape && answered.has(point.key)) illegal = `frame ${f}: an escape question answered twice`;
-          else if (clock - (firstSeen.get(point.key) ?? clock) > MAX_ANSWER_SECONDS) illegal = `frame ${f}: an answer after more than ${MAX_ANSWER_SECONDS} s`;
+          else if (clock - firstSeen.get(point.key)! > MAX_ANSWER_SECONDS) illegal = `frame ${f}: an answer after more than ${MAX_ANSWER_SECONDS} s`;
           if (point.escape) answered.add(point.key);
           fingerprint.update(JSON.stringify([point.key, dir, at(s.pacman), ...GHOST_IDS.map((id) => [...at(s.ghosts[id]), s.ghosts[id].state])]));
           return dir;

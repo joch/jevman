@@ -3,29 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { Recorder, type Recording } from '../src/replay';
+import type { Recording } from '../src/replay';
+import { recordGame } from './record-game';
 import { createGame, step } from '../src/sim';
-import { scriptedControls } from '../scripts/game';
 import { checkSubmission } from '../scripts/submissions';
 import { BENCH_VERSION, type SubmissionRules } from '../shared/leaderboard';
 
 // Short games keep the replays quick; the rules are the same apart from the cap.
 const RULES: SubmissionRules = { minGames: 3, maxSeconds: 20, maxStep: 0.05 };
 
-function recordGame(dt: number): Recording {
-  const state = createGame();
-  const recorder = new Recorder();
-  let frame = 0;
-  const ctl = recorder.wrap(scriptedControls(), () => frame);
-  let survived = 0;
-  while (state.status !== 'gameover' && survived < RULES.maxSeconds) {
-    recorder.frames.push(dt);
-    step(state, dt, ctl);
-    if (state.status === 'playing') survived += dt;
-    frame += 1;
-  }
-  return recorder.finish(state, 'scripted');
-}
 // Different step timings make different games, as real-time runs do.
 /** The step that ends the opening "ready" pause. */
 function readyEnds(rec: Recording): number {
@@ -36,7 +22,7 @@ function readyEnds(rec: Recording): number {
   }
 }
 
-const recorded = [1 / 60, 1 / 59, 1 / 61, 1 / 58].map(recordGame);
+const recorded = [1 / 60, 1 / 59, 1 / 61, 1 / 58].map((dt) => recordGame(RULES.maxSeconds, dt));
 
 /** A submission folder as bench --submit writes it, with any part overridden. */
 function folder(opts: { manifest?: Record<string, unknown> | null; games?: number; tamper?: (rec: Recording) => void; same?: boolean } = {}): string {

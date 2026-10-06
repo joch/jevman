@@ -1,24 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { Recorder, type Recording } from '../src/replay';
-import { createGame, step } from '../src/sim';
+import type { Recording } from '../src/replay';
+import { recordGame } from './record-game';
+import { createGame, decisionPoints, step } from '../src/sim';
+import type { Dir } from '../src/types';
 import { scriptedControls } from '../scripts/game';
 import { verifyGame } from '../scripts/verify';
 
-/** A whole game with the scripted rule playing Pac-Man too, recorded the way the bench records one. */
-function recordGame(cap = 300): Recording {
-  const state = createGame();
-  const recorder = new Recorder();
-  let frame = 0;
-  const ctl = recorder.wrap(scriptedControls(), () => frame);
-  let survived = 0;
-  while (state.status !== 'gameover' && survived < cap) {
-    recorder.frames.push(1 / 60);
-    step(state, 1 / 60, ctl);
-    if (state.status === 'playing') survived += 1 / 60;
-    frame += 1;
-  }
-  return recorder.finish(state, 'scripted');
-}
 
 const honest = recordGame();
 const copy = (): Recording => structuredClone(honest);
@@ -83,6 +70,27 @@ describe('verifyGame', () => {
     for (const d of late.decisions) if (d[0] >= late.decisions[i][0]) d[0] += 100;
     late.final.frames = late.frames.length;
     expect(verifyGame(late)).toMatchObject({ ok: false, error: expect.stringMatching(/an answer after more than 4.5 s/) });
+  });
+
+  it('refuses an answer to a question that only came up during the step', () => {
+    // Find a question the game asks in the middle of a step, before any scheduler update could have seen it.
+    const rec = copy();
+    const s = createGame();
+    const ctl = scriptedControls();
+    let found: [number, string, Dir] | null = null;
+    for (let f = 0; f < rec.frames.length && !found; f++) {
+      const open = new Set(decisionPoints(s, 'pacman').map((p) => p.key));
+      step(s, rec.frames[f], {
+        decide: (point, st) => {
+          if (point.actor === 'pacman' && !open.has(point.key) && !found) found = [f, point.key, point.options[0]];
+          return ctl.decide(point, st);
+        },
+      });
+    }
+    expect(found).not.toBeNull();
+    rec.decisions.push(found!);
+    rec.decisions.sort((a, b) => a[0] - b[0]);
+    expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/not open yet/) });
   });
 
   it('refuses negative or infinite costs and latencies', () => {
