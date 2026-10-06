@@ -42,6 +42,8 @@ export interface GameState {
   pacman: Actor;
   ghosts: Record<GhostId, Ghost>;
   pacmanControl: PacmanControl;
+  /** Whether models play the ghosts while the player steers Pac-Man; false: the classic scripted ghosts (no AI). */
+  ghostsByAI: boolean;
   keyDir: Dir | null;
   status: Status;
   statusTimer: number;
@@ -117,7 +119,7 @@ export function fruitForLevel(level: number): { kind: string; points: number } {
   return { kind, points };
 }
 
-export function createGame(opts: { pacmanControl?: PacmanControl } = {}): GameState {
+export function createGame(opts: { pacmanControl?: PacmanControl; ghostsByAI?: boolean } = {}): GameState {
   const base = { tile: { x: 0, y: 0 }, dir: 'left' as Dir, progress: 0, waiting: false, epoch: 0 };
   const ghosts = Object.fromEntries(
     GHOST_IDS.map((id) => [id, { ...base, id, state: 'house' as GhostState, releaseAt: 0 }]),
@@ -128,6 +130,7 @@ export function createGame(opts: { pacmanControl?: PacmanControl } = {}): GameSt
     pacman: { ...base, id: 'pacman' },
     ghosts,
     pacmanControl: opts.pacmanControl ?? 'jev',
+    ghostsByAI: opts.ghostsByAI ?? true,
     keyDir: null,
     status: 'ready',
     statusTimer: READY_SECONDS,
@@ -184,11 +187,12 @@ export const actorOf = (state: GameState, id: ActorId): Actor =>
 const ghostList = (state: GameState): Ghost[] => GHOST_IDS.map((id) => state.ghosts[id]);
 
 /**
- * Who jev plays in the live game: one side, so its decisions are easy to follow. With jev playing Pac-Man the ghosts
- * follow classic scripted rules; when the player steers Pac-Man, jev plays the ghosts.
+ * Who the AI plays: one side, so its decisions are easy to follow. With the AI on Pac-Man the ghosts follow classic
+ * scripted rules; when the player steers Pac-Man, models play the ghosts, unless it is the classic (free) game.
  */
-export function jevActors(state: GameState): readonly ActorId[] {
-  return state.pacmanControl === 'jev' ? ['pacman'] : GHOST_IDS;
+export function jevActors(state: Pick<GameState, 'pacmanControl' | 'ghostsByAI'>): readonly ActorId[] {
+  if (state.pacmanControl === 'jev') return ['pacman'];
+  return state.ghostsByAI ? GHOST_IDS : [];
 }
 
 export function isJevDriven(state: GameState, id: ActorId): boolean {

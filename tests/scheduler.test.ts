@@ -89,6 +89,12 @@ describe('Scheduler', () => {
     expect(Object.keys(calls[1].body.questions)).toEqual(['blinky']);
   });
 
+  it('asks about nobody in the classic game: the player against the scripted ghosts', () => {
+    const { calls, scheduler } = harness({ actors: jevActors });
+    scheduler.update(createGame({ pacmanControl: 'keyboard', ghostsByAI: false }));
+    expect(calls).toHaveLength(0);
+  });
+
   it('marks estimated costs on call events', async () => {
     const { calls, events, scheduler } = harness();
     scheduler.update(createGame());

@@ -1,7 +1,7 @@
 import './style.css';
 import { accountNotice, fetchMe, renderAccount, takeAuthError, walletNotice, type AccountView } from './auth';
 import { DemoPlayer, loadRecording } from './demo';
-import { hideOverlay, showGameOver, showPlay } from './overlay';
+import { hideOverlay, showGameOver, showPlay, type PlayMode } from './overlay';
 import { Panel } from './panel';
 import { drawGame, FRUIT_EMOJI, TILE } from './render';
 import { greedyChoice, optionFeatures } from './features';
@@ -155,14 +155,9 @@ if (me.mode === 'none') {
     const stored = loadStoredChoice();
     saveChoice({ ...(stored && typeof stored === 'object' ? stored : {}), pacman: linked } as ModelChoice);
   }
-  // Signed out: the demo, and Play offers sign-in.
-  openPlay = () => {
-    playCta.hidden = true;
-    const card = showPlay(overlayEl, me, { mode: 'jev', onSelect: () => {}, onPlay: () => {}, onClose: rec ? closePlay : undefined });
-    overlayAction = card.action;
-    closeAction = rec ? closePlay : null;
-  };
-} else {
+}
+// The live game, for everyone: signed out it is the classic game only (the player against the scripted ghosts, no AI).
+{
   let signedOutShown = false;
   let walletShown = false;
   const hooks: TransportHooks = {
@@ -179,8 +174,14 @@ if (me.mode === 'none') {
   };
   const transport = createHttpTransport(hooks);
   // Who steers Pac-Man in the next live game (the demo's own state is a recording).
-  let liveControl: 'jev' | 'keyboard' = 'jev';
-  const played = () => jevActors(started ? state : ({ pacmanControl: liveControl } as GameState));
+  const canUseAI = me.mode !== 'none';
+  let liveMode: PlayMode = canUseAI ? 'jev' : 'classic';
+  /** The human mode J returns to from watching the AI. */
+  let lastHumanMode: PlayMode = 'keyboard';
+  const sides = (m: PlayMode) => ({ pacmanControl: m === 'jev' ? ('jev' as const) : ('keyboard' as const), ghostsByAI: m === 'keyboard' });
+  const played = () => jevActors(started ? state : sides(liveMode));
+  /** Whether this game has been the classic game from the start, so its score compares with the leaderboard. */
+  let classicThroughout = false;
   // Which model plays each character: the server default until the player picks, remembered in this browser.
   const defaultModel = me.defaultModel ?? DEFAULT_MODEL;
   // `wanted` is what the player picked; `choice` is what plays. A newly picked model takes over once it is awake, so a
@@ -293,7 +294,13 @@ if (me.mode === 'none') {
   /** A fresh live game (the first one ends the demo). */
   const newGame = (): void => {
     if (demo) endDemo();
-    state = createGame({ pacmanControl: liveControl });
+    if (!canUseAI) {
+      toggleBtn.disabled = true; // the classic game only, until signing in
+      toggleBtn.title = 'Sign in with Opper to watch the AI or face AI ghosts';
+    }
+    showToggle(liveMode);
+    state = createGame(sides(liveMode));
+    classicThroughout = liveMode === 'classic';
     scheduler.reset();
     stats = new GameStats();
     scheduler = newScheduler(stats);
@@ -311,23 +318,28 @@ if (me.mode === 'none') {
   };
 
   let switching = false;
-  const setPacmanControl = (control: 'jev' | 'keyboard'): void => {
-    if (switching) return;
+  const showToggle = (m: PlayMode) => {
+    toggleBtn.textContent = `Pac-Man: ${m === 'jev' ? 'AI' : 'you'}`;
+    toggleBtn.setAttribute('aria-pressed', String(m === 'jev'));
+  };
+  const setMode = (mode: PlayMode): void => {
+    if (switching || (!canUseAI && mode !== 'classic')) return;
     const apply = () => {
-      liveControl = control;
+      if (mode !== 'jev') lastHumanMode = mode;
+      if (mode !== liveMode) classicThroughout = false;
+      liveMode = mode;
       if (started) {
-        state.pacmanControl = control;
+        Object.assign(state, sides(mode));
         state.keyDir = null;
         panel.clearAlert('switch');
       }
-      toggleBtn.textContent = `Pac-Man: ${control === 'jev' ? 'AI' : 'you'}`;
-      toggleBtn.setAttribute('aria-pressed', String(control === 'jev'));
-      playCard?.select(control);
+      showToggle(mode);
+      playCard?.select(mode);
       if (started) warmPlayed();
     };
     if (!started) return apply();
     // Mid-game: the side that takes over keeps waiting for its models; the current side plays on meanwhile.
-    const incoming = [...new Set(jevActors({ pacmanControl: control } as GameState).map((id) => wanted[id]))];
+    const incoming = [...new Set(jevActors(sides(mode)).map((id) => wanted[id]))];
     if (incoming.every((m) => warming.isWarm(m))) return apply();
     switching = true;
     toggleBtn.textContent = 'Waking up…';
@@ -335,7 +347,7 @@ if (me.mode === 'none') {
       switching = false;
       if (failed.length) {
         // The current side plays on; say why the switch didn't happen.
-        toggleBtn.textContent = `Pac-Man: ${liveControl === 'jev' ? 'AI' : 'you'}`;
+        showToggle(liveMode);
         panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the sides didn't switch. Press J to try again.`, 'switch');
         return;
       }
@@ -344,8 +356,8 @@ if (me.mode === 'none') {
     });
   };
   const togglePacman = (): void => {
-    if (!started && !playCard) return; // J on the demo: nothing to switch yet
-    setPacmanControl(liveControl === 'jev' ? 'keyboard' : 'jev');
+    if (!canUseAI || (!started && !playCard)) return; // signed out (classic only), or J on the demo
+    setMode(liveMode === 'jev' ? lastHumanMode : 'jev');
   };
   let restarting = false;
   /** Restart / Play again (never skips the Play card): wake models that went cold on the game-over screen first. */
@@ -367,8 +379,8 @@ if (me.mode === 'none') {
     if (started || playCard) return;
     playCta.hidden = true;
     playCard = showPlay(overlayEl, me, {
-      mode: liveControl,
-      onSelect: setPacmanControl,
+      mode: liveMode,
+      onSelect: setMode,
       onPlay: () => play(),
       models: picking,
       onClose: demo ? () => ((playCard = null), closePlay()) : undefined,
@@ -431,13 +443,13 @@ playCta.addEventListener('click', () => openPlay());
 if (rec) {
   const both = tick;
   startDemo(rec);
-  if (me.mode !== 'none') tick = both; // signed in, one tick plays the demo until a live game starts
+  tick = both; // one tick plays the demo until a live game starts
   overlayAction = openPlay;
   // From "Watch Clef play" on the leaderboard: straight to the Play card, with that model picked.
   if (new URLSearchParams(location.search).has('pacman')) openPlay();
 } else {
   // No recording to show: open the card straight away, as before.
-  for (const control of LIVE_CONTROLS) control.disabled = me.mode === 'none';
+  for (const control of LIVE_CONTROLS) control.disabled = false;
   openPlay();
 }
 showAccount({ ...account, notice: accountNotice(me, authError, me.mode === 'none' && Boolean(rec)) });

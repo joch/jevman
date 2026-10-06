@@ -162,7 +162,7 @@ export function renderAccount(root: HTMLElement, view: AccountView): void {
     text.append(el('p', me.devProvider === 'typesafe' ? 'Calls go straight to TypeSafe.' : 'Calls go through Opper with your key.', 'hint'));
     if (me.loginAvailable && !retry) actions.append(signInButton(me));
   } else if (view.kind === 'demo') {
-    line('Recorded demo', 'Sign in to let the AI play live');
+    line('Recorded demo', 'Play free, or sign in to let the AI play live');
     text.append(runItYourself('Calls bill your own Opper wallet, or '));
     if (!retry) actions.append(signInButton(me));
   } else {
