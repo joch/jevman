@@ -10,6 +10,7 @@ import { createGame, fruitForLevel, jevActors, step, type Controls, type GameSta
 import { GameStats } from './stats';
 import { createHttpTransport, warmUp, type TransportHooks } from './transport';
 import { attachTouch } from './touch';
+import { cuesBetween, snapshot, Sound } from './sound';
 import { initialChoice, loadStoredChoice, modelOptions, requestModel, saveChoice, type ModelChoice } from './choice';
 import type { ModelPicking } from './picker';
 import { effectiveChoice, ModelWarming } from './warming';
@@ -55,6 +56,22 @@ const speedIn = $<HTMLInputElement>('#speed');
 const speedOut = $('#speed-out');
 const restartBtn = $<HTMLButtonElement>('#restart');
 const playCta = $<HTMLButtonElement>('#play-cta');
+const muteBtn = $<HTMLButtonElement>('#mute');
+const sound = new Sound();
+const showSound = () => {
+  muteBtn.textContent = sound.enabled ? '🔊' : '🔇';
+  muteBtn.setAttribute('aria-pressed', String(!sound.enabled));
+  muteBtn.title = sound.enabled ? 'Mute (M)' : 'Unmute (M)';
+};
+showSound();
+const toggleSound = () => {
+  sound.toggle();
+  sound.unlock();
+  showSound();
+};
+muteBtn.addEventListener('click', toggleSound);
+// Browsers allow audio only after a gesture; any click or key unlocks it.
+for (const ev of ['pointerdown', 'keydown'] as const) window.addEventListener(ev, () => sound.unlock(), { passive: true });
 const dpad = $('#dpad');
 /** The on-screen pad shows on touch screens while the player steers Pac-Man. */
 const touchScreen = matchMedia('(pointer: coarse)').matches;
@@ -82,7 +99,7 @@ function togglePause(): void {
 pauseBtn.addEventListener('click', togglePause);
 
 const overlayEl = $('#overlay');
-const keyActions = new Map<string, () => void>([['p', togglePause]]);
+const keyActions = new Map<string, () => void>([['p', togglePause], ['m', toggleSound]]);
 /** What Space/Enter does while an overlay is open (Play, Play again), or on the demo (open the Play card). */
 let overlayAction: (() => void) | null = null;
 /** What Escape does: close the Play card and go back to the demo. */
@@ -392,8 +409,10 @@ if (me.mode === 'none') {
     clockMs += dt * 1000;
     scheduler.update(state);
     stats.beforeStep(state);
+    const heard = snapshot(state);
     step(state, dt * speed, controls);
     stats.afterStep(state, dt * speed);
+    for (const cue of cuesBetween(heard, state)) sound.play(cue);
     if (state.status === 'gameover' && !gameOverShown) {
       gameOverShown = true;
       overlayAction = restart;

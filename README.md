@@ -113,7 +113,8 @@ answers.
 ## Controls
 
 Arrows/WASD steer Pac-Man in Play against AI · `J` or the Pac-Man button switches sides · `P` pause ·
-`R` restart · the speed slider slows the game down. Space/Enter presses Play.
+`R` restart · `M` sound on/off · the speed slider slows the game down. Space/Enter presses Play. On a phone,
+swipe on the board or use the on-screen pad.
 
 ## Cost
 
