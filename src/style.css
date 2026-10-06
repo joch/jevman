@@ -20,7 +20,14 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .layout { display: grid; grid-template-columns: auto minmax(320px, 440px); gap: 24px; justify-content: center; align-items: start; }
 @media (max-width: 1040px) { .layout { grid-template-columns: 1fr; } }
 .game { display: flex; flex-direction: column; gap: 8px; }
-canvas { background: #000; border-radius: 6px; max-width: 100%; height: auto; }
+canvas { background: #000; border-radius: 6px; max-width: 100%; height: auto; touch-action: none; }
+.dpad { display: grid; grid-template-columns: repeat(3, 64px); grid-template-rows: repeat(2, 56px); gap: 6px; justify-content: center; margin: 4px 0; }
+.dpad[hidden] { display: none; }
+.dpad button { font-size: 22px; padding: 0; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.dpad [data-dir='up'] { grid-column: 2; grid-row: 1; }
+.dpad [data-dir='left'] { grid-column: 1; grid-row: 2; }
+.dpad [data-dir='down'] { grid-column: 2; grid-row: 2; }
+.dpad [data-dir='right'] { grid-column: 3; grid-row: 2; }
 .hud { display: flex; flex-wrap: wrap; gap: 4px 20px; font-family: ui-monospace, monospace; font-size: 15px; }
 .hud span { white-space: nowrap; }
 .hud b { color: var(--accent); }

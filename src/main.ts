@@ -9,6 +9,7 @@ import { Scheduler } from './scheduler';
 import { createGame, fruitForLevel, jevActors, step, type Controls, type GameState } from './sim';
 import { GameStats } from './stats';
 import { createHttpTransport, warmUp, type TransportHooks } from './transport';
+import { attachTouch } from './touch';
 import { initialChoice, loadStoredChoice, modelOptions, requestModel, saveChoice, type ModelChoice } from './choice';
 import type { ModelPicking } from './picker';
 import { effectiveChoice, ModelWarming } from './warming';
@@ -54,6 +55,9 @@ const speedIn = $<HTMLInputElement>('#speed');
 const speedOut = $('#speed-out');
 const restartBtn = $<HTMLButtonElement>('#restart');
 const playCta = $<HTMLButtonElement>('#play-cta');
+const dpad = $('#dpad');
+/** The on-screen pad shows on touch screens while the player steers Pac-Man. */
+const touchScreen = matchMedia('(pointer: coarse)').matches;
 const help = $('.help');
 const hud = { score: $('#score'), level: $('#level'), lives: $('#lives'), fruit: $('#fruit-hud') };
 
@@ -112,7 +116,7 @@ function endDemo(): void {
     control.title = '';
   }
   speedIn.closest('label')!.hidden = false;
-  help.textContent = 'Arrows/WASD steer when you play Pac-Man · J switch sides · P pause · R restart';
+  help.textContent = 'Arrows/WASD or swipe steer when you play Pac-Man · J switch sides · P pause · R restart';
   playCta.hidden = true;
 }
 
@@ -383,6 +387,7 @@ if (me.mode === 'none') {
   steer = (dir) => {
     if (started) state.keyDir = dir;
   };
+  attachTouch($('.board'), dpad, (dir) => steer?.(dir));
   const liveTick = (dt: number) => {
     clockMs += dt * 1000;
     scheduler.update(state);
@@ -461,6 +466,8 @@ function frame(now: number): void {
   last = now;
   if (!paused) tick(dt);
   drawGame(ctx, state, now / 1000, paused);
+  const showPad = touchScreen && !demo && state.pacmanControl === 'keyboard' && overlayEl.hidden;
+  if (dpad.hidden === showPad) dpad.hidden = !showPad;
   panel.updateActors(state);
   updateHud();
   requestAnimationFrame(frame);

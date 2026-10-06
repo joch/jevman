@@ -123,7 +123,7 @@ export function showPlay(
   modes.setAttribute('aria-label', 'Mode');
   const choices: [PlayMode, string, string, string][] = [
     ['jev', 'Watch AI play', 'default', 'A decision model steers Pac-Man; the ghosts follow the classic arcade rules.'],
-    ['keyboard', 'Play against AI', 'you steer', 'You steer Pac-Man (arrows or WASD) and decision models steer the four ghosts.'],
+    ['keyboard', 'Play against AI', 'you steer', 'You steer Pac-Man (arrows, WASD or swipe) and decision models steer the four ghosts.'],
   ];
   const play = el('button', undefined, 'primary');
   const buttons = new Map<PlayMode, HTMLButtonElement>();
