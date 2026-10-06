@@ -1,7 +1,9 @@
 import './style.css';
 import { accountNotice, fetchMe, renderAccount, takeAuthError, walletNotice, type AccountView } from './auth';
 import { DemoPlayer, loadRecording } from './demo';
-import { hideOverlay, showGameOver, showPlay, type PlayMode } from './overlay';
+import { hideOverlay, showGameOver, showPlay, type GameOverExtra, type PlayMode } from './overlay';
+import { shareText, versus, versusLine } from './versus';
+import type { Leaderboard } from '../shared/leaderboard';
 import { Panel } from './panel';
 import { drawGame, FRUIT_EMOJI, TILE } from './render';
 import { greedyChoice, optionFeatures } from './features';
@@ -137,6 +139,46 @@ function endDemo(): void {
   playCta.hidden = true;
 }
 
+// The leaderboard, to compare a game with (loaded in the background; a game over before it arrives just skips it).
+let board: Leaderboard | null = null;
+void fetch('/leaderboard.json')
+  .then((r) => (r.ok ? (r.json() as Promise<Leaderboard>) : null))
+  .then((b) => (board = b))
+  .catch(() => {});
+const SHARE_URL = 'https://jevman.apps.chadda.se';
+const BEST_KEY = 'jevman.best';
+const readBest = (): number => {
+  try {
+    return Number(localStorage.getItem(BEST_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+};
+const writeBest = (score: number) => {
+  try {
+    localStorage.setItem(BEST_KEY, String(score));
+  } catch {
+    // not remembered
+  }
+};
+/** The system share sheet on phones (where people share from), else the clipboard. */
+async function shareScore(text: string): Promise<'shared' | 'copied' | 'failed'> {
+  if (navigator.share && touchScreen) {
+    try {
+      await navigator.share({ text });
+      return 'shared';
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') return 'failed'; // the player closed the sheet
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    return 'copied';
+  } catch {
+    return 'failed';
+  }
+}
+
 /** Opens the Play card (or the sign-in card); returns to the demo when closed. */
 let openPlay: () => void;
 const closePlay = () => {
@@ -182,6 +224,24 @@ if (me.mode === 'none') {
   const played = () => jevActors(started ? state : sides(liveMode));
   /** Whether this game has been the classic game from the start, so its score compares with the leaderboard. */
   let classicThroughout = false;
+  /** Whether the AI has played Pac-Man the whole game, on one model, so it compares with that model's average. */
+  let aiPacmanThroughout: string | null = null;
+  let gameOverExtra: GameOverExtra = {};
+  /** The game-over extras: you against the AIs (classic game), or the AI against its leaderboard average. */
+  const resultOf = (score: number): GameOverExtra => {
+    if (classicThroughout) {
+      const best = readBest();
+      const newBest = score > best;
+      if (newBest) writeBest(score);
+      if (!board?.entries.length) return { newBest, best };
+      const v = versus(board, score);
+      const text = shareText(v, SHARE_URL);
+      return { newBest, best, versus: versusLine(v), share: () => shareScore(text) };
+    }
+    const entry = aiPacmanThroughout ? board?.entries.find((e) => e.model === aiPacmanThroughout) : undefined;
+    if (entry) return { aiNote: `${entry.name} scored ${score.toLocaleString('en-US')} this game; its leaderboard average is ${entry.meanScore.toLocaleString('en-US')}.` };
+    return {};
+  };
   // Which model plays each character: the server default until the player picks, remembered in this browser.
   const defaultModel = me.defaultModel ?? DEFAULT_MODEL;
   // `wanted` is what the player picked; `choice` is what plays. A newly picked model takes over once it is awake, so a
@@ -233,6 +293,7 @@ if (me.mode === 'none') {
     options: modelOptions(me),
     choice: () => wanted,
     onChange: (next) => {
+      if (started && next.pacman !== wanted.pacman) aiPacmanThroughout = null;
       wanted = next;
       saveChoice(next);
       panel.syncModels();
@@ -257,7 +318,7 @@ if (me.mode === 'none') {
         panel.handle(e);
         stats.onSchedulerEvent(e);
         // A request still in flight at game over reports afterwards; keep the card's numbers complete.
-        if (gameOverShown && !overlayEl.hidden) showGameOver(overlayEl, stats.summary(state), restart);
+        if (gameOverShown && !overlayEl.hidden) showGameOver(overlayEl, stats.summary(state), restart, gameOverExtra);
       },
     });
   let scheduler = newScheduler(stats);
@@ -301,6 +362,8 @@ if (me.mode === 'none') {
     showToggle(liveMode);
     state = createGame(sides(liveMode));
     classicThroughout = liveMode === 'classic';
+    aiPacmanThroughout = liveMode === 'jev' ? choice.pacman : null;
+    gameOverExtra = {};
     scheduler.reset();
     stats = new GameStats();
     scheduler = newScheduler(stats);
@@ -326,7 +389,10 @@ if (me.mode === 'none') {
     if (switching || (!canUseAI && mode !== 'classic')) return;
     const apply = () => {
       if (mode !== 'jev') lastHumanMode = mode;
-      if (mode !== liveMode) classicThroughout = false;
+      if (mode !== liveMode) {
+        classicThroughout = false;
+        aiPacmanThroughout = null;
+      }
       liveMode = mode;
       if (started) {
         Object.assign(state, sides(mode));
@@ -428,7 +494,8 @@ if (me.mode === 'none') {
     if (state.status === 'gameover' && !gameOverShown) {
       gameOverShown = true;
       overlayAction = restart;
-      showGameOver(overlayEl, stats.summary(state), restart);
+      gameOverExtra = resultOf(state.score);
+      showGameOver(overlayEl, stats.summary(state), restart, gameOverExtra);
     }
   };
   const demoTick = (dt: number) => {

@@ -192,13 +192,48 @@ export function showPlay(
   return { action: opts.onPlay, select, busy, note };
 }
 
-export function showGameOver(root: HTMLElement, summary: GameSummary, onPlayAgain: () => void): void {
+/** The extras a game-over card can show: how you did against the AIs, your best, or how the AI did against its average. */
+export interface GameOverExtra {
+  versus?: string;
+  newBest?: boolean;
+  best?: number;
+  aiNote?: string;
+  /** Shares the result (system share sheet, else the clipboard); resolves to what happened. */
+  share?: () => Promise<'shared' | 'copied' | 'failed'>;
+}
+
+export function showGameOver(root: HTMLElement, summary: GameSummary, onPlayAgain: () => void, extra: GameOverExtra = {}): void {
   const rows = summaryRows(summary);
   const card = el('div', undefined, 'card wide');
   card.append(el('h2', 'Game over'));
-  card.append(el('p', `${summary.score} points`, 'score'));
+  card.append(el('p', `${summary.score.toLocaleString('en-US')} points`, 'score'));
+  if (extra.newBest) card.append(el('p', '🎉 New personal best!', 'best'));
+  else if (extra.best) card.append(el('p', `Your best: ${extra.best.toLocaleString('en-US')}`, 'muted small'));
+  if (extra.versus || extra.aiNote) {
+    const box = el('section', undefined, 'versus');
+    box.append(el('p', extra.versus ?? extra.aiNote));
+    const actions = el('div', undefined, 'versus-actions');
+    if (extra.share) {
+      const share = el('button', 'Share your score', 'signin');
+      share.type = 'button';
+      share.addEventListener('click', () => {
+        void extra.share!().then((r) => {
+          share.textContent = r === 'copied' ? 'Copied! Paste it anywhere' : r === 'shared' ? 'Shared!' : 'Could not share';
+        });
+      });
+      actions.append(share);
+    }
+    const board = el('a', 'Leaderboard →');
+    board.href = '/leaderboard';
+    actions.append(board);
+    box.append(actions);
+    card.append(box);
+  }
   const grid = el('div', undefined, 'grid');
-  grid.append(table('This game', rows.game), table('Decisions', rows.jev));
+  grid.append(table('This game', rows.game));
+  // A game with no AI (the classic game) has no decisions to show.
+  if (summary.jev.calls || summary.jev.decisions) grid.append(table('Decisions', rows.jev));
+  else grid.classList.add('single');
   card.append(grid);
   if (summary.deaths.length) {
     const box = el('section', undefined, 'deaths');

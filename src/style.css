@@ -171,5 +171,10 @@ a.primary-link { background: var(--accent); color: #111; }
 .overlay .card.wide { max-width: 560px; }
 .overlay .modes { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 .overlay .model-pick[hidden] { display: none; }
+.overlay .best { color: var(--accent); font-weight: 600; }
+.overlay .versus { border: 1px solid #6b5c00; background: rgba(255, 216, 0, 0.06); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.overlay .versus-actions { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.overlay .versus-actions a { color: var(--accent); }
 .overlay .signin-more { display: flex; flex-direction: column; align-items: center; gap: 6px; border-top: 1px solid #2a2a40; padding-top: 10px; }
 .overlay .signin { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+.overlay .grid.single { grid-template-columns: 1fr; max-width: 240px; margin: 0 auto; }
