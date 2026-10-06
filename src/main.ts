@@ -366,8 +366,15 @@ if (me.mode === 'none') {
       });
   };
   /** A fresh live game (the first one ends the demo). */
+  /** Ends whatever was pending for the game before (a J switch, Resume, Play again): their callbacks now do nothing. */
+  const retireGame = (): void => {
+    gameId += 1;
+    switching = false;
+    resuming = false;
+    restarting = false;
+  };
   const newGame = (): void => {
-    gameId += 1; // callbacks still pending for the previous game now do nothing
+    retireGame();
     if (demo) endDemo();
     if (!canUseAI) {
       toggleBtn.disabled = true; // the classic game only, until signing in
@@ -469,10 +476,7 @@ if (me.mode === 'none') {
   const restart = (): void => {
     // Restart wins over a Play again or a J switch still waking models: both check for it when they finish.
     if (!started) return;
-    gameId += 1;
-    switching = false;
-    resuming = false;
-    restarting = false;
+    retireGame();
     showToggle(liveMode);
     started = false; // nothing runs (or is billed) behind the card
     paused = false;
