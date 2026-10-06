@@ -13,6 +13,7 @@ import { GameStats } from './stats';
 import { createHttpTransport, warmUp, type TransportHooks } from './transport';
 import { attachTouch } from './touch';
 import { cuesBetween, snapshot, Sound } from './sound';
+import { Thinking } from './thinking';
 import { initialChoice, loadStoredChoice, modelOptions, requestModel, saveChoice, type ModelChoice } from './choice';
 import type { ModelPicking } from './picker';
 import { effectiveChoice, ModelWarming } from './warming';
@@ -38,6 +39,8 @@ canvas.width = state.maze.width * TILE;
 canvas.height = state.maze.height * TILE;
 const ctx = canvas.getContext('2d')!;
 const panelEl = $('#panel');
+/** The models' odds drawn on the board at each junction. */
+const thinking = new Thinking();
 let panel = new Panel(panelEl);
 
 const accountEl = $('#account');
@@ -124,7 +127,10 @@ function startDemo(r: NonNullable<typeof rec>): void {
   help.textContent = 'Recorded game · press Play (or Space) to play live';
   playCta.hidden = false;
   tick = (dt) => {
-    for (const e of demo!.advance(dt)) panel.handle(e);
+    for (const e of demo!.advance(dt)) {
+      panel.handle(e);
+      if (e.type === 'decision') thinking.add(e.decision, performance.now());
+    }
     state = demo!.state;
   };
 }
@@ -316,6 +322,7 @@ if (me.mode === 'none') {
         if (gameStats !== stats) return;
         if (e.type === 'call' && e.model) warming.touch(e.model === 'jev-1.13.0' ? DEFAULT_MODEL : e.model);
         panel.handle(e);
+        if (e.type === 'decision') thinking.add(e.decision, performance.now());
         stats.onSchedulerEvent(e);
         // A request still in flight at game over reports afterwards; keep the card's numbers complete.
         if (gameOverShown && !overlayEl.hidden) showGameOver(overlayEl, stats.summary(state), restart, gameOverExtra);
@@ -361,6 +368,7 @@ if (me.mode === 'none') {
     }
     showToggle(liveMode);
     state = createGame(sides(liveMode));
+    thinking.clear();
     classicThroughout = liveMode === 'classic';
     aiPacmanThroughout = liveMode === 'jev' ? choice.pacman : null;
     gameOverExtra = {};
@@ -499,7 +507,10 @@ if (me.mode === 'none') {
     }
   };
   const demoTick = (dt: number) => {
-    for (const e of demo!.advance(dt)) panel.handle(e);
+    for (const e of demo!.advance(dt)) {
+      panel.handle(e);
+      if (e.type === 'decision') thinking.add(e.decision, performance.now());
+    }
     state = demo!.state;
   };
   // One tick for both phases: the demo until the first live game, then the live game.
@@ -564,6 +575,7 @@ function frame(now: number): void {
   last = now;
   if (!paused) tick(dt);
   drawGame(ctx, state, now / 1000, paused);
+  if (state.status === 'playing') thinking.draw(ctx, now);
   const showPad = touchScreen && !demo && state.pacmanControl === 'keyboard' && overlayEl.hidden;
   if (dpad.hidden === showPad) dpad.hidden = !showPad;
   panel.updateActors(state);
