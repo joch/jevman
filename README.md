@@ -93,6 +93,12 @@ names explicitly (`--pacman-model`, `npm run leaderboard`) must be one of the
   model itself is measured. Writes `public/leaderboard.json` (ranked by
   mean score), which the site shows at `/leaderboard`, and prints a table. Same flags as `bench`, plus `--models id,id` (default: all),
   `--parallel 4` (games at a time per model); defaults to 8 games per model and a 300 s cap.
+- `npm run bench -- --endpoint http://…` — plays Pac-Man with any model behind your own HTTP endpoint; with
+  `--submit submissions/<id> --name … --by …` it records the leaderboard's games as a submission. See
+  [CONTRIBUTING.md](CONTRIBUTING.md#benchmark-your-own-model).
+- `npm run submissions` — replays every submitted game in [`submissions/`](submissions) and writes
+  `public/community.json`, the leaderboard's **self-reported** list. The image build runs it too, so a submission that
+  doesn't check out fails CI.
 - `npm run deaths -- game.json` — replays a recorded game and prints, for each of Pac-Man's deaths,
   his last few junction decisions with the routes as jev saw them.
 
@@ -104,6 +110,10 @@ Opper serves several System One decision models with the same API, listed in
 Palmer) and `berget/convaiinnovations/laya` (ConvAI Innovations; its 512-token context is shorter
 than one of our questions). The server forwards only these. Through Opper any of them can play; a
 TypeSafe key (option C) reaches jev only.
+
+Any other model can join the leaderboard as **self-reported**: its makers run the benchmark against their own
+endpoint and send the recorded games in a pull request, which CI replays. See
+[CONTRIBUTING.md](CONTRIBUTING.md#benchmark-your-own-model).
 
 In the game, pick the model in the Play dialog: Pac-Man's model in **Watch AI play**, the ghosts'
 model (one for all, or one per ghost) in **Play against AI**. Each card on the decision panel has a

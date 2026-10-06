@@ -10,4 +10,6 @@
 !server/
 !shared/
 !public/
+!scripts/
+!submissions/
 !Dockerfile

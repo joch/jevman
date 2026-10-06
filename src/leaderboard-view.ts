@@ -1,5 +1,5 @@
 import { DECISION_MODELS } from '../shared/models';
-import { jointLeaders, type Leaderboard, type LeaderboardEntry } from '../shared/leaderboard';
+import { jointLeaders, type CommunityEntry, type Leaderboard, type LeaderboardEntry } from '../shared/leaderboard';
 
 export interface LeaderboardRow {
   rank: number;
@@ -13,8 +13,8 @@ export interface LeaderboardRow {
   barPercent: number;
   badges: string[];
   stats: [string, string][];
-  /** Opens the game with this model playing Pac-Man. */
-  playUrl: string;
+  /** Ours: opens the game with this model playing Pac-Man. Self-reported: the submitter's page, if any. */
+  link: { href: string; label: string } | null;
 }
 
 const best = (entries: LeaderboardEntry[], value: (e: LeaderboardEntry) => number | null, lowest = false) => {
@@ -23,9 +23,24 @@ const best = (entries: LeaderboardEntry[], value: (e: LeaderboardEntry) => numbe
   return scored.reduce((a, b) => ((lowest ? value(b)! < value(a)! : value(b)! > value(a)!) ? b : a)).model;
 };
 
-export function leaderboardRows(board: Leaderboard): LeaderboardRow[] {
+const scoreLabel = (e: LeaderboardEntry) =>
+  `${e.meanScore.toLocaleString('en-US')} points${e.scoreStdError ? ` ± ${Math.round(2 * e.scoreStdError).toLocaleString('en-US')}` : ''}`;
+
+const statsOf = (e: LeaderboardEntry): [string, string][] => [
+  ['Survived', `${Math.round(e.meanSurvivedSeconds)} s`],
+  ['Pellets per life', String(e.pelletsPerLife)],
+  ['Ghosts eaten', String(e.meanGhostsEaten)],
+  ['Fruit', e.fruitEaten],
+  ['Fallbacks', `${(e.fallbackRate * 100).toFixed(1)}%`],
+  ['Latency', e.meanLatencyMs === null ? '–' : `${e.meanLatencyMs} ms`],
+  ['Cost per game', `$${e.costPerGame.toFixed(3)}`],
+];
+
+/** The bars of both lists share one scale: the best score on either. */
+export const topScore = (...lists: LeaderboardEntry[][]): number => Math.max(1, ...lists.flat().map((e) => e.meanScore));
+
+export function leaderboardRows(board: Leaderboard, top = topScore(board.entries)): LeaderboardRow[] {
   const entries = board.entries;
-  const top = Math.max(1, ...entries.map((e) => e.meanScore));
   // A lead within the margin of error is a tie, not a win.
   const tied = jointLeaders(entries);
   const winners: [string, string | undefined][] = [
@@ -41,18 +56,26 @@ export function leaderboardRows(board: Leaderboard): LeaderboardRow[] {
     name: e.name,
     maker: DECISION_MODELS.find((m) => m.id === e.model)?.maker ?? '',
     score: e.meanScore,
-    scoreLabel: `${e.meanScore.toLocaleString('en-US')} points${e.scoreStdError ? ` ± ${Math.round(2 * e.scoreStdError).toLocaleString('en-US')}` : ''}`,
+    scoreLabel: scoreLabel(e),
     barPercent: Math.round((e.meanScore / top) * 100),
     badges: winners.filter(([, m]) => m === e.model).map(([label]) => label),
-    stats: [
-      ['Survived', `${Math.round(e.meanSurvivedSeconds)} s`],
-      ['Pellets per life', String(e.pelletsPerLife)],
-      ['Ghosts eaten', String(e.meanGhostsEaten)],
-      ['Fruit', e.fruitEaten],
-      ['Fallbacks', `${(e.fallbackRate * 100).toFixed(1)}%`],
-      ['Latency', e.meanLatencyMs === null ? '–' : `${e.meanLatencyMs} ms`],
-      ['Cost per game', `$${e.costPerGame.toFixed(3)}`],
-    ],
-    playUrl: `/?pacman=${encodeURIComponent(e.model)}`,
+    stats: statsOf(e),
+    link: { href: `/?pacman=${encodeURIComponent(e.model)}`, label: `Watch ${e.name} play →` },
+  }));
+}
+
+/** Models their makers benchmarked and submitted: ranked among themselves, every one marked self-reported. */
+export function communityRows(entries: CommunityEntry[], top = topScore(entries)): LeaderboardRow[] {
+  return entries.map((e, i) => ({
+    rank: i + 1,
+    model: e.model,
+    name: e.name,
+    maker: `submitted by @${e.by}`,
+    score: e.meanScore,
+    scoreLabel: scoreLabel(e),
+    barPercent: Math.round((e.meanScore / top) * 100),
+    badges: ['Self-reported'],
+    stats: statsOf(e),
+    link: e.url ? { href: e.url, label: `About ${e.name} ↗` } : null,
   }));
 }

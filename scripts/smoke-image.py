@@ -35,6 +35,8 @@ try:
         assert 'Which AI plays Pac-Man best?' in response.read().decode(), 'leaderboard page not served'
     with urllib.request.urlopen(url + '/leaderboard.json', timeout=2) as response:
         assert json.load(response)['entries'], 'leaderboard results missing'
+    with urllib.request.urlopen(url + '/community.json', timeout=2) as response:
+        assert 'entries' in json.load(response), 'self-reported results missing'
     with urllib.request.urlopen(url + '/og.png', timeout=2) as response:
         assert response.headers['Content-Type'] == 'image/png', response.headers['Content-Type']
     with urllib.request.urlopen(url + '/demo/jev-demo.json', timeout=5) as response:

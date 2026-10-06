@@ -8,7 +8,10 @@ COPY src ./src
 COPY shared ./shared
 COPY server ./server
 COPY public ./public
-RUN npx vite build
+COPY scripts ./scripts
+COPY submissions ./submissions
+# Replays every submitted game; a submission that does not check out fails the build.
+RUN node --import tsx scripts/submissions.ts && npx vite build
 
 FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
 ARG SOURCE_COMMIT=local

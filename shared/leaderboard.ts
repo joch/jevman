@@ -18,8 +18,15 @@ export interface GameResult {
   deathsBy: Record<string, number>;
 }
 
+/**
+ * Bump when the game rules or the question the models get change: results from another version are not comparable,
+ * and submissions recorded on it are refused. tests/bench-version.test.ts fails when either changes.
+ */
+export const BENCH_VERSION = 1;
+
 export interface LeaderboardEntry {
-  model: ModelId;
+  /** A model id from shared/models.ts, or a submitted model's own id. */
+  model: string;
   name: string;
   games: number;
   meanScore: number;
@@ -40,7 +47,7 @@ export interface LeaderboardEntry {
 
 export interface Leaderboard {
   generatedAt: string;
-  settings: { gamesPerModel: number; maxSeconds: number; /** Only in results from before the game's safety check was removed. */ safetyCheck?: boolean; ghosts: 'scripted' };
+  settings: { gamesPerModel: number; maxSeconds: number; /** Missing in results from before versioning (version 1). */ benchVersion?: number; /** Only in results from before the game's safety check was removed. */ safetyCheck?: boolean; ghosts: 'scripted' };
   /** Best first: by mean score. */
   entries: LeaderboardEntry[];
   /** Models that could not play (not warm in time, not enabled for the key, ...). */
@@ -49,7 +56,7 @@ export interface Leaderboard {
 
 const round = (n: number, places = 0) => Math.round(n * 10 ** places) / 10 ** places;
 
-export function summarize(model: ModelId, games: GameResult[]): LeaderboardEntry {
+export function summarize(model: string, games: GameResult[], name: string = modelName(model)): LeaderboardEntry {
   const mean = (f: (g: GameResult) => number) => (games.length ? games.reduce((a, g) => a + f(g), 0) / games.length : 0);
   const sum = (f: (g: GameResult) => number) => games.reduce((a, g) => a + f(g), 0);
   const deathsBy: Record<string, number> = {};
@@ -58,7 +65,7 @@ export function summarize(model: ModelId, games: GameResult[]): LeaderboardEntry
   const decisions = sum((g) => g.decisions);
   return {
     model,
-    name: modelName(model),
+    name,
     games: games.length,
     meanScore: round(mean((g) => g.score)),
     scoreStdError: round(stdError(games.map((g) => g.score))),
@@ -96,3 +103,33 @@ export function jointLeaders(entries: LeaderboardEntry[]): LeaderboardEntry[] {
 }
 
 export const rank = (entries: LeaderboardEntry[]): LeaderboardEntry[] => [...entries].sort((a, b) => b.meanScore - a.meanScore);
+
+/** A model its makers benchmarked themselves and submitted by pull request (submissions/<id>/). */
+export interface CommunityEntry extends LeaderboardEntry {
+  /** Who submitted it (GitHub handle or organisation). */
+  by: string;
+  /** Where to learn more about the model. */
+  url?: string;
+  /**
+   * Always true. The games were replayed and their scores checked, but the moves, latency, cost and choice of games
+   * are as reported by the submitter.
+   */
+  selfReported: true;
+}
+
+export interface Community {
+  generatedAt: string;
+  benchVersion: number;
+  /** Best first: by mean score. */
+  entries: CommunityEntry[];
+}
+
+/** The rules every submission (and our own leaderboard run) follows. */
+export interface SubmissionRules {
+  minGames: number;
+  /** Each game ends at game over or after this many seconds of play. */
+  maxSeconds: number;
+  /** The longest simulation step the bench takes (it caps a slow frame at 50 ms). */
+  maxStep: number;
+}
+export const SUBMISSION_RULES: SubmissionRules = { minGames: 24, maxSeconds: 300, maxStep: 0.05 };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { leaderboardRows } from '../src/leaderboard-view';
-import type { Leaderboard, LeaderboardEntry } from '../shared/leaderboard';
+import { communityRows, leaderboardRows, topScore } from '../src/leaderboard-view';
+import type { CommunityEntry, Leaderboard, LeaderboardEntry } from '../shared/leaderboard';
 
 const entry = (over: Partial<LeaderboardEntry>): LeaderboardEntry => ({
   model: 'typesafe/jev-1.13.0', name: 'jev 1.13', games: 8, meanScore: 2000, meanSurvivedSeconds: 50, meanPellets: 180, pelletsPerLife: 60,
@@ -21,7 +21,7 @@ describe('leaderboardRows', () => {
     expect(rows[2].badges).toEqual(['Fastest', 'Cheapest']);
     expect(rows[0].stats).toContainEqual(['Cost per game', '$0.020']);
     expect(rows[0].maker).toBe('Cloudflare');
-    expect(rows[0].playUrl).toBe('/?pacman=opper%2Fclef');
+    expect(rows[0].link).toEqual({ href: '/?pacman=opper%2Fclef', label: 'Watch Clef play →' });
     expect(rows[0].scoreLabel).toBe('3,200 points');
   });
 
@@ -60,5 +60,21 @@ describe('leaderboardRows', () => {
 
   it('copes with an empty board', () => {
     expect(leaderboardRows(board([]))).toEqual([]);
+  });
+});
+
+describe('communityRows', () => {
+  const submitted = (over: Partial<CommunityEntry>): CommunityEntry => ({ ...entry({}), model: 'acme-pac', name: 'Acme Pac', by: 'acme', selfReported: true, ...over });
+
+  it('marks every entry self-reported, credits the submitter and scales its bars with our models', () => {
+    const ours = [entry({ meanScore: 3000 })];
+    const rows = communityRows([submitted({ meanScore: 1500, url: 'https://acme.example/pac' }), submitted({ model: 'other', name: 'Other', meanScore: 900, url: undefined })], topScore(ours, []));
+    expect(rows.map((r) => [r.rank, r.name, r.barPercent, r.badges])).toEqual([
+      [1, 'Acme Pac', 50, ['Self-reported']],
+      [2, 'Other', 30, ['Self-reported']],
+    ]);
+    expect(rows[0].maker).toBe('submitted by @acme');
+    expect(rows[0].link).toEqual({ href: 'https://acme.example/pac', label: 'About Acme Pac ↗' });
+    expect(rows[1].link).toBeNull();
   });
 });

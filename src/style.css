@@ -164,6 +164,12 @@ a.primary-link { background: var(--accent); color: #111; }
 .lb-stat { display: flex; flex-direction: column; }
 .lb-stats dt { color: var(--muted); font-size: 11px; }
 .lb-stats dd { margin: 0; font-family: ui-monospace, monospace; }
+.lb-self { color: var(--muted); border-color: #44445e; }
+.lb-community { margin-top: 28px; }
+.lb-community h3 { font-size: 18px; margin: 0 0 4px; }
+.lb-note { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 12px; }
+.lb-note a { color: var(--accent); }
+.lb-community .lb-entry:first-child { border-color: #22223a; }
 .lb-watch { color: var(--accent); font-size: 13px; align-self: flex-start; }
 .lb-method { margin-top: 24px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .lb-method h3 { color: var(--text); font-size: 15px; margin: 0 0 6px; }
