@@ -16,8 +16,13 @@ const DIRS = new Set<unknown>(['up', 'down', 'left', 'right']);
 
 /** The bench's setTimeout-paced loop never steps less than this. */
 export const MIN_STEP = 0.001;
-/** Game time a question can stay unanswered: the bench's 10 s call timeout plus the scheduler's 2 s, with room. */
-export const MAX_ANSWER_SECONDS = 15;
+/**
+ * Game time a question can stay unanswered in a bench run. The scheduler falls back 2 s after sending a question, and
+ * sends it at once unless all its slots are busy; every call gives up after 2 s, so a slot frees within 2 s. Game
+ * time never runs ahead of the clock (a step is at most the real time since the last one). 2 + 2 s, plus room for
+ * the frame the fallback lands in.
+ */
+export const MAX_ANSWER_SECONDS = 4.5;
 /** Far more than a 300 s game has (a few thousand decisions and events); a bigger file is not a bench recording. */
 const MAX_ITEMS = 100_000;
 

@@ -76,13 +76,13 @@ describe('verifyGame', () => {
       twice.decisions.sort((a, b) => a[0] - b[0]);
       expect(verifyGame(twice).ok).toBe(false);
     }
-    // A model that took a whole minute, while the game waited: the bench would have fallen back long before.
+    // A model that took 5 s while the game waited: the bench would have fallen back by then.
     const late = copy();
     const i = late.decisions.findIndex(([, key]) => key.startsWith('pacman@'));
-    late.frames.splice(late.decisions[i][0], 0, ...Array(1300).fill(0.05));
-    for (const d of late.decisions) if (d[0] >= late.decisions[i][0]) d[0] += 1300;
+    late.frames.splice(late.decisions[i][0], 0, ...Array(100).fill(0.05));
+    for (const d of late.decisions) if (d[0] >= late.decisions[i][0]) d[0] += 100;
     late.final.frames = late.frames.length;
-    expect(verifyGame(late).ok).toBe(false);
+    expect(verifyGame(late)).toMatchObject({ ok: false, error: expect.stringMatching(/an answer after more than 4.5 s/) });
   });
 
   it('refuses negative costs and latencies', () => {

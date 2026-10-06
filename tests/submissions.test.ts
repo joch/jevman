@@ -62,8 +62,17 @@ describe('checkSubmission', () => {
     expect(checkSubmission(folder({ manifest: { games: 30 } }), 'acme-pac', RULES)).toMatchObject({ error: expect.stringMatching(/says 30 games/) });
   });
 
-  it('refuses the same game sent more than once', () => {
+  it('refuses the same game sent more than once, even with its pauses retimed', () => {
     expect(checkSubmission(folder({ same: true }), 'acme-pac', RULES)).toMatchObject({ error: expect.stringMatching(/game-02\.json\.gz is the same game as game-01/) });
+    // Shifting a little time between two frames of the "ready" pause changes the file, not the game.
+    const retimed = folder({
+      same: true,
+      tamper: (rec) => {
+        rec.frames[10] += 0.0001;
+        rec.frames[11] -= 0.0001;
+      },
+    });
+    expect(checkSubmission(retimed, 'acme-pac', RULES)).toMatchObject({ error: expect.stringMatching(/is the same game as/) });
   });
 
   it('leaves out submissions from an older bench version, but checks any other version as a mistake', () => {

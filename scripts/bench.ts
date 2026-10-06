@@ -71,9 +71,10 @@ const decide = (body: unknown, timeoutMs?: number) =>
 /**
  * A model behind your own HTTP endpoint: it gets the same request body jevman sends System One ({state, questions})
  * and answers {answers: {pacman: {type: 'choice', choice, probabilities?, confidence?}}, usage?, costUsd?}.
- * BENCH_ENDPOINT_TOKEN, if set, is sent as a bearer token.
+ * BENCH_ENDPOINT_TOKEN, if set, is sent as a bearer token. A game call gives up after 2 s, as the server's calls to
+ * Opper do: by then the game has used its fallback, and a hung call would only hold one of the scheduler's slots.
  */
-async function endpointDecide(body: unknown, timeoutMs = 10_000): Promise<{ status: number; body: unknown }> {
+async function endpointDecide(body: unknown, timeoutMs = 2000): Promise<{ status: number; body: unknown }> {
   const t0 = performance.now();
   try {
     const { model: _model, ...request } = body as Record<string, unknown>;
