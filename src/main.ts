@@ -367,6 +367,7 @@ if (me.mode === 'none') {
   };
   /** A fresh live game (the first one ends the demo). */
   const newGame = (): void => {
+    gameId += 1; // callbacks still pending for the previous game now do nothing
     if (demo) endDemo();
     if (!canUseAI) {
       toggleBtn.disabled = true; // the classic game only, until signing in
@@ -453,8 +454,8 @@ if (me.mode === 'none') {
     restarting = true;
     const id = gameId;
     void warming.warmAll(playedModels, () => {}).then((failed) => {
+      if (id !== gameId) return; // Restart (and maybe another game) came first; their flags are their own
       restarting = false;
-      if (id !== gameId) return; // Restart (and maybe another game) came first
       if (failed.length) {
         // Stay where we are (the game-over card, or the game) rather than start on a model that isn't there.
         panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the game didn't restart. Try again, or pick another model on the cards.`, 'restart');
