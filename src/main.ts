@@ -88,12 +88,16 @@ const hud = { score: $('#score'), level: $('#level'), lives: $('#lives'), fruit:
 /** Set by a live game: wakes the models that play (they doze off during a long pause); false keeps the game paused. */
 let beforeResume: (() => Promise<boolean>) | null = null;
 let resuming = false;
+/** Which live game is running; a slow callback (Resume, Play again, a side switch) from an older one does nothing. */
+let gameId = 0;
 function togglePause(): void {
   if (!overlayEl.hidden || resuming) return; // nothing is running behind the Play / game-over card
   if (paused && beforeResume) {
     resuming = true;
     pauseBtn.textContent = 'Waking up…';
+    const id = gameId;
     void beforeResume().then((ok) => {
+      if (id !== gameId) return; // that game was restarted meanwhile
       resuming = false;
       paused = !ok || document.hidden;
       pauseBtn.textContent = paused ? 'Resume' : 'Pause';
@@ -396,8 +400,6 @@ if (me.mode === 'none') {
   };
 
   let switching = false;
-  /** Bumped by Restart: a side switch still waking its models from before then is dropped. */
-  let switchSeq = 0;
   const showToggle = (m: Sides) => {
     toggleBtn.textContent = `Pac-Man: ${m.pacman === 'ai' ? 'AI' : 'you'}`;
     toggleBtn.setAttribute('aria-pressed', String(m.pacman === 'ai'));
@@ -425,9 +427,9 @@ if (me.mode === 'none') {
     if (incoming.every((m) => warming.isWarm(m))) return apply();
     switching = true;
     toggleBtn.textContent = 'Waking up…';
-    const seq = ++switchSeq;
+    const id = gameId;
     void warming.warmAll(() => incoming, () => {}).then((failed) => {
-      if (seq !== switchSeq) return; // Restart cancelled this switch
+      if (id !== gameId) return; // Restart cancelled this switch
       switching = false;
       if (failed.length) {
         // The current side plays on; say why the switch didn't happen.
@@ -449,14 +451,15 @@ if (me.mode === 'none') {
   const playAgain = (): void => {
     if (!started || restarting) return;
     restarting = true;
+    const id = gameId;
     void warming.warmAll(playedModels, () => {}).then((failed) => {
       restarting = false;
+      if (id !== gameId) return; // Restart (and maybe another game) came first
       if (failed.length) {
         // Stay where we are (the game-over card, or the game) rather than start on a model that isn't there.
         panel.alert(problemOf(failed) ?? `${failed.map(modelName).join(' and ')} didn't wake up, so the game didn't restart. Try again, or pick another model on the cards.`, 'restart');
         return;
       }
-      if (!started) return; // Restart opened the Play card meanwhile: that choice wins
       adopt();
       newGame();
     });
@@ -465,8 +468,9 @@ if (me.mode === 'none') {
   const restart = (): void => {
     // Restart wins over a Play again or a J switch still waking models: both check for it when they finish.
     if (!started) return;
-    switchSeq += 1;
+    gameId += 1;
     switching = false;
+    resuming = false;
     showToggle(liveMode);
     started = false; // nothing runs (or is billed) behind the card
     paused = false;
