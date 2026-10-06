@@ -30,7 +30,13 @@ try:
     assert revision == {'app': 'jevman', 'commit': sha, 'draining': False}, revision
     with urllib.request.urlopen(url + '/', timeout=2) as response:
         page = response.read().decode()
-    assert '<title>jevman</title>' in page, 'index.html not served'
+    assert '<title>jevman' in page and 'og:image' in page, 'index.html not served'
+    with urllib.request.urlopen(url + '/leaderboard', timeout=2) as response:
+        assert 'Which AI plays Pac-Man best?' in response.read().decode(), 'leaderboard page not served'
+    with urllib.request.urlopen(url + '/leaderboard.json', timeout=2) as response:
+        assert json.load(response)['entries'], 'leaderboard results missing'
+    with urllib.request.urlopen(url + '/og.png', timeout=2) as response:
+        assert response.headers['Content-Type'] == 'image/png', response.headers['Content-Type']
     with urllib.request.urlopen(url + '/demo/jev-demo.json', timeout=5) as response:
         assert json.load(response)['version'] == 1
     with urllib.request.urlopen(url + '/api/me', timeout=2) as response:
