@@ -86,7 +86,7 @@ describe('verifyGame', () => {
   });
 
   it('refuses negative or infinite costs and latencies', () => {
-    for (const call of [{ latencyMs: 10, costUsd: -10 }, { latencyMs: 10, costUsd: JSON.parse('1e400') }, { latencyMs: Infinity, costUsd: null }, { latencyMs: '10', costUsd: null }]) {
+    for (const call of [{ latencyMs: 10, costUsd: -10 }, { latencyMs: 10, costUsd: JSON.parse('1e400') }, { latencyMs: Infinity, costUsd: null }, { latencyMs: '10', costUsd: null }, { latencyMs: 10, costUsd: 1e308 }]) {
       const rec = copy();
       rec.events.push([0, { type: 'call', actors: ['pacman'], ...call } as never]);
       expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/negative or impossible/) });

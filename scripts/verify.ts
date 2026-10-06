@@ -23,6 +23,9 @@ export const MIN_STEP = 0.001;
  * the frame the fallback lands in.
  */
 export const MAX_ANSWER_SECONDS = 4.5;
+/** Far above any real call: one decision costs fractions of a cent and gives up after seconds. */
+const MAX_CALL_USD = 1;
+const MAX_CALL_MS = 60_000;
 /** Far more than a 300 s game has (a few thousand decisions and events); a bigger file is not a bench recording. */
 const MAX_ITEMS = 100_000;
 
@@ -52,9 +55,11 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
   const events = new Map<number, SchedulerEvent[]>();
   for (const e of rec.events) {
     if (!Array.isArray(e) || !Number.isInteger(e[0]) || typeof e[1]?.type !== 'string') return fail('malformed event');
-    // Finite too: 1e400 parses to Infinity, which would reach the leaderboard as null.
-    const amount = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
-    if (e[1].type === 'call' && !((e[1].costUsd === null || amount(e[1].costUsd)) && amount(e[1].latencyMs))) return fail('a call with a negative or impossible cost or latency');
+    // Within reason, so no sum of them can overflow (1e400 even parses to Infinity) and reach the leaderboard as null.
+    const within = (v: unknown, max: number) => typeof v === 'number' && v >= 0 && v <= max;
+    if (e[1].type === 'call' && !((e[1].costUsd === null || within(e[1].costUsd, MAX_CALL_USD)) && within(e[1].latencyMs, MAX_CALL_MS))) {
+      return fail('a call with a negative or impossible cost or latency');
+    }
     const event = (e[1].type === 'call' ? { ...e[1], traceId: null } : e[1]) as SchedulerEvent;
     const list = events.get(e[0]);
     if (list) list.push(event);

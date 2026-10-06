@@ -16,7 +16,8 @@ describe('session cookie', () => {
   it('rejects tampering, the wrong secret, malformed input and missing values', () => {
     const sealed = sealSession(data(), SECRET);
     const [iv, ct, tag] = sealed.split('.');
-    const flipped = ct.slice(0, -2) + (ct.endsWith('A') ? 'B' : 'A') + ct.slice(-1);
+    // Change the second-to-last character (the last one can carry unused padding bits).
+    const flipped = ct.slice(0, -2) + (ct.at(-2) === 'A' ? 'B' : 'A') + ct.slice(-1);
     expect(openSession(`${iv}.${flipped}.${tag}`, SECRET, 2_000)).toBeNull();
     const tagBytes = Buffer.from(tag, 'base64url');
     tagBytes[0] ^= 0xff;
