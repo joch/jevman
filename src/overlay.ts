@@ -156,12 +156,15 @@ export function showPlay(
   const playLabel = () => (signedOut ? 'Play free' : sides.pacman === 'ai' ? 'Watch' : 'Play');
   /** Shows `sides` as chosen (set once the signed-in controls exist). */
   let render = () => {};
+  /** Signed out: the main action, which gets the focus (when login is configured). */
+  let signInBtn: HTMLButtonElement | null = null;
   /** "Waking up …" while Play waits for the models; it outlasts any re-render. */
   let busyNote: string | null = null;
 
   if (signedOut) {
     card.append(el('p', 'Sign in with Opper and pick a model to watch it play live. Calls bill your own Opper wallet, about $0.01 a game.', 'muted'));
-    card.append(signInButton(me, true));
+    signInBtn = signInButton(me, true);
+    card.append(signInBtn);
     const more = el('div', undefined, 'more');
     more.append(el('h3', 'Or play yourself'), el('p', 'Free, no sign-in: you against the classic ghosts. See which AIs you beat.', 'muted small'), play);
     card.append(more);
@@ -272,7 +275,7 @@ export function showPlay(
     render();
   }
   label.textContent = playLabel();
-  show(root, card, play);
+  show(root, card, signInBtn && !signInBtn.disabled ? signInBtn : play);
   // aria-disabled, not disabled: the button keeps focus while models wake, and repeat presses are ignored by onPlay.
   const status = el('p', undefined, 'muted small');
   status.setAttribute('aria-live', 'polite');
