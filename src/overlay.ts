@@ -85,20 +85,19 @@ export interface PlayCard {
   note: (text: string | null) => void;
 }
 
-/** The heading (a call to action) and one line on the game the chosen sides make. */
-export function gamePitch(sides: Sides, pacman: string, ghosts: string): { title: string; line: string } {
-  if (isClassic(sides)) return { title: 'Beat the AI', line: 'Score more than the AIs on the leaderboard: you play the same game they did. Free.' };
-  if (sides.ghosts === 'classic') return { title: 'Watch the AI play', line: `${pacman} plays Pac-Man against the classic ghosts.` };
-  if (sides.pacman === 'you') return { title: 'Play against the AI', line: `You steer Pac-Man (arrows, WASD or swipe); ${ghosts} plays the four ghosts.` };
-  return {
-    title: 'AI vs AI',
-    line: pacman === ghosts ? `${pacman} plays both sides: who wins, Pac-Man or the ghosts?` : `${pacman} as Pac-Man against ${ghosts}'s ghosts. Who wins?`,
-  };
-}
+/** The four games, as cards in the Play dialog: who plays each side, and what that game is. */
+export const GAMES: { sides: Sides; title: string; hint: string; text: string }[] = [
+  { sides: { pacman: 'ai', ghosts: 'classic' }, title: 'Watch the AI play', hint: 'default', text: 'A model steers Pac-Man; the ghosts follow the classic arcade rules.' },
+  { sides: { pacman: 'you', ghosts: 'ai' }, title: 'Play against the AI', hint: 'you steer', text: 'You steer Pac-Man (arrows, WASD or swipe); models play the four ghosts.' },
+  { sides: { pacman: 'you', ghosts: 'classic' }, title: 'Beat the AI', hint: 'free', text: 'You against the classic ghosts, the game the AIs played on the leaderboard. See which AIs you beat.' },
+  { sides: { pacman: 'ai', ghosts: 'ai' }, title: 'AI vs AI', hint: 'new', text: 'One model plays Pac-Man, another the ghosts. Who wins?' },
+];
+
+const sameSides = (a: Sides, b: Sides) => a.pacman === b.pacman && a.ghosts === b.ghosts;
 
 /**
- * The card before a live game: who plays each side (and which model), then Play. Signed out, only the classic game
- * can be played (no AI, nothing billed); the AI sides ask to sign in.
+ * The card before a live game: pick one of the four games, and the models for the sides the AI plays, then Play.
+ * Signed out, only the classic game can be played (no AI, nothing billed); the AI games ask to sign in.
  */
 export function showPlay(
   root: HTMLElement,
@@ -115,86 +114,78 @@ export function showPlay(
     card.append(close);
   }
   const signedOut = me.mode === 'none';
-  const title = el('h2', signedOut ? 'Can you beat the AI?' : 'Ready when you are');
-  card.append(title);
+  card.append(el('h2', signedOut ? 'Can you beat the AI?' : 'Ready when you are'));
   const play = el('button', undefined, 'primary');
-  let sides: Sides = signedOut ? { pacman: 'you', ghosts: 'classic' } : opts.sides;
-  const line = el('p', undefined, 'muted');
-  const cost = el('p', undefined, 'muted small');
-  const rows = el('div', undefined, 'sides');
-  const render = () => {
-    const m = opts.models;
-    const name = (id: string | undefined) => (id ? (m?.options.find((o) => o.id === id)?.label ?? modelName(id)) : 'the AI');
-    const pitch = gamePitch(sides, name(m?.choice().pacman), name(m?.choice().blinky));
-    if (!signedOut) title.textContent = pitch.title;
-    line.textContent = pitch.line;
-    cost.textContent = isClassic(sides)
-      ? 'Free: no AI, nothing billed.'
-      : me.mode === 'player'
-        ? `About $0.01 a game from your Opper wallet per side the AI plays (Clef about $0.02).`
-        : me.devProvider === 'typesafe'
-          ? 'Calls use your TypeSafe key from .env.'
-          : 'Calls use the local key from .env.';
+  const games = el('div', undefined, 'modes');
+  const picks = el('div', undefined, 'model-pick');
+  const cards = new Map<HTMLButtonElement, Sides>();
+  const rows: Record<'pacman' | 'ghosts', HTMLElement | null> = { pacman: null, ghosts: null };
+  /** On a phone the cards show only their names; this line describes the chosen game. */
+  const described = el('p', undefined, 'muted mode-text');
+  const select = (next: Sides) => {
+    for (const [b, sides] of cards) b.setAttribute('aria-checked', String(sameSides(sides, next)));
+    // A side the AI doesn't play keeps its row's room, so the card doesn't change size.
+    // A side the AI doesn't play says who does, in the dropdown's place.
+    for (const key of ['pacman', 'ghosts'] as const) {
+      const r = rows[key];
+      if (!r) continue;
+      r.querySelector('select')!.hidden = next[key] !== 'ai';
+      r.querySelector<HTMLElement>('.fixed')!.hidden = next[key] === 'ai';
+    }
+    described.textContent = GAMES.find((g) => sameSides(g.sides, next))?.text ?? '';
   };
-  const change = (next: Sides) => {
-    sides = next;
-    select(next);
-    opts.onSelect(next);
-  };
-  /** One side: a two-way switch, and the model playing it when the AI does. */
-  const side = (label: string, key: 'pacman' | 'ghosts', other: 'you' | 'classic', otherLabel: string) => {
-    const row = el('div', undefined, 'side');
-    row.append(el('span', label, 'side-name'));
-    const seg = el('div', undefined, 'seg');
-    seg.setAttribute('role', 'radiogroup');
-    seg.setAttribute('aria-label', label);
-    const option = (value: string, text: string) => {
-      const b = el('button', text);
+  if (signedOut) {
+    card.append(el('p', 'Play Pac-Man against the classic ghosts, free and without signing in, and see which of the AIs on the leaderboard you beat.'));
+  } else {
+    games.setAttribute('role', 'radiogroup');
+    games.setAttribute('aria-label', 'Game');
+    for (const g of GAMES) {
+      const b = el('button', undefined, 'mode');
       b.type = 'button';
       b.setAttribute('role', 'radio');
-      b.dataset.value = value;
+      const head = el('span', g.title, 'title');
+      head.append(el('span', g.hint, 'hint'));
+      b.append(head, el('span', g.text, 'text'));
       b.addEventListener('click', () => {
-        change({ ...sides, [key]: value } as Sides);
+        select(g.sides);
+        opts.onSelect(g.sides);
         play.focus({ preventScroll: true }); // so Space/Enter now starts the game
       });
-      return b;
-    };
-    seg.append(option(other, otherLabel), option('ai', 'AI'));
-    row.append(seg);
+      cards.set(b, g.sides);
+      games.append(b);
+    }
+    card.append(games, described);
     const m = opts.models;
     if (m) {
-      const value = key === 'pacman' ? m.choice().pacman : m.choice().blinky;
-      const pickModel = (model: string) => {
-        m.onChange(key === 'pacman' ? { ...m.choice(), pacman: model } : setGhosts(m.choice(), model));
-        render();
+      const row = (label: string, control: HTMLElement, otherwise: string) => {
+        const r = el('label', undefined, 'model-row');
+        r.append(el('span', label), control, el('span', otherwise, 'fixed'));
+        return r;
       };
-      const sel = modelSelect(m, value, pickModel, key === 'pacman' ? 'Model playing Pac-Man' : 'Model playing the ghosts');
-      row.append(sel);
+      rows.pacman = row('Pac-Man is played by', modelSelect(m, m.choice().pacman, (model) => m.onChange({ ...m.choice(), pacman: model }), 'Model playing Pac-Man'), 'you');
+      rows.ghosts = row('The ghosts are played by', modelSelect(m, m.choice().blinky, (model) => m.onChange(setGhosts(m.choice(), model)), 'Model playing the ghosts'), 'the classic rules');
+      picks.append(rows.pacman, rows.ghosts);
+      card.append(picks);
     }
-    return row;
-  };
-  if (!signedOut) {
-    rows.append(side('Pac-Man', 'pacman', 'you', 'You'), side('Ghosts', 'ghosts', 'classic', 'Classic'));
-    card.append(rows);
+    card.append(el('p', 'J hands Pac-Man to the AI or back during a game; each character\'s model can also be changed on the panel cards.', 'muted small keys'));
+    card.append(
+      el(
+        'p',
+        me.mode === 'player'
+          ? 'A game usually costs about $0.01 from your Opper wallet per side the AI plays (Clef about $0.02); Beat the AI is free.'
+          : me.devProvider === 'typesafe'
+            ? 'Calls use your TypeSafe key from .env.'
+            : 'Calls use the local key from .env.',
+        'muted',
+      ),
+    );
   }
-  const select = (next: Sides) => {
-    sides = next;
-    for (const row of rows.querySelectorAll<HTMLElement>('.side')) {
-      const key = row.querySelector('.side-name')?.textContent === 'Pac-Man' ? 'pacman' : 'ghosts';
-      for (const b of row.querySelectorAll<HTMLButtonElement>('.seg button')) b.setAttribute('aria-checked', String(b.dataset.value === next[key]));
-      const sel = row.querySelector<HTMLSelectElement>('select');
-      if (sel) sel.hidden = next[key] !== 'ai';
-    }
-    render();
-  };
-  if (signedOut) card.append(line);
-  else rows.before(line); // under the heading: what this game is
   const icon = el('span', '▶ ');
   icon.setAttribute('aria-hidden', 'true');
   const label = el('span', signedOut ? 'Play free' : 'Play');
   play.append(icon, label);
   play.addEventListener('click', opts.onPlay);
-  card.append(play, cost);
+  card.append(play, el('p', 'or press Space / Enter', 'muted small keys'));
   if (signedOut) {
     const more = el('div', undefined, 'signin-more');
     more.append(el('p', 'Want to watch the AI play, or face AI ghosts? Calls bill your own Opper wallet.', 'muted small'));
@@ -208,7 +199,7 @@ export function showPlay(
     more.append(signin);
     card.append(more);
   }
-  select(sides);
+  select(signedOut ? { pacman: 'you', ghosts: 'classic' } : opts.sides);
   show(root, card, play);
   // aria-disabled, not disabled: the button keeps focus while models wake, and repeat presses are ignored by onPlay.
   const status = el('p', undefined, 'muted small');

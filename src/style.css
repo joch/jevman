@@ -109,23 +109,34 @@ button:disabled:hover { border-color: #3a3a5a; }
 .overlay p { margin: 0; }
 .overlay .muted { color: var(--muted); }
 .overlay .small { font-size: 12px; }
-.overlay .sides { display: flex; flex-direction: column; gap: 8px; margin: 4px 0; }
-.overlay .side { display: grid; grid-template-columns: 64px 132px 1fr; align-items: center; gap: 10px; text-align: left; }
-.overlay .side-name { font-weight: 600; }
-.overlay .seg { display: flex; border: 1px solid #3a3a5a; border-radius: 8px; overflow: hidden; }
-.overlay .seg button { flex: 1; font: inherit; font-size: 13px; color: var(--muted); background: transparent; border: none; padding: 5px 8px; cursor: pointer; }
-.overlay .seg button + button { border-left: 1px solid #3a3a5a; }
-.overlay .seg button[aria-checked='true'] { color: #0b0b14; background: var(--accent); font-weight: 600; }
-.overlay .card.play { width: min(440px, 100%); }
-/* Two lines' room, so a longer pitch doesn't resize the card. */
-.overlay .card.play > p.muted:not(.small) { min-height: 2.6em; }
-/* A side the AI doesn't play keeps its dropdown's room, so the rows don't shift. */
-.overlay .side .model-select[hidden] { display: block; visibility: hidden; }
+.overlay .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: left; }
+.overlay .mode { display: flex; flex-direction: column; gap: 4px; text-align: left; font: inherit; font-size: 13px; color: var(--text); background: transparent; border: 1px solid #2a2a40; border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+.overlay .mode:hover { border-color: #4a4a70; }
+.overlay .mode[aria-checked='true'] { border-color: var(--accent); background: rgba(255, 215, 0, 0.06); }
+.overlay .mode .title { color: var(--accent); font-weight: 600; font-size: 14px; display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.overlay .mode[aria-checked='false'] .title { color: inherit; }
+.overlay .mode .hint { color: var(--muted); font-size: 11px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.04em; }
+.overlay .model-pick { display: flex; flex-direction: column; gap: 6px; text-align: left; font-size: 13px; }
+.overlay .model-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 32px; }
+.overlay .model-row span { color: var(--muted); }
+.overlay .model-row .model-select { flex: 0 1 55%; }
+.overlay .model-row .fixed { flex: 0 1 55%; color: var(--text); padding: 4px 8px; }
+.overlay .mode-text { display: none; text-align: left; font-size: 12px; }
 .model-select { font: inherit; font-size: 13px; color: var(--text); background: #24243a; border: 1px solid #3a3a5a; border-radius: 6px; padding: 4px 8px; }
 .model-select:hover { border-color: var(--accent); }
 .card .model-select { width: 100%; margin: 2px 0 6px; font-size: 12px; padding: 2px 6px; }
 @media (max-width: 520px) {
   .overlay .card { padding: 14px 16px; gap: 8px; }
+  .overlay .modes { gap: 6px; }
+  .overlay .mode { padding: 6px 10px; font-size: 12px; }
+  /* A phone is short: the cards show their names, and the chosen game is described once below them. */
+  .overlay .mode .text { display: none; }
+  .overlay .mode-text { display: block; }
+  .overlay .model-row span:first-child { font-size: 12px; }
+}
+/* Keyboard hints mean nothing on a touchscreen. */
+@media (pointer: coarse) {
+  .overlay .keys { display: none; }
 }
 .overlay .score { font-size: 28px; font-weight: 700; color: var(--accent); font-family: ui-monospace, monospace; }
 .overlay .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left; }
@@ -173,7 +184,6 @@ a.primary-link { background: var(--accent); color: #111; }
 .lb-method ul { margin: 0; padding-left: 18px; }
 .lb-page .source { margin-top: 20px; }
 .overlay .card.wide { max-width: 560px; }
-.overlay .modes { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 .overlay .best { color: var(--accent); font-weight: 600; }
 .overlay .versus { border: 1px solid #6b5c00; background: rgba(255, 216, 0, 0.06); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .overlay .versus-actions { display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
