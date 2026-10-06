@@ -15,7 +15,7 @@ export interface Arrow {
   chosen: boolean;
 }
 
-/** The arrows to draw for a decision: one per option, longest for the likeliest; overrides show the vetoed pick too. */
+/** The arrows to draw for a decision: one per option, longest for the likeliest. */
 export function arrowsFor(d: Decision): Arrow[] {
   return d.options.map((dir) => ({
     dir,
@@ -26,7 +26,7 @@ export function arrowsFor(d: Decision): Arrow[] {
 
 /**
  * The models' thinking, drawn on the board: at each junction a model decides, small arrows show its odds per
- * direction and the % of its pick. A safety override flashes in red. Only the models' own decisions are drawn.
+ * direction and the % of its pick. Only the models' own decisions are drawn.
  */
 export class Thinking {
   private readonly shown = new Map<ActorId, { d: Decision; at: number }>();
@@ -55,7 +55,7 @@ export class Thinking {
       for (const a of arrowsFor(d)) {
         const v = DIR_VEC[a.dir];
         const len = 8 + a.p * 26;
-        const color = d.vetoed && a.dir === d.vetoed ? '#ff4d4d' : COLOR[actor];
+        const color = COLOR[actor];
         ctx.strokeStyle = color;
         ctx.fillStyle = color;
         ctx.globalAlpha = alpha * (a.chosen ? 1 : 0.4 + a.p * 0.5);
@@ -94,15 +94,6 @@ export class Thinking {
           ctx.fillStyle = color;
           ctx.fillText(label, tx, ty);
         }
-      }
-      if (d.vetoed) {
-        // Safety override: a red ring that pulses out.
-        ctx.globalAlpha = alpha * (1 - age / SHOW_MS);
-        ctx.strokeStyle = '#ff4d4d';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(cx, cy, 8 + (age / SHOW_MS) * 18, 0, Math.PI * 2);
-        ctx.stroke();
       }
       ctx.restore();
     }

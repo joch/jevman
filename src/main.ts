@@ -254,7 +254,7 @@ if (me.mode === 'none') {
     const entry = aiPacmanThroughout ? board?.entries.find((e) => e.model === aiPacmanThroughout) : undefined;
     if (entry) {
       return {
-        aiNote: `${entry.name} scored ${score.toLocaleString('en-US')} this game; its leaderboard average is ${entry.meanScore.toLocaleString('en-US')} (there, without the game's safety check, so the model plays alone).`,
+        aiNote: `${entry.name} scored ${score.toLocaleString('en-US')} this game; its leaderboard average is ${entry.meanScore.toLocaleString('en-US')}.`,
       };
     }
     return {};

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fruitRoute, goalFor, greedyChoice, isTrap, optionFeatures, saferChoice, type OptionFeatures } from '../src/features';
+import { fruitRoute, goalFor, greedyChoice, isTrap, optionFeatures, type OptionFeatures } from '../src/features';
 import { FRUIT_TILE, SCATTER_CORNERS } from '../src/layout';
 import { createGame, escapePoint, nextDecisionPoint, type GameState } from '../src/sim';
 import { GHOST_IDS, type Dir } from '../src/types';
@@ -221,30 +221,6 @@ describe('fruitRoute', () => {
     dir, goalDistance: null, pacmanDistance: null, nearestPellet: 5, corridorPellets: 0, nearestDangerGhost: null,
     dangerInCorridor: [], nearestFrightenedGhost: null, frightenedGhostSteps: [], fruitDistance: null, nearestPowerPellet: null,
     dangerApproaching: false, dangerNearby: 0, junctionSteps: 3, junctionGhost: null, ...over,
-  });
-
-  it('saferChoice swaps an unsafe pick for the safe route jev rated highest, and only then', () => {
-    const feats = [
-      feat('up', { dangerInCorridor: ['blinky'] }),
-      feat('left', {}),
-      feat('down', { nearestDangerGhost: 2 }),
-      feat('right', {}),
-    ];
-    const p = { up: 0.6, left: 0.1, down: 0.05, right: 0.25 };
-    expect(saferChoice('up', p, feats)).toBe('right');
-    expect(saferChoice('down', p, feats)).toBe('right');
-    expect(saferChoice('left', p, feats)).toBeNull();
-    // Cornered: every route is unsafe. Leave a ghost-filled corridor for a trapped one, and a badly trapped junction
-    // for one Pac-Man reaches nearly as soon as the ghost; keep jev's pick when the difference is small.
-    const cornered = [
-      feat('up', { dangerInCorridor: ['blinky'] }),
-      feat('left', { junctionSteps: 4, junctionGhost: { id: 'inky', steps: 3 } }),
-      feat('right', { junctionSteps: 9, junctionGhost: { id: 'clyde', steps: 8 } }),
-      feat('down', { junctionSteps: 9, junctionGhost: { id: 'pinky', steps: 5 } }),
-    ];
-    expect(saferChoice('up', { up: 0.9 }, cornered)).toBe('left');
-    expect(saferChoice('down', { down: 0.9 }, cornered)).toBe('left');
-    expect(saferChoice('right', { right: 0.9 }, cornered)).toBeNull();
   });
 
   it('picks the fastest route that reaches the fruit in time and is not dangerous', () => {

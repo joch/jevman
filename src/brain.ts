@@ -65,11 +65,6 @@ export interface Decision {
   reason?: string;
   /** Answer to a mid-corridor escape question rather than a junction choice. */
   escape?: boolean;
-  /**
-   * jev's own pick, replaced by the safety check because it was unsafe by the time Pac-Man acted on it. A decision event
-   * with `vetoed` repeats an earlier one for the same junction with the new choice; it is not a new decision.
-   */
-  vetoed?: Dir;
 }
 
 /** Name of a point's question in the System One request (Pac-Man can have two open at once). */

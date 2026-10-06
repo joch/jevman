@@ -1,6 +1,6 @@
 import { buildRequest, fallbackDecision, parseAnswer, questionName, type DecideResponse, type Decision, type PendingQuestion, type SystemOneRequest } from './brain';
 import type { ModelId } from '../shared/models';
-import { fruitRoute, optionFeatures, saferChoice } from './features';
+import { fruitRoute, optionFeatures } from './features';
 import { decisionPoints, type Controls, type DecisionPoint, type GameState } from './sim';
 import { ACTOR_IDS, type ActorId, type Dir } from './types';
 
@@ -20,8 +20,6 @@ export interface SchedulerDeps {
   onEvent: (e: SchedulerEvent) => void;
   timeoutMs?: number;
   maxInFlight?: number;
-  /** Re-check Pac-Man's answer against the ghosts where they are now, at the junction (default on). */
-  safetyCheck?: boolean;
   /**
    * The decision model for each character. Read on every request, so it can change mid-game. Without one (or when it
    * returns undefined) the request names no model and the server uses its default: JEV_MODEL, else jev.
@@ -127,19 +125,6 @@ export class Scheduler implements Controls {
       this.deps.onEvent({ type: 'superseded', decision: d });
       d = fallbackDecision(state, { point, features }, 'fruit changed');
       this.deps.onEvent({ type: 'decision', decision: d, latencyMs: null, fruitOnBoard: state.fruit !== null });
-    }
-    if (point.actor === 'pacman' && d.source === 'jev' && this.deps.safetyCheck !== false) {
-      // Escape answers are positional (keep going / turn back); map them onto the options at hand.
-      const asked = d.options;
-      const now = point.escape ? point.options : asked;
-      const choice = now[asked.indexOf(d.choice)] ?? d.choice;
-      const probabilities = Object.fromEntries(asked.map((o, i) => [now[i], d.probabilities[o]]));
-      const safer = saferChoice(choice, probabilities, features ?? optionFeatures(state, point));
-      if (safer) {
-        // Same decision, new direction: consumers count it as an override, not as another decision.
-        d = { ...d, choice: point.escape ? asked[now.indexOf(safer)] : safer, vetoed: d.choice };
-        this.deps.onEvent({ type: 'decision', decision: d, latencyMs: null, fruitOnBoard: state.fruit !== null });
-      }
     }
     if (!point.escape) return d.choice;
     this.consumed.add(point.key);

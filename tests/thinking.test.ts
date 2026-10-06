@@ -12,9 +12,4 @@ describe('arrowsFor', () => {
       { dir: 'down', p: 0.1, chosen: false },
     ]);
   });
-
-  it("marks the safety check's choice as the pick, not the vetoed one", () => {
-    const a = arrowsFor(d({ choice: 'up', vetoed: 'left' }));
-    expect(a.find((x) => x.chosen)!.dir).toBe('up');
-  });
 });

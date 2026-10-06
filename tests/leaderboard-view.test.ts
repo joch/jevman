@@ -6,7 +6,7 @@ const entry = (over: Partial<LeaderboardEntry>): LeaderboardEntry => ({
   model: 'typesafe/jev-1.13.0', name: 'jev 1.13', games: 8, meanScore: 2000, meanSurvivedSeconds: 50, meanPellets: 180, pelletsPerLife: 60,
   meanGhostsEaten: 1, fruitEaten: '5/8', bestLevel: 1, fallbackRate: 0.04, meanLatencyMs: 250, costPerGame: 0.005, deathsBy: {}, ...over,
 });
-const board = (entries: LeaderboardEntry[]): Leaderboard => ({ generatedAt: '2026-10-05T18:00:00Z', settings: { gamesPerModel: 8, maxSeconds: 300, safetyCheck: false, ghosts: 'scripted' }, entries, skipped: [] });
+const board = (entries: LeaderboardEntry[]): Leaderboard => ({ generatedAt: '2026-10-05T18:00:00Z', settings: { gamesPerModel: 8, maxSeconds: 300, ghosts: 'scripted' }, entries, skipped: [] });
 
 describe('leaderboardRows', () => {
   it('ranks, scales the score bars to the best model and names each category winner', () => {

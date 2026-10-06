@@ -42,7 +42,7 @@ for (const file of process.argv.slice(2)) {
       console.log(`\n-- death at ${t.toFixed(1)}s: pacman (${p.tile.x},${p.tile.y}) ${p.dir}, caught by ${s.caughtBy} at (${g?.tile.x},${g?.tile.y}) ${g?.dir}`);
       for (const d of log.slice(-3)) {
         const src = d.answer
-          ? `${d.answer.source}${d.answer.reason ? `/${d.answer.reason}` : ''}${d.answer.vetoed ? ` (safety override of ${d.answer.vetoed})` : ''} p=${JSON.stringify(d.answer.probabilities)}`
+          ? `${d.answer.source}${d.answer.reason ? `/${d.answer.reason}` : ''}p=${JSON.stringify(d.answer.probabilities)}`
           : '?';
         console.log(`  ${(t - d.t).toFixed(1)}s before: ${d.point.escape ? 'ESCAPE ' : ''}at (${d.point.tile.x},${d.point.tile.y}) heading ${d.point.heading} -> ${d.choice} [greedy ${d.greedy}] ${src}`);
         console.log(`    ghosts: ${d.ghosts}`);

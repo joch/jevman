@@ -3,7 +3,7 @@ import { shareText, versus, versusLine } from '../src/versus';
 import type { Leaderboard } from '../shared/leaderboard';
 
 const board = {
-  generatedAt: '', settings: { gamesPerModel: 24, maxSeconds: 300, safetyCheck: false, ghosts: 'scripted' }, skipped: [],
+  generatedAt: '', settings: { gamesPerModel: 24, maxSeconds: 300, ghosts: 'scripted' }, skipped: [],
   entries: [['jev 1.13', 3181], ['Clef', 3038], ['Clef Flash', 2679], ['Kev 4B', 1445], ['Laya', 650]].map(([name, meanScore]) => ({ name, meanScore })),
 } as unknown as Leaderboard;
 

@@ -26,7 +26,7 @@ export class Panel {
   private readonly banner: HTMLElement;
   private readonly totalsEl: HTMLElement;
   private readonly log: HTMLElement;
-  private readonly totals = { calls: 0, decisions: 0, fallbacks: 0, overrides: 0, stale: 0, inputTokens: 0, outputTokens: 0, cost: 0, costEstimated: false, latencyMs: 0 };
+  private readonly totals = { calls: 0, decisions: 0, fallbacks: 0, stale: 0, inputTokens: 0, outputTokens: 0, cost: 0, costEstimated: false, latencyMs: 0 };
 
   /** `caption` labels the panel, e.g. "recorded game" so demo totals don't read as the visitor's own spend. */
   private readonly models: ModelPicking | undefined;
@@ -96,8 +96,7 @@ export class Panel {
         this.addLog(`${ACTOR_NAMES[e.actor]}: late answer dropped (situation changed)`, 'stale');
         break;
       case 'decision':
-        if (e.decision.vetoed) this.showOverride(e.decision);
-        else this.showDecision(e);
+        this.showDecision(e);
         break;
       case 'superseded':
         this.totals.decisions -= 1;
@@ -179,16 +178,6 @@ export class Panel {
     for (const [id, card] of this.cards) if (card.model) card.model.value = choice[id];
   }
 
-  private showOverride(d: Decision): void {
-    this.totals.overrides += 1;
-    const who = d.model ? modelName(d.model) : 'the model';
-    this.drawCard(d, `${who} · safety override: ${d.vetoed} → ${d.choice}`, true);
-    this.addLog(
-      `${ACTOR_NAMES[d.actor]} @(${d.tile.x},${d.tile.y}) ${ARROWS[d.choice]} ${d.choice} · SAFETY OVERRIDE of ${who}'s ${ARROWS[d.vetoed!]} ${d.vetoed} (unsafe by then)`,
-      'fallback',
-    );
-  }
-
   private showDecision(e: Extract<SchedulerEvent, { type: 'decision' }>): void {
     const d = e.decision;
     this.totals.decisions += 1;
@@ -243,7 +232,6 @@ export class Panel {
       ['calls', String(t.calls)],
       ['decisions', String(t.decisions)],
       ['fallbacks', String(t.fallbacks)],
-      ['overrides', String(t.overrides)],
       ['stale', String(t.stale)],
       ['tokens in', String(t.inputTokens)],
       ['tokens out', String(t.outputTokens)],

@@ -1,8 +1,8 @@
 // Headless real-time benchmark: how long does Pac-Man survive, and how well does he play?
 // Run: npm run bench -- [--games 4] [--pacman jev|greedy] [--ghosts greedy|jev] [--max 120] [--record path.json]
-//                       [--pacman-model id] [--ghost-model id] [--safety on|off]
+//                       [--pacman-model id] [--ghost-model id]
 // Leaderboard: npm run bench -- --models all|id,id [--games 8] [--parallel 4] [--max 300] [--out public/leaderboard.json]
-//   plays each model as Pac-Man against the scripted ghosts with the safety check off, so the model is measured.
+//   plays each model as Pac-Man against the scripted ghosts; every move is the model's own.
 // --record needs --games 1 and writes the game (steps, decisions, panel events) for src/replay.ts.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -26,7 +26,6 @@ const { values } = parseArgs({
     ghosts: { type: 'string', default: 'greedy' },
     max: { type: 'string' },
     record: { type: 'string' },
-    safety: { type: 'string' },
     // Without these the server's default plays: JEV_MODEL, else jev.
     'pacman-model': { type: 'string' },
     'ghost-model': { type: 'string' },
@@ -38,7 +37,6 @@ const { values } = parseArgs({
 const leaderboard = values.models !== undefined;
 const games = Number(values.games ?? (leaderboard ? 8 : 4));
 const maxSeconds = Number(values.max ?? (leaderboard ? 300 : 120));
-const safetyCheck = (values.safety ?? (leaderboard ? 'off' : 'on')) !== 'off';
 const fail = (msg: string): never => {
   console.error(msg);
   process.exit(1);
@@ -81,11 +79,11 @@ async function warmUp(model: ModelId | undefined): Promise<string | null> {
 /** A model's display name; undefined is the server's default. */
 const nameOf = (model: ModelId | undefined) => modelName(model ?? modelFor(target?.provider ?? 'opper'));
 
-async function playOne(opts: { pacman: 'jev' | 'greedy'; ghosts: 'jev' | 'greedy'; pacmanModel?: ModelId; ghostModel?: ModelId; safetyCheck: boolean }): Promise<GameResult> {
+async function playOne(opts: { pacman: 'jev' | 'greedy'; ghosts: 'jev' | 'greedy'; pacmanModel?: ModelId; ghostModel?: ModelId }): Promise<GameResult> {
   const jevActors: ActorId[] = [...(opts.pacman === 'jev' ? ['pacman' as const] : []), ...(opts.ghosts === 'jev' ? GHOST_IDS : [])];
   const realTime = jevActors.length > 0; // model latency only matters in real time; greedy-only games run flat out
   const state = createGame();
-  const r: GameResult = { survived: 0, score: 0, pellets: 0, deaths: 0, level: 1, calls: 0, decisions: 0, fallbacks: 0, overrides: 0, latencyMsSum: 0, cost: 0, fruitSpawned: 0, fruitEaten: 0, ghostsEaten: 0, deathsBy: {} };
+  const r: GameResult = { survived: 0, score: 0, pellets: 0, deaths: 0, level: 1, calls: 0, decisions: 0, fallbacks: 0, latencyMsSum: 0, cost: 0, fruitSpawned: 0, fruitEaten: 0, ghostsEaten: 0, deathsBy: {} };
   const stats = new GameStats();
   const recorder = values.record ? new Recorder() : null;
   let frame = 0;
@@ -93,7 +91,6 @@ async function playOne(opts: { pacman: 'jev' | 'greedy'; ghosts: 'jev' | 'greedy
     transport,
     now: () => performance.now(),
     actors: jevActors,
-    safetyCheck: opts.safetyCheck,
     modelFor: (a) => (a === 'pacman' ? opts.pacmanModel : opts.ghostModel),
     onEvent: (e) => {
       recorder?.record(frame, e);
@@ -155,7 +152,6 @@ async function playOne(opts: { pacman: 'jev' | 'greedy'; ghosts: 'jev' | 'greedy
     deaths: summary.deaths.length,
     decisions: summary.jev.decisions,
     fallbacks: summary.jev.fallbacks,
-    overrides: summary.jev.overrides,
     fruitEaten: summary.fruit.length,
     ghostsEaten: summary.ghostsEaten,
   });
@@ -178,16 +174,16 @@ async function playMany(n: number, parallel: number, play: () => Promise<GameRes
 }
 
 const line = (r: GameResult) =>
-  `survived ${r.survived.toFixed(1)}s, score ${r.score}, pellets ${r.pellets}, deaths ${r.deaths}, level ${r.level}, ghosts ${r.ghostsEaten}, calls ${r.calls}, fallbacks ${r.fallbacks}/${r.decisions}, overrides ${r.overrides}, $${r.cost.toFixed(4)}`;
+  `survived ${r.survived.toFixed(1)}s, score ${r.score}, pellets ${r.pellets}, deaths ${r.deaths}, level ${r.level}, ghosts ${r.ghostsEaten}, calls ${r.calls}, fallbacks ${r.fallbacks}/${r.decisions}, $${r.cost.toFixed(4)}`;
 
 if (leaderboard) {
   const models = values.models === 'all' || values.models === '' ? DECISION_MODELS.map((m) => m.id) : values.models!.split(',').map(asModel);
   const parallel = Number(values.parallel ?? 4);
-  console.log(`leaderboard: ${models.length} models × ${games} games, cap ${maxSeconds}s, ${parallel} at a time, safety check ${safetyCheck ? 'on' : 'off'}, scripted ghosts (via ${target?.provider ?? 'no key'})`);
+  console.log(`leaderboard: ${models.length} models × ${games} games, cap ${maxSeconds}s, ${parallel} at a time, scripted ghosts (via ${target?.provider ?? 'no key'})`);
   const entries: LeaderboardEntry[] = [];
   const skipped: Leaderboard['skipped'] = [];
   const write = () => {
-    const board: Leaderboard = { generatedAt: new Date().toISOString(), settings: { gamesPerModel: games, maxSeconds, safetyCheck, ghosts: 'scripted' }, entries: rank(entries), skipped };
+    const board: Leaderboard = { generatedAt: new Date().toISOString(), settings: { gamesPerModel: games, maxSeconds, ghosts: 'scripted' }, entries: rank(entries), skipped };
     mkdirSync(dirname(values.out!), { recursive: true });
     writeFileSync(values.out!, `${JSON.stringify(board, null, 2)}\n`);
     return board;
@@ -202,7 +198,7 @@ if (leaderboard) {
       write();
       continue;
     }
-    const results = await playMany(games, parallel, () => playOne({ pacman: 'jev', ghosts: 'greedy', pacmanModel: model, safetyCheck }));
+    const results = await playMany(games, parallel, () => playOne({ pacman: 'jev', ghosts: 'greedy', pacmanModel: model }));
     for (const [i, r] of results.entries()) console.log(`  game ${i + 1}: ${line(r)}`);
     const entry = summarize(model, results);
     console.log(`  MEAN score ${entry.meanScore}, survived ${entry.meanSurvivedSeconds}s, pellets/life ${entry.pelletsPerLife}, fallbacks ${(entry.fallbackRate * 100).toFixed(1)}%, latency ${entry.meanLatencyMs} ms, $${entry.costPerGame}/game`);
@@ -220,9 +216,9 @@ if (leaderboard) {
   const pacman = values.pacman === 'greedy' ? 'greedy' : 'jev';
   const ghosts = values.ghosts === 'jev' ? 'jev' : 'greedy';
   const pick = (v: string | undefined) => (v === undefined ? undefined : asModel(v));
-  const opts = { pacman, ghosts, pacmanModel: pick(values['pacman-model']), ghostModel: pick(values['ghost-model']), safetyCheck } as const;
+  const opts = { pacman, ghosts, pacmanModel: pick(values['pacman-model']), ghostModel: pick(values['ghost-model']) } as const;
   const label = `pacman=${pacman === 'jev' ? nameOf(opts.pacmanModel) : 'greedy'} ghosts=${ghosts === 'jev' ? nameOf(opts.ghostModel) : 'greedy'}`;
-  console.log(`bench ${label}: ${games} games, cap ${maxSeconds}s, safety check ${safetyCheck ? 'on' : 'off'}${pacman === 'jev' || ghosts === 'jev' ? ` (real time, via ${target?.provider ?? 'no key'})` : ''}`);
+  console.log(`bench ${label}: ${games} games, cap ${maxSeconds}s${pacman === 'jev' || ghosts === 'jev' ? ` (real time, via ${target?.provider ?? 'no key'})` : ''}`);
   const warm = async (model: ModelId | undefined) => {
     const problem = await warmUp(model);
     if (problem) fail(`${model}: ${problem}`);

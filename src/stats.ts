@@ -33,8 +33,6 @@ export interface GameSummary {
     costEstimated: boolean;
     /** Requests that failed (signed out, empty wallet, timeouts, errors). */
     errors: number;
-    /** jev picks the safety check replaced because ghosts had moved into the way. */
-    overrides: number;
     /** The models that made decisions this game, in the order they first did. */
     models: string[];
   };
@@ -96,7 +94,6 @@ export class GameStats {
   private cost = { sum: 0, known: false };
   private costEstimated = false;
   private errors = 0;
-  private overrides = 0;
   private readonly models = new Set<string>();
   /** This life's recent situations, oldest first, trimmed to a little more than REACT_SECONDS. */
   private recent: { seconds: number; context: DeathContext | null }[] = [];
@@ -168,8 +165,6 @@ export class GameStats {
       if (e.costEstimated) this.costEstimated = true;
     } else if (e.type === 'error') {
       this.errors += 1;
-    } else if (e.type === 'decision' && e.decision.vetoed) {
-      this.overrides += 1;
     } else if (e.type === 'decision' || e.type === 'superseded') {
       const sign = e.type === 'decision' ? 1 : -1;
       this.decisions += sign;
@@ -200,7 +195,6 @@ export class GameStats {
         costUsd: this.cost.known ? round(this.cost.sum, 6) : null,
         costEstimated: this.costEstimated,
         errors: this.errors,
-        overrides: this.overrides,
         models: [...this.models],
       },
     };

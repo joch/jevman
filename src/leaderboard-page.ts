@@ -54,7 +54,7 @@ function render(board: Leaderboard): void {
       `${gamesPerModel} games per model, each ending at game over or after ${maxSeconds} seconds of play. Scores vary a lot from game to game; the ± is the margin of error on the average (two standard errors).`,
       'Pac-Man is played by the model; the four ghosts follow the classic scripted rules, the same for every model.',
       'Real time: a model that answers slowly reaches junctions late. If it takes over 2 seconds, a simple rule decides that move (counted as a fallback).',
-      "The game's safety check, which in normal play overrides moves that walk into a ghost, is off: this measures the model alone.",
+      "Every move is the model's own, with no safety net.",
       'Every model gets the same question at each junction: the facts about each route (pellets, ghosts, traps, fruit) and a choice of direction.',
       ...skipped,
       `Last run ${date}. Run it yourself with npm run leaderboard.`,

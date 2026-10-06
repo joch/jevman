@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { rank, summarize, tooCloseToCall, type GameResult } from '../shared/leaderboard';
 
 const game = (over: Partial<GameResult>): GameResult => ({
-  survived: 60, score: 2000, pellets: 200, deaths: 3, level: 1, calls: 100, decisions: 90, fallbacks: 0, overrides: 0,
+  survived: 60, score: 2000, pellets: 200, deaths: 3, level: 1, calls: 100, decisions: 90, fallbacks: 0,
   latencyMsSum: 25_000, cost: 0.005, fruitSpawned: 2, fruitEaten: 1, ghostsEaten: 2, deathsBy: { 'at/near junction': 3 }, ...over,
 });
 

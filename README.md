@@ -13,7 +13,7 @@ board at each junction.
 
 The side panel shows each decision with its probabilities, confidence, latency, the model that made
 it and the running cost. Red entries were not the model's own choice: greedy fallbacks used when it
-could not answer (timeout, error or invalid answer) and safety overrides (see
+could not answer (timeout, error or invalid answer; see
 [How decisions work](#how-decisions-work)).
 
 Source: <https://github.com/joch/jevman>
@@ -82,16 +82,15 @@ names explicitly (`--pacman-model`, `npm run leaderboard`) must be one of the
 - `npm run build` / `npm start` — production build, then the production server on `PORT` (default 3000).
 - `npm run smoke` — one real batched call to jev with the `.env` key (TypeSafe or Opper).
 - `npm run bench` — headless real-time games reporting survival time, score, pellets, deaths,
-  calls, fallbacks, safety overrides, latency and cost. Paid whenever a model drives a character.
+  calls, fallbacks, latency and cost. Paid whenever a model drives a character.
   Flags: `--games 4` (played in parallel), `--pacman jev|greedy` and `--ghosts greedy|jev` (`jev`
   means "a decision model"), `--pacman-model` and `--ghost-model` (any id below; default jev),
-  `--max 120` (seconds per game), `--safety on|off` (the safety check described below),
-  `--record path.json` (with `--games 1`: save the game for replay). Each model gets a warm-up call
+  `--max 120` (seconds per game), `--record path.json` (with `--games 1`: save the game for replay). Each model gets a warm-up call
   first, because Opper-hosted models can take many seconds to answer after being idle. The demo was recorded with
   `npm run bench -- --games 1 --pacman jev --ghosts greedy --max 120 --record public/demo/jev-demo.json`;
   re-record it if a change to the game rules makes the replay test fail.
-- `npm run leaderboard` — every decision model plays Pac-Man against the scripted ghosts, with the
-  safety check **off** so the model itself is measured. Writes `public/leaderboard.json` (ranked by
+- `npm run leaderboard` — every decision model plays Pac-Man against the scripted ghosts, so the
+  model itself is measured. Writes `public/leaderboard.json` (ranked by
   mean score), which the site shows at `/leaderboard`, and prints a table. Same flags as `bench`, plus `--models id,id` (default: all),
   `--parallel 4` (games at a time per model); defaults to 8 games per model and a 300 s cap.
 - `npm run deaths -- game.json` — replays a recorded game and prints, for each of Pac-Man's deaths,
@@ -142,16 +141,6 @@ Pac-Man can also get a second question mid-corridor: when a dangerous ghost is i
 ahead, or can reach the junction at its end before he does, jev is asked whether to keep going or
 turn back right now (`pacman_escape`). Pac-Man keeps moving while it is open, and each situation is
 asked once.
-
-jev answers from a snapshot taken when the question was asked, often a whole corridor before Pac-Man
-reaches the junction, and the ghosts keep moving. So when Pac-Man takes jev's answer, a **safety
-check** looks at the board again. If jev's pick now leads into a ghost, a trap or a ghost about to
-touch him, he takes the safe route jev rated highest instead. If every route is unsafe, he takes the
-least bad one when jev's pick is clearly worse. The panel and the game-over card count these as
-**safety overrides**. An escape question is only asked when the way ahead is already dangerous, so
-there the check turns Pac-Man back whenever that is safe, and jev's answer decides only when both
-ways are risky. Against the scripted ghosts the safety check roughly doubled how long jev Pac-Man
-survives.
 
 ## License
 
