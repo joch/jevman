@@ -229,10 +229,12 @@ export function showPlay(
         chip.dataset.model = o.id;
         chip.addEventListener('click', () => {
           const pick = chipsPick(sides);
+          // In Beat the AI there is no AI to pick: a model chip goes back to watching that model. Switch first, so the
+          // model change that follows warms it up.
+          if (pick === null) choose(WATCH);
           if (pick === 'ghosts') m.onChange(setGhosts(m.choice(), o.id));
           else m.onChange({ ...m.choice(), pacman: o.id });
-          // In Beat the AI there is no AI to pick: a model chip goes back to watching that model.
-          choose(pick === null ? WATCH : sides);
+          render();
           play.focus({ preventScroll: true });
         });
         chips.append(chip);
