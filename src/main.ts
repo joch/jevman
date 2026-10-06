@@ -471,6 +471,7 @@ if (me.mode === 'none') {
     gameId += 1;
     switching = false;
     resuming = false;
+    restarting = false;
     showToggle(liveMode);
     started = false; // nothing runs (or is billed) behind the card
     paused = false;
