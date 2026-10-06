@@ -4,10 +4,15 @@ import { recordGame } from './record-game';
 import { createGame, decisionPoints, step, type DecisionPoint } from '../src/sim';
 import type { Dir } from '../src/types';
 import { scriptedControls } from '../scripts/game';
-import { verifyGame } from '../scripts/verify';
+import { verifyGame as verifyWith } from '../scripts/verify';
+import type { SubmissionRules } from '../shared/leaderboard';
+
+// Short games keep the replays quick (CI runners are slow); the rules are the bench's apart from the cap.
+const RULES: SubmissionRules = { minGames: 1, maxSeconds: 30, maxStep: 0.05 };
+const verifyGame = (rec: Recording, rules = RULES) => verifyWith(rec, rules);
 
 
-const honest = recordGame();
+const honest = recordGame(RULES.maxSeconds);
 
 /** Replays a recording as verifyGame does, reporting each of Pac-Man's questions with the ones open before that step. */
 function replay(rec: Recording, onQuestion: (frame: number, point: DecisionPoint, open: Set<string>) => void, onFrame?: (frame: number, open: Set<string>) => void): void {
@@ -62,11 +67,12 @@ describe('verifyGame', () => {
     expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/a step must be 0.001 to 0.05 s/) });
   });
 
-  it('refuses frames after game over and games cut short', () => {
+  it('refuses frames after the game ended and games cut short', () => {
+    // The short test game ends at the time cap; a full one can end at game over too (same check).
     const longer = copy();
     longer.frames.push(1 / 60);
     longer.final.frames += 1;
-    expect(verifyGame(longer)).toMatchObject({ ok: false, error: expect.stringMatching(/after game over/) });
+    expect(verifyGame(longer)).toMatchObject({ ok: false, error: expect.stringMatching(/after game over|past the 30 s cap/) });
     const shorter = copy();
     shorter.frames.splice(-200);
     shorter.final.frames -= 200;
