@@ -113,44 +113,27 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: 
 function signInButton(me: Me): HTMLButtonElement {
   const b = el('button', 'Sign in with Opper', 'signin');
   b.disabled = !me.loginAvailable;
-  if (!me.loginAvailable) b.title = 'Login with Opper is not configured on this server';
+  b.title = me.loginAvailable ? 'To watch the AI play live or face AI ghosts; calls bill your own Opper wallet' : 'Login with Opper is not configured on this server';
   b.addEventListener('click', signIn);
   return b;
 }
 
-export const REPO_URL = 'https://github.com/joch/jevman';
-
-/** The alternative to signing in: run jevman locally with your own TypeSafe (or Opper) key. */
-function runItYourself(lead: string): HTMLElement {
-  const hint = el('p', lead, 'hint');
-  const link = el('a', 'clone the repo and use your own TypeSafe key');
-  link.href = `${REPO_URL}#option-c--your-own-typesafe-key-jev-straight-from-typesafe`;
-  link.target = '_blank';
-  link.rel = 'noopener';
-  hint.append(link);
-  return hint;
-}
-
 /**
- * The account area of the page header: a badge and one line saying how jev is paid for, an optional hint below it,
- * and the actions (sign in, wallet, sign out) beside it.
+ * The account area of the page header, kept short: who is signed in (or that a local key plays) and the one action
+ * that matters, signing in. What signing in costs is explained in the Play dialog.
  */
 export function renderAccount(root: HTMLElement, view: AccountView): void {
   const { me } = view;
   const text = el('div', undefined, 'account-text');
   const actions = el('div', undefined, 'account-actions');
-  const line = (badge: string, message: string) => {
-    const p = el('p', undefined, 'status');
-    p.append(el('span', badge, 'badge'), el('span', message));
-    text.append(p);
-  };
   // With a notice, "Try again" takes the place of the view's own sign-in button.
   const retry = Boolean(view.notice) && view.kind !== 'player';
   if (view.kind === 'player') {
     const who = me.user?.name ?? me.user?.email ?? 'Opper user';
-    line('Live', `Signed in as ${who}${me.projectName ? ` · ${me.projectName}` : ''}`);
-    text.append(el('p', 'The AI plays live; calls bill your Opper wallet.', 'hint'));
-    const wallet = el('a', 'My wallet ↗', 'button');
+    const p = el('p', `Signed in as ${who}`, 'status');
+    p.title = `${me.projectName ? `Project ${me.projectName}. ` : ''}The AI plays live; calls bill your Opper wallet.`;
+    text.append(p);
+    const wallet = el('a', 'Wallet ↗', 'button');
     wallet.href = me.walletUrl;
     wallet.target = '_blank';
     wallet.rel = 'noopener';
@@ -158,20 +141,14 @@ export function renderAccount(root: HTMLElement, view: AccountView): void {
     out.addEventListener('click', () => void signOut());
     actions.append(wallet, out);
   } else if (view.kind === 'dev') {
-    line('Local key', me.devProvider === 'typesafe' ? 'Playing with your TypeSafe key from .env' : 'Playing with the local dev key from .env');
-    text.append(el('p', me.devProvider === 'typesafe' ? 'Calls go straight to TypeSafe.' : 'Calls go through Opper with your key.', 'hint'));
+    const p = el('p', undefined, 'status');
+    p.append(el('span', 'Local key', 'badge'));
+    p.title = me.devProvider === 'typesafe' ? 'Playing with your TypeSafe key from .env: calls go straight to TypeSafe.' : 'Playing with the local dev key from .env: calls go through Opper with your key.';
+    text.append(p);
     if (me.loginAvailable && !retry) actions.append(signInButton(me));
-  } else if (view.kind === 'free') {
-    line('Free game', 'You against the classic ghosts');
-    text.append(runItYourself('Sign in to watch the AI or face AI ghosts, or '));
-    if (!retry) actions.append(signInButton(me));
-  } else if (view.kind === 'demo') {
-    line('Recorded demo', 'Play free, or sign in to let the AI play live');
-    text.append(runItYourself('Calls bill your own Opper wallet, or '));
-    if (!retry) actions.append(signInButton(me));
   } else {
-    line('Signed out', 'Sign in with Opper to keep the AI playing');
-    text.append(runItYourself('Or '));
+    // Demo, the free game, or signed out: one quiet sign-in (Play is the page's main action).
+    if (view.kind === 'signed-out') text.append(el('p', 'Signed out', 'status'));
     if (!retry) actions.append(signInButton(me));
   }
   if (view.notice) {

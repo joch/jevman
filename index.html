@@ -22,14 +22,17 @@
   <body>
     <div class="page">
     <header class="site">
-      <div class="brand">
+      <a class="brand" href="/">
         <span class="logo" aria-hidden="true"></span>
         <div>
           <h1>jevman</h1>
-          <p>Pac-Man played by AI decision models</p>
+          <p>Watch AI play Pac-Man, or try to beat it</p>
         </div>
-      </div>
-      <nav class="site-nav" aria-label="Site"><a href="/leaderboard">🏆 Leaderboard</a></nav>
+      </a>
+      <nav class="site-nav" aria-label="Site">
+        <a href="/leaderboard">Leaderboard</a>
+        <a href="https://github.com/joch/jevman" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
       <div id="account" class="account" aria-live="polite"></div>
     </header>
     <main class="layout">
@@ -59,7 +62,6 @@
           <button id="mute" aria-pressed="false" aria-label="Sound">🔊</button>
         </div>
         <p class="help">Arrows/WASD or swipe steer when you play Pac-Man · J: Pac-Man to the AI or back · P pause · R restart</p>
-        <p class="source"><a href="/leaderboard">Which AI plays best? Leaderboard</a> · <a href="https://github.com/joch/jevman" target="_blank" rel="noopener">Source on GitHub ↗</a></p>
       </section>
       <aside id="panel" aria-label="Decisions"></aside>
     </main>

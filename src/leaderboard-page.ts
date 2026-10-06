@@ -67,7 +67,7 @@ function render(board: Leaderboard, community: Community): void {
   const tied = jointLeaders(board.entries).map((e) => e.name);
   const names = tied.length > 2 ? `${tied.slice(0, -1).join(', ')} and ${tied.at(-1)}` : tied.join(' and ');
   $('lede').textContent =
-    `${board.entries.length} decision models each played ${gamesPerModel} games of Pac-Man against the classic arcade ghosts, in real time, with no help from the game. Ranked by average score.` +
+    `${board.entries.length} AI models each played ${gamesPerModel} real-time games of Pac-Man against the classic ghosts, ranked by average score.` +
     (tied.length ? ` ${names} are too close to call: their scores are within the margin of error.` : '');
   $('list').replaceChildren(...leaderboardRows(board, topScore(board.entries, community.entries)).map(rowElement));
   renderCommunity(community, topScore(board.entries, community.entries));

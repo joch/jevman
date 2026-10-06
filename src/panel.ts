@@ -36,7 +36,7 @@ export class Panel {
   /** `models` adds a model dropdown to each card the AI plays (live games only; a recording can't change). */
   constructor(private readonly root: HTMLElement, opts: { caption?: string; models?: ModelPicking } = {}) {
     this.models = opts.models;
-    root.innerHTML = `<h2>Decisions</h2><div class="banner" role="alert" hidden></div><div class="note" role="status" hidden></div><div class="totals"></div><div class="cards"></div><h3>Decision log</h3><ol class="log"></ol>`;
+    root.innerHTML = `<h2>Decisions</h2><p class="explain">The odds the AI gave each way at its next junction; the brightest bar is its choice.</p><div class="banner" role="alert" hidden></div><div class="note" role="status" hidden></div><details class="totals"><summary></summary><div class="grid"></div></details><div class="cards"></div><h3>Decision log</h3><ol class="log"></ol>`;
     if (opts.caption) {
       const caption = document.createElement('span');
       caption.className = 'caption';
@@ -238,7 +238,10 @@ export class Panel {
       ['cost', `${t.costEstimated ? '≈' : ''}$${t.cost.toFixed(5)}`],
       ['mean latency', `${mean} ms`],
     ];
-    this.totalsEl.replaceChildren(
+    // One line by default; the full numbers a click away (the <details> keeps itself open or closed).
+    this.totalsEl.querySelector('summary')!.textContent =
+      `${t.decisions} decisions · ${t.fallbacks} fallbacks · ${t.costEstimated ? '≈' : ''}$${t.cost.toFixed(4)} · ${mean} ms`;
+    this.totalsEl.querySelector('.grid')!.replaceChildren(
       ...cells.map(([label, value]) => {
         const cell = document.createElement('div');
         const name = document.createElement('span');

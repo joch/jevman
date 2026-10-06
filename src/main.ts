@@ -121,11 +121,8 @@ function startDemo(r: NonNullable<typeof rec>): void {
   demo = new DemoPlayer(r, { onLoop: () => (panel = new Panel(panelEl, { caption: DEMO_CAPTION })) });
   state = demo.state;
   panel = new Panel(panelEl, { caption: DEMO_CAPTION });
-  for (const control of LIVE_CONTROLS) {
-    control.disabled = true;
-    control.title = 'Press Play to play live';
-  }
-  speedIn.closest('label')!.hidden = true;
+  // Controls that only mean something in a live game stay out of the way until one starts.
+  for (const control of LIVE_CONTROLS) (control.closest('label') ?? control).hidden = true;
   help.textContent = 'Recorded game · press Play (or Space) to play live';
   playCta.hidden = false;
   tick = (dt) => {
@@ -138,11 +135,7 @@ function startDemo(r: NonNullable<typeof rec>): void {
 }
 function endDemo(): void {
   demo = null;
-  for (const control of LIVE_CONTROLS) {
-    control.disabled = false;
-    control.title = '';
-  }
-  speedIn.closest('label')!.hidden = false;
+  for (const control of LIVE_CONTROLS) (control.closest('label') ?? control).hidden = false;
   help.textContent = 'Arrows/WASD or swipe steer when you play Pac-Man · J: Pac-Man to the AI or back · P pause · R restart';
   playCta.hidden = true;
 }
