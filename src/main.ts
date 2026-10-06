@@ -143,7 +143,7 @@ function endDemo(): void {
     control.title = '';
   }
   speedIn.closest('label')!.hidden = false;
-  help.textContent = 'Arrows/WASD or swipe steer when you play Pac-Man · J switch sides · P pause · R restart';
+  help.textContent = 'Arrows/WASD or swipe steer when you play Pac-Man · J: Pac-Man to the AI or back · P pause · R restart';
   playCta.hidden = true;
 }
 

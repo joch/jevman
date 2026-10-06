@@ -3,6 +3,7 @@ import { FRUIT_EMOJI } from './render';
 import { deathLabel, type GameSummary } from './stats';
 import { modelSelect, type ModelPicking } from './picker';
 import { setGhosts } from './choice';
+import { GHOST_IDS } from './types';
 import { modelName } from '../shared/models';
 
 type Row = [label: string, value: string];
@@ -90,7 +91,7 @@ export const GAMES: { sides: Sides; title: string; hint: string; text: string }[
   { sides: { pacman: 'ai', ghosts: 'classic' }, title: 'Watch the AI play', hint: 'default', text: 'A model steers Pac-Man; the ghosts follow the classic arcade rules.' },
   { sides: { pacman: 'you', ghosts: 'ai' }, title: 'Play against the AI', hint: 'you steer', text: 'You steer Pac-Man (arrows, WASD or swipe); models play the four ghosts.' },
   { sides: { pacman: 'you', ghosts: 'classic' }, title: 'Beat the AI', hint: 'free', text: 'You against the classic ghosts, the game the AIs played on the leaderboard. See which AIs you beat.' },
-  { sides: { pacman: 'ai', ghosts: 'ai' }, title: 'AI vs AI', hint: 'new', text: 'One model plays Pac-Man, another the ghosts. Who wins?' },
+  { sides: { pacman: 'ai', ghosts: 'ai' }, title: 'AI vs AI', hint: 'new', text: 'Models play Pac-Man and the ghosts: the same one, or two rivals. Who wins?' },
 ];
 
 const sameSides = (a: Sides, b: Sides) => a.pacman === b.pacman && a.ghosts === b.ghosts;
@@ -163,7 +164,14 @@ export function showPlay(
         return r;
       };
       rows.pacman = row('Pac-Man is played by', modelSelect(m, m.choice().pacman, (model) => m.onChange({ ...m.choice(), pacman: model }), 'Model playing Pac-Man'), 'you');
-      rows.ghosts = row('The ghosts are played by', modelSelect(m, m.choice().blinky, (model) => m.onChange(setGhosts(m.choice(), model)), 'Model playing the ghosts'), 'the classic rules');
+      const ghostSelect = modelSelect(m, m.choice().blinky, (model) => m.onChange(setGhosts(m.choice(), model)), 'Model playing the ghosts');
+      // Ghosts given different models on the panel cards: say so, rather than show Blinky's as everyone's.
+      if (!GHOST_IDS.every((id) => m.choice()[id] === m.choice().blinky)) {
+        const mixed = new Option('Per ghost (set on the cards)', '', true, true);
+        mixed.disabled = true;
+        ghostSelect.prepend(mixed);
+      }
+      rows.ghosts = row('The ghosts are played by', ghostSelect, 'the classic rules');
       picks.append(rows.pacman, rows.ghosts);
       card.append(picks);
     }
