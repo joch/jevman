@@ -119,7 +119,8 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
   } catch (err) {
     return fail(`the game could not be replayed: ${(err as Error).message}`);
   }
-  if (state.status !== 'gameover' && r.survived < rules.maxSeconds - rules.maxStep) return fail('the game stops before game over or the time cap');
+  // The bench plays on until game over or until the cap is reached, adding the same rounded steps in the same order.
+  if (state.status !== 'gameover' && r.survived < rules.maxSeconds) return fail('the game stops before game over or the time cap');
   if (used !== pacmanMoves) return fail(`${pacmanMoves - used} of Pac-Man's recorded moves were never asked for: the game went differently`);
   const claimed = rec.final;
   if (claimed?.score !== state.score || claimed.level !== state.level || claimed.lives !== state.lives || claimed.frames !== rec.frames.length) {

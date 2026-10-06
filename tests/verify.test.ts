@@ -5,13 +5,13 @@ import { scriptedControls } from '../scripts/game';
 import { verifyGame } from '../scripts/verify';
 
 /** A whole game with the scripted rule playing Pac-Man too, recorded the way the bench records one. */
-function recordGame(): Recording {
+function recordGame(cap = 300): Recording {
   const state = createGame();
   const recorder = new Recorder();
   let frame = 0;
   const ctl = recorder.wrap(scriptedControls(), () => frame);
   let survived = 0;
-  while (state.status !== 'gameover' && survived < 300) {
+  while (state.status !== 'gameover' && survived < cap) {
     recorder.frames.push(1 / 60);
     step(state, 1 / 60, ctl);
     if (state.status === 'playing') survived += 1 / 60;
@@ -99,6 +99,16 @@ describe('verifyGame', () => {
     const t0 = performance.now();
     expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/more decisions/) });
     expect(performance.now() - t0).toBeLessThan(100);
+  });
+
+  it('accepts a game that reaches the time cap, but not one stopped a step short', () => {
+    const rules = { minGames: 1, maxSeconds: 20, maxStep: 0.05 };
+    const capped = recordGame(rules.maxSeconds);
+    expect(verifyGame(capped, rules).ok).toBe(true);
+    const short = structuredClone(capped);
+    short.frames.pop();
+    short.final.frames -= 1;
+    expect(verifyGame(short, rules)).toMatchObject({ ok: false, error: expect.stringMatching(/stops before game over or the time cap/) });
   });
 
   it('refuses malformed files instead of crashing', () => {
