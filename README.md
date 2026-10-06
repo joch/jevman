@@ -2,12 +2,12 @@
 
 Pac-Man where the characters are driven by System One decision models: TypeSafe's jev
 (`typesafe/jev-1.13.0`, the default) and the others Opper serves, called through Opper or (jev only)
-straight from TypeSafe. The Play dialog offers four games. In **Watch the AI play** (the default) a model steers
-Pac-Man and the ghosts follow the classic arcade rules. In **Play against the AI** you steer Pac-Man and models play
-the four ghosts. In **AI vs AI** one model plays Pac-Man and another the ghosts. **Beat the AI** is free and needs no
-sign-in: you against the classic ghosts, the same game the models played for the leaderboard, and game over tells you
-which AIs you beat (with a Share button and your personal best). Pick the game and the [models](#decision-models) in
-the Play dialog; `J` hands Pac-Man to the AI or takes him back during a game.
+straight from TypeSafe. The main thing is to **watch an AI play**: press Watch live, pick a model with one click
+(jev by default) and watch it play Pac-Man against the classic arcade ghosts. Below that are more ways to play:
+**Beat the AI** (free, no sign-in: you against the classic ghosts, the same game the models played for the
+leaderboard; game over tells you which AIs you beat, with a Share button and your personal best), **Play against AI
+ghosts** (you steer, a model plays the ghosts) and **AI vs AI** (models on both sides). `J` hands Pac-Man to the AI
+or takes him back during a game.
 `npm run leaderboard` measures which model plays best, and you can [add your own](#benchmark-your-own-model). While a model plays, its odds are drawn on the
 board at each junction.
 
@@ -115,7 +115,7 @@ Any other model can join the leaderboard as **self-reported**: its makers run th
 endpoint and send the recorded games in a pull request, which CI replays. See
 [CONTRIBUTING.md](CONTRIBUTING.md#benchmark-your-own-model).
 
-In the game, pick the models in the Play dialog: one for Pac-Man and one for all the ghosts. Each card on the
+In the game, pick the models in the Play dialog: one for Pac-Man (the chips) and one for all the ghosts. Each card on the
 decision panel has a dropdown to switch that character's model, also mid-game. Choices are remembered in your browser; the default is the server's
 (jev, or `JEV_MODEL`), and the game only names a model when you pick another one. Opper-hosted
 models scale down when idle, so picking one sends a tiny warm-up call (`POST /api/warm`, one cheap
@@ -125,7 +125,7 @@ answers.
 ## Controls
 
 Arrows/WASD steer Pac-Man when you play him · `J` or the Pac-Man button hands him to the AI or back · `P` pause ·
-`R` restart · `M` sound on/off · the speed slider slows the game down. Space/Enter presses Play. On a phone,
+`R` restart · `M` sound on/off · the speed slider slows the game down. Space/Enter presses Watch (or Play). On a phone,
 swipe on the board or use the on-screen pad.
 
 ## Cost
