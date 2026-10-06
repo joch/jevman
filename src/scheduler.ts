@@ -1,4 +1,4 @@
-import { buildRequest, fallbackDecision, parseAnswer, questionName, type DecideResponse, type Decision, type PendingQuestion, type SystemOneRequest } from './brain';
+import { buildRequest, fallbackDecision, parseAnswer, questionName, type DecideResponse, type Decision, type PendingQuestion, type PromptStyle, type SystemOneRequest } from './brain';
 import type { ModelId } from '../shared/models';
 import { fruitRoute, optionFeatures } from './features';
 import { decisionPoints, type Controls, type DecisionPoint, type GameState } from './sim';
@@ -32,6 +32,8 @@ export interface SchedulerDeps {
    * still running from an earlier game keep counting against `maxInFlight`.
    */
   slots?: { inFlight: number };
+  /** How the board is described to the model (default 'grid'). */
+  promptStyle?: PromptStyle;
 }
 
 interface Pending {
@@ -146,7 +148,7 @@ export class Scheduler implements Controls {
     this.slots.inFlight += 1;
     const isCurrent = (p: Pending) => this.pending.get(p.q.point.key) === p;
     this.deps
-      .transport({ ...(requested ? { model: requested } : {}), ...buildRequest(state, batch.map((p) => p.q)) })
+      .transport({ ...(requested ? { model: requested } : {}), ...buildRequest(state, batch.map((p) => p.q), this.deps.promptStyle) })
       .then(
         (res) => {
           const model = res.model ?? requested;

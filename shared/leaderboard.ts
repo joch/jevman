@@ -40,7 +40,7 @@ export interface LeaderboardEntry {
 
 export interface Leaderboard {
   generatedAt: string;
-  settings: { gamesPerModel: number; maxSeconds: number; /** Only in results from before the game's safety check was removed. */ safetyCheck?: boolean; ghosts: 'scripted' };
+  settings: { gamesPerModel: number; maxSeconds: number; /** Only in results from before the game's safety check was removed. */ safetyCheck?: boolean; ghosts: 'scripted'; /** How the board was described to the models (missing: the original grid prompt). */ promptStyle?: string };
   /** Best first: by mean score. */
   entries: LeaderboardEntry[];
   /** Models that could not play (not warm in time, not enabled for the key, ...). */

@@ -1,6 +1,6 @@
 // Headless real-time benchmark: how long does Pac-Man survive, and how well does he play?
 // Run: npm run bench -- [--games 4] [--pacman jev|greedy] [--ghosts greedy|jev] [--max 120] [--record path.json]
-//                       [--pacman-model id] [--ghost-model id]
+//                       [--pacman-model id] [--ghost-model id] [--prompt grid|facts|rich|local]
 // Leaderboard: npm run bench -- --models all|id,id [--games 8] [--parallel 4] [--max 300] [--out public/leaderboard.json]
 //   plays each model as Pac-Man against the scripted ghosts; every move is the model's own.
 // --record needs --games 1 and writes the game (steps, decisions, panel events) for src/replay.ts.
@@ -10,7 +10,7 @@ import { parseArgs } from 'node:util';
 import { greedyChoice, optionFeatures } from '../src/features';
 import { Scheduler, type Transport } from '../src/scheduler';
 import { createGame, step, type Controls } from '../src/sim';
-import type { DecideResponse } from '../src/brain';
+import { PROMPT_STYLES, type DecideResponse, type PromptStyle } from '../src/brain';
 import { GHOST_IDS, type ActorId } from '../src/types';
 import { handleDecide } from '../server/decide';
 import { devTargetFromEnv, modelFor } from '../server/jev';
@@ -32,6 +32,7 @@ const { values } = parseArgs({
     models: { type: 'string' },
     parallel: { type: 'string' },
     out: { type: 'string', default: 'public/leaderboard.json' },
+    prompt: { type: 'string', default: 'grid' },
   },
 });
 const leaderboard = values.models !== undefined;
@@ -43,6 +44,7 @@ const fail = (msg: string): never => {
 };
 const asModel = (v: string): ModelId => (isModelId(v) ? v : fail(`Unknown model ${v}; one of: ${DECISION_MODELS.map((m) => m.id).join(', ')}`));
 if (values.record && games !== 1) fail('--record needs --games 1');
+const promptStyle = PROMPT_STYLES.includes(values.prompt as PromptStyle) ? (values.prompt as PromptStyle) : fail(`--prompt must be one of: ${PROMPT_STYLES.join(', ')}`);
 const FRAME = 1 / 60;
 
 // TYPESAFE_API_KEY calls api.typesafe.ai directly; otherwise OPPER_API_KEY goes through Opper.
@@ -91,6 +93,7 @@ async function playOne(opts: { pacman: 'jev' | 'greedy'; ghosts: 'jev' | 'greedy
     transport,
     now: () => performance.now(),
     actors: jevActors,
+    promptStyle,
     modelFor: (a) => (a === 'pacman' ? opts.pacmanModel : opts.ghostModel),
     onEvent: (e) => {
       recorder?.record(frame, e);
@@ -179,11 +182,11 @@ const line = (r: GameResult) =>
 if (leaderboard) {
   const models = values.models === 'all' || values.models === '' ? DECISION_MODELS.map((m) => m.id) : values.models!.split(',').map(asModel);
   const parallel = Number(values.parallel ?? 4);
-  console.log(`leaderboard: ${models.length} models × ${games} games, cap ${maxSeconds}s, ${parallel} at a time, scripted ghosts (via ${target?.provider ?? 'no key'})`);
+  console.log(`leaderboard: ${models.length} models × ${games} games, cap ${maxSeconds}s, ${parallel} at a time, scripted ghosts, ${promptStyle} prompt (via ${target?.provider ?? 'no key'})`);
   const entries: LeaderboardEntry[] = [];
   const skipped: Leaderboard['skipped'] = [];
   const write = () => {
-    const board: Leaderboard = { generatedAt: new Date().toISOString(), settings: { gamesPerModel: games, maxSeconds, ghosts: 'scripted' }, entries: rank(entries), skipped };
+    const board: Leaderboard = { generatedAt: new Date().toISOString(), settings: { gamesPerModel: games, maxSeconds, ghosts: 'scripted', promptStyle }, entries: rank(entries), skipped };
     mkdirSync(dirname(values.out!), { recursive: true });
     writeFileSync(values.out!, `${JSON.stringify(board, null, 2)}\n`);
     return board;

@@ -36,7 +36,16 @@ export interface OptionFeatures {
   junctionSteps: number;
   /** The dangerous ghost that can reach that junction fastest, and how many steps it needs. */
   junctionGhost: { id: GhostId; steps: number } | null;
+  /** Pellets (and power pellets) within PELLET_REACH steps along this route. */
+  pelletsWithin: number;
+  /** The ways on from the junction at the end of this corridor (not back), and how many of them look clear. */
+  exitsAhead: { total: number; clear: number };
+  /** Steps along this route to each dangerous ghost it reaches. */
+  dangerGhostSteps: Partial<Record<GhostId, number>>;
 }
+
+/** How far "pellets nearby" looks along a route. */
+export const PELLET_REACH = 15;
 
 const CORRIDOR_LIMIT = 40;
 const CLYDE_SHY_DISTANCE = 8;
@@ -131,8 +140,30 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
       : goal.kind === 'hunt'
         ? (nearestFrightenedGhost ?? nearestPellet)
         : nearestPellet;
+    // The ways on from the junction this corridor ends at: clear when no dangerous ghost is in that next corridor and
+    // none can reach its end before Pac-Man would.
+    const arrival = corridorHeading(state, start, dir);
+    const onward = optionsAt(state, 'pacman', junction, arrival).filter((d) => d !== REVERSE[arrival]);
+    const atJunction = point.distance + corridor.length;
+    const clear = onward.filter((d) => {
+      const next = corridorFrom(state, maze.neighbor(junction, d), d);
+      if (danger.some((g) => next.some((t) => sameTile(t, occupiedTile(state, g))))) return false;
+      const end = maze.distanceMap(next[next.length - 1]);
+      return danger.every((g) => {
+        const ghostSteps = end[maze.key(occupiedTile(state, g))];
+        return ghostSteps < 0 || ghostSteps > atJunction + next.length;
+      });
+    }).length;
+    const pelletsWithin = pelletTiles.filter((t) => {
+      const s = steps(t);
+      return s !== null && s <= PELLET_REACH;
+    }).length;
+    const dangerGhostSteps = Object.fromEntries(dangerSteps.map((x) => [x.g.id, x.steps]));
     return {
       dir,
+      pelletsWithin,
+      exitsAhead: { total: onward.length, clear },
+      dangerGhostSteps,
       goalDistance,
       pacmanDistance: point.actor === 'pacman' ? null : steps(pac),
       nearestPellet,
@@ -153,7 +184,7 @@ export function optionFeatures(state: GameState, point: DecisionPoint): OptionFe
 }
 
 /** Whether ghost `g`'s next move takes it closer to `to` (for a ghost waiting at a junction: any move it may take). */
-function movingToward(state: GameState, g: Ghost, to: Tile): boolean {
+export function movingToward(state: GameState, g: Ghost, to: Tile): boolean {
   const { maze } = state;
   const dist = maze.distanceMap(to);
   const here = dist[maze.key(g.tile)];
@@ -173,6 +204,19 @@ function routeOf(state: GameState, point: DecisionPoint, dir: Dir): { start: Til
     return { start: point.tile, origin: state.maze.neighbor(point.tile, point.heading) };
   }
   return { start: state.maze.neighbor(point.tile, dir), origin: point.tile };
+}
+
+/** The heading on arrival at the end of the corridor that starts at `start` going `heading`. */
+function corridorHeading(state: GameState, start: Tile, heading: Dir): Dir {
+  let tile = start;
+  let dir = heading;
+  for (let i = 0; i < CORRIDOR_LIMIT; i++) {
+    const ahead = state.maze.openDirs(tile).filter((d) => d !== REVERSE[dir]);
+    if (ahead.length !== 1) break;
+    dir = ahead[0];
+    tile = state.maze.neighbor(tile, dir);
+  }
+  return dir;
 }
 
 function corridorFrom(state: GameState, start: Tile, heading: Dir): Tile[] {
