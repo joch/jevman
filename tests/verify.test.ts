@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Recording } from '../src/replay';
 import { recordGame } from './record-game';
@@ -68,11 +69,16 @@ describe('verifyGame', () => {
   });
 
   it('refuses frames after the game ended and games cut short', () => {
-    // The short test game ends at the time cap; a full one can end at game over too (same check).
+    // The short test game ends at the time cap; the committed demo, a real jev game, ends at game over.
     const longer = copy();
     longer.frames.push(1 / 60);
     longer.final.frames += 1;
-    expect(verifyGame(longer)).toMatchObject({ ok: false, error: expect.stringMatching(/after game over|past the 30 s cap/) });
+    expect(verifyGame(longer)).toMatchObject({ ok: false, error: expect.stringMatching(/past the 30 s cap/) });
+    const demo = JSON.parse(readFileSync('public/demo/jev-demo.json', 'utf8')) as Recording;
+    expect(verifyWith(demo).ok).toBe(true);
+    demo.frames.push(1 / 60);
+    demo.final.frames += 1;
+    expect(verifyWith(demo)).toMatchObject({ ok: false, error: expect.stringMatching(/after game over/) });
     const shorter = copy();
     shorter.frames.splice(-200);
     shorter.final.frames -= 200;
