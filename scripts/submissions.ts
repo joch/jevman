@@ -3,7 +3,8 @@
 // Each submissions/<id>/ holds submission.json and game-NN.json.gz recordings written by bench --submit. Every game is
 // replayed; a submission on the current bench version that breaks a rule or does not replay fails the run (and CI).
 // Submissions recorded on an older bench version are left out with a note: their games were a different benchmark.
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { gunzipSync } from 'node:zlib';
@@ -20,6 +21,10 @@ interface Manifest {
   games: number;
 }
 
+/** A 300 s game gzips to well under 1 MB and unpacks to a few MB. */
+const MAX_FILE_BYTES = 4 << 20;
+const MAX_GAME_BYTES = 32 << 20;
+
 /** A submission's entry, or why it was refused (`outdated` ones are left out without failing). */
 export function checkSubmission(dir: string, id: string, rules: SubmissionRules = SUBMISSION_RULES): { entry: CommunityEntry } | { error: string; outdated?: boolean } {
   const manifestPath = join(dir, 'submission.json');
@@ -30,26 +35,38 @@ export function checkSubmission(dir: string, id: string, rules: SubmissionRules 
   } catch (err) {
     return { error: `submission.json: ${(err as Error).message}` };
   }
-  if (typeof manifest.name !== 'string' || !manifest.name.trim() || manifest.name.length > 40) return { error: 'name must be 1 to 40 characters' };
+  if (!manifest || typeof manifest !== 'object') return { error: 'submission.json must be an object' };
+  // Plain printable text: no control or direction-changing characters in a name shown on the leaderboard.
+  if (typeof manifest.name !== 'string' || !/^[\p{L}\p{N}\p{P}\p{Zs}\p{S}]{1,40}$/u.test(manifest.name) || !manifest.name.trim()) return { error: 'name must be 1 to 40 printable characters' };
   if (typeof manifest.by !== 'string' || !/^[A-Za-z0-9-]{1,39}$/.test(manifest.by)) return { error: 'by must be a GitHub handle' };
   if (manifest.url !== undefined && (typeof manifest.url !== 'string' || !/^https:\/\/\S+$/.test(manifest.url))) return { error: 'url must start with https://' };
   // A submitted model must not pass for one we benchmark ourselves.
   if (DECISION_MODELS.some((m) => m.id === id || m.name.toLowerCase() === manifest.name.trim().toLowerCase())) return { error: `${manifest.name} is on the main leaderboard already` };
-  if (manifest.benchVersion !== BENCH_VERSION) return { error: `recorded on bench version ${manifest.benchVersion}, the current one is ${BENCH_VERSION}: re-run it`, outdated: true };
+  const v = manifest.benchVersion;
+  // Only a real older version is left out quietly; anything else is checked as a mistake.
+  if (Number.isInteger(v) && v >= 1 && v < BENCH_VERSION) return { error: `recorded on bench version ${v}, the current one is ${BENCH_VERSION}: re-run it`, outdated: true };
+  if (v !== BENCH_VERSION) return { error: `benchVersion must be ${BENCH_VERSION}` };
 
   const files = readdirSync(dir).filter((f) => /^game-\d+\.json\.gz$/.test(f)).sort();
   if (files.length < rules.minGames) return { error: `${files.length} games; a submission needs at least ${rules.minGames}` };
   if (files.length !== manifest.games) return { error: `submission.json says ${manifest.games} games, the folder has ${files.length}` };
   const results: GameResult[] = [];
+  const seen = new Map<string, string>();
   for (const file of files) {
+    const path = join(dir, file);
+    if (statSync(path).size > MAX_FILE_BYTES) return { error: `${file} is larger than a recorded game` };
     let rec: Recording;
     try {
-      rec = JSON.parse(gunzipSync(readFileSync(join(dir, file))).toString('utf8')) as Recording;
+      rec = JSON.parse(gunzipSync(readFileSync(path), { maxOutputLength: MAX_GAME_BYTES }).toString('utf8')) as Recording;
     } catch (err) {
       return { error: `${file}: ${(err as Error).message}` };
     }
     const verdict = verifyGame(rec, rules);
     if (!verdict.ok) return { error: `${file}: ${verdict.error}` };
+    // Real-time games never repeat their step timings, so a repeat is the same game sent twice.
+    const hash = createHash('sha256').update(JSON.stringify([rec.frames, rec.decisions])).digest('hex');
+    if (seen.has(hash)) return { error: `${file} is the same game as ${seen.get(hash)}` };
+    seen.set(hash, file);
     results.push(verdict.result);
   }
   const entry: CommunityEntry = {
@@ -75,7 +92,10 @@ if (isMain) {
       continue;
     }
     const checked = checkSubmission(join(root, id), id);
-    if ('entry' in checked) {
+    if ('entry' in checked && entries.some((e) => e.name.toLowerCase() === checked.entry.name.toLowerCase())) {
+      console.error(`${id}: REFUSED, another submission is called ${checked.entry.name}`);
+      failed = true;
+    } else if ('entry' in checked) {
       const e = checked.entry;
       console.log(`${id}: ok, ${e.games} games, mean score ${e.meanScore} ± ${Math.round(2 * (e.scoreStdError ?? 0))}`);
       entries.push(e);

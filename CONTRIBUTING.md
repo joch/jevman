@@ -39,7 +39,7 @@ Answer each question with one of its `criteria` keys:
 `costUsd` (what the call cost; the leaderboard shows it per game). Pac-Man can also get a `pacman_escape` question
 mid-corridor, with the same shape.
 
-[`scripts/example-endpoint.ts`](scripts/example-endpoint.ts) is a complete endpoint in 35 lines, to copy and put
+[`scripts/example-endpoint.ts`](scripts/example-endpoint.ts) is a complete endpoint in 34 lines, to copy and put
 your model behind. If yours needs a key, set `BENCH_ENDPOINT_TOKEN`: the bench sends it as a bearer token.
 
 The game runs in real time, as on the leaderboard. An answer that takes over 2 seconds is replaced by a simple rule
@@ -79,8 +79,9 @@ rule or doesn't replay to its recorded result. Once it's merged, your model show
 The game is deterministic, so CI replays your recorded moves against the scripted ghosts and recomputes every score,
 survival time, pellet and death itself. A submission can't claim more than its moves earned.
 
-What a replay can't check: that your model made those moves, how fast it really answered, what it cost, and that
-you didn't play more games and keep the best ones. Those are as you report them, which is why the leaderboard
+What a replay can't check: that your model made those moves, how fast it really answered, how often it fell back,
+what it cost, and that you didn't play more games and keep the best ones. (It does check that the moves are ones the
+bench could have made: each answer in time, each escape question answered once, and no game sent twice.) Those are as you report them, which is why the leaderboard
 marks these entries. Please submit every game of the run.
 
 When the game or the question changes, `BENCH_VERSION` in [`shared/leaderboard.ts`](shared/leaderboard.ts) goes

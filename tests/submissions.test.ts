@@ -12,33 +12,34 @@ import { BENCH_VERSION, type SubmissionRules } from '../shared/leaderboard';
 // Short games keep the replays quick; the rules are the same apart from the cap.
 const RULES: SubmissionRules = { minGames: 3, maxSeconds: 20, maxStep: 0.05 };
 
-function recordGame(): Recording {
+function recordGame(dt: number): Recording {
   const state = createGame();
   const recorder = new Recorder();
   let frame = 0;
   const ctl = recorder.wrap(scriptedControls(), () => frame);
   let survived = 0;
   while (state.status !== 'gameover' && survived < RULES.maxSeconds) {
-    recorder.frames.push(1 / 60);
-    step(state, 1 / 60, ctl);
-    if (state.status === 'playing') survived += 1 / 60;
+    recorder.frames.push(dt);
+    step(state, dt, ctl);
+    if (state.status === 'playing') survived += dt;
     frame += 1;
   }
   return recorder.finish(state, 'scripted');
 }
-const game = recordGame();
+// Different step timings make different games, as real-time runs do.
+const recorded = [1 / 60, 1 / 59, 1 / 61, 1 / 58].map(recordGame);
 
 /** A submission folder as bench --submit writes it, with any part overridden. */
-function folder(opts: { manifest?: Record<string, unknown>; games?: number; tamper?: (rec: Recording) => void } = {}): string {
+function folder(opts: { manifest?: Record<string, unknown> | null; games?: number; tamper?: (rec: Recording) => void; same?: boolean } = {}): string {
   const dir = join(mkdtempSync(join(tmpdir(), 'jevman-sub-')), 'acme-pac');
   mkdirSync(dir);
   const games = opts.games ?? RULES.minGames;
   for (let i = 1; i <= games; i++) {
-    const rec = structuredClone(game);
+    const rec = structuredClone(recorded[opts.same ? 0 : i - 1]);
     if (i === 3) opts.tamper?.(rec);
     writeFileSync(join(dir, `game-${String(i).padStart(2, '0')}.json.gz`), gzipSync(JSON.stringify(rec)));
   }
-  const manifest = { name: 'Acme Pac', by: 'acme', url: 'https://acme.example', benchVersion: BENCH_VERSION, games, ...opts.manifest };
+  const manifest = opts.manifest === null ? null : { name: 'Acme Pac', by: 'acme', url: 'https://acme.example', benchVersion: BENCH_VERSION, games, ...opts.manifest };
   writeFileSync(join(dir, 'submission.json'), JSON.stringify(manifest));
   return dir;
 }
@@ -46,7 +47,9 @@ function folder(opts: { manifest?: Record<string, unknown>; games?: number; tamp
 describe('checkSubmission', () => {
   it('replays every game and builds a self-reported entry from the replays', () => {
     const checked = checkSubmission(folder(), 'acme-pac', RULES);
-    expect(checked).toMatchObject({ entry: { model: 'acme-pac', name: 'Acme Pac', by: 'acme', selfReported: true, games: RULES.minGames, meanScore: game.final.score } });
+    expect(checked).toMatchObject({ entry: { model: 'acme-pac', name: 'Acme Pac', by: 'acme', selfReported: true, games: RULES.minGames } });
+    const mean = recorded.slice(0, RULES.minGames).reduce((a, g) => a + g.final.score, 0) / RULES.minGames;
+    expect('entry' in checked && checked.entry.meanScore).toBe(Math.round(mean));
   });
 
   it('refuses the whole submission when one game does not check out', () => {
@@ -59,8 +62,23 @@ describe('checkSubmission', () => {
     expect(checkSubmission(folder({ manifest: { games: 30 } }), 'acme-pac', RULES)).toMatchObject({ error: expect.stringMatching(/says 30 games/) });
   });
 
-  it('leaves out submissions from another bench version without failing', () => {
-    expect(checkSubmission(folder({ manifest: { benchVersion: BENCH_VERSION - 1 } }), 'acme-pac', RULES)).toMatchObject({ outdated: true });
+  it('refuses the same game sent more than once', () => {
+    expect(checkSubmission(folder({ same: true }), 'acme-pac', RULES)).toMatchObject({ error: expect.stringMatching(/game-02\.json\.gz is the same game as game-01/) });
+  });
+
+  it('leaves out submissions from an older bench version, but checks any other version as a mistake', () => {
+    // Version 1 is the first: there is no older one yet, and 0 never existed.
+    if (BENCH_VERSION > 1) expect(checkSubmission(folder({ manifest: { benchVersion: BENCH_VERSION - 1 } }), 'acme-pac', RULES)).toMatchObject({ outdated: true });
+    for (const benchVersion of [0, String(BENCH_VERSION), BENCH_VERSION + 1, null]) {
+      const checked = checkSubmission(folder({ manifest: { benchVersion } }), 'acme-pac', RULES);
+      expect(checked).toMatchObject({ error: expect.stringMatching(/benchVersion must be/) });
+      expect(checked).not.toHaveProperty('outdated');
+    }
+  });
+
+  it('refuses a broken submission.json without crashing', () => {
+    expect(checkSubmission(folder({ manifest: null }), 'acme-pac', RULES)).toMatchObject({ error: expect.stringMatching(/must be an object/) });
+    expect(checkSubmission(folder({ manifest: { name: 'Acme\u202ePac' } }), 'acme-pac', RULES)).toMatchObject({ error: expect.stringMatching(/printable/) });
   });
 
   it('refuses a submission posing as a model we benchmark, and checks who and where', () => {

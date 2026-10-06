@@ -1,8 +1,10 @@
 // Replays a submitted game and recomputes its result. The game is deterministic: the recorded steps and Pac-Man's
 // recorded moves, with the ghosts on the scripted rule, must give the recorded game, or the submission is refused.
+// Pac-Man's moves must also be ones the bench's scheduler could have made: each escape question answered once while
+// it is open, and no answer later than a model call can take.
 import type { Recording } from '../src/replay';
 import type { SchedulerEvent } from '../src/scheduler';
-import { createGame, step } from '../src/sim';
+import { createGame, decisionPoints, step } from '../src/sim';
 import { GameStats } from '../src/stats';
 import type { Dir } from '../src/types';
 import { SUBMISSION_RULES, type GameResult, type SubmissionRules } from '../shared/leaderboard';
@@ -12,12 +14,22 @@ export type Verdict = { ok: true; result: GameResult } | { ok: false; error: str
 
 const DIRS = new Set<unknown>(['up', 'down', 'left', 'right']);
 
+/** The bench's setTimeout-paced loop never steps less than this. */
+export const MIN_STEP = 0.001;
+/** Game time a question can stay unanswered: the bench's 10 s call timeout plus the scheduler's 2 s, with room. */
+export const MAX_ANSWER_SECONDS = 15;
+/** Far more than a 300 s game has (a few thousand decisions and events); a bigger file is not a bench recording. */
+const MAX_ITEMS = 100_000;
+
 export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_RULES): Verdict {
   const fail = (error: string): Verdict => ({ ok: false, error });
   if (rec?.version !== 1) return fail('not a version 1 recording');
   if (!Array.isArray(rec.frames) || !Array.isArray(rec.decisions) || !Array.isArray(rec.events)) return fail('frames, decisions and events must be lists');
-  const badStep = rec.frames.findIndex((dt) => typeof dt !== 'number' || !(dt > 0) || dt > rules.maxStep);
-  if (badStep >= 0) return fail(`frame ${badStep}: a step must be more than 0 and at most ${rules.maxStep} s`);
+  // Playing time is capped; the pauses around it (ready, dying, level clear) add well under two minutes.
+  if (rec.frames.length > (rules.maxSeconds + 120) / MIN_STEP) return fail(`${rec.frames.length} frames is more than a game has`);
+  if (rec.decisions.length > MAX_ITEMS || rec.events.length > MAX_ITEMS) return fail('more decisions or events than a game has');
+  const badStep = rec.frames.findIndex((dt) => typeof dt !== 'number' || !(dt >= MIN_STEP) || dt > rules.maxStep);
+  if (badStep >= 0) return fail(`frame ${badStep}: a step must be ${MIN_STEP} to ${rules.maxStep} s`);
 
   // Only Pac-Man's moves come from the recording; the ghosts play by the scripted rule, as in every benchmark game.
   const moves = new Map<string, Dir[]>();
@@ -26,14 +38,20 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
     if (!Array.isArray(d) || !Number.isInteger(d[0]) || typeof d[1] !== 'string' || !DIRS.has(d[2])) return fail('malformed decision');
     // Junction keys are pacman@…, escape keys pacman~…; the ghosts' keys start with their names.
     if (!/^pacman[@~]/.test(d[1])) continue;
-    moves.set(`${d[0]}|${d[1]}`, [...(moves.get(`${d[0]}|${d[1]}`) ?? []), d[2]]);
+    const k = `${d[0]}|${d[1]}`;
+    const queue = moves.get(k);
+    if (queue) queue.push(d[2]);
+    else moves.set(k, [d[2]]);
     pacmanMoves += 1;
   }
   const events = new Map<number, SchedulerEvent[]>();
   for (const e of rec.events) {
     if (!Array.isArray(e) || !Number.isInteger(e[0]) || typeof e[1]?.type !== 'string') return fail('malformed event');
+    if (e[1].type === 'call' && !((e[1].costUsd === null || e[1].costUsd >= 0) && e[1].latencyMs >= 0)) return fail('a call with a negative cost or latency');
     const event = (e[1].type === 'call' ? { ...e[1], traceId: null } : e[1]) as SchedulerEvent;
-    events.set(e[0], [...(events.get(e[0]) ?? []), event]);
+    const list = events.get(e[0]);
+    if (list) list.push(event);
+    else events.set(e[0], [event]);
   }
 
   const state = createGame();
@@ -42,10 +60,19 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
   const scripted = scriptedControls();
   let used = 0;
   let illegal: string | null = null;
+  let clock = 0;
+  /** When each of Pac-Man's open questions was first seen, and the escape questions already answered (as the scheduler keeps them). */
+  const firstSeen = new Map<string, number>();
+  const answered = new Set<string>();
   try {
     for (let f = 0; f < rec.frames.length; f++) {
       if (state.status === 'gameover') return fail(`frames go on after game over (frame ${f})`);
       if (r.survived >= rules.maxSeconds) return fail(`frames go on past the ${rules.maxSeconds} s cap (frame ${f})`);
+      // Like the scheduler's update before each step: questions that closed are forgotten.
+      const open = new Set(decisionPoints(state, 'pacman').map((p) => p.key));
+      for (const key of open) if (!firstSeen.has(key)) firstSeen.set(key, clock);
+      for (const key of firstSeen.keys()) if (!open.has(key)) firstSeen.delete(key);
+      for (const key of answered) if (!open.has(key)) answered.delete(key);
       for (const e of events.get(f) ?? []) {
         stats.onSchedulerEvent(e);
         if (e.type === 'call') {
@@ -63,7 +90,11 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
           const dir = moves.get(`${f}|${point.key}`)?.shift() ?? null;
           if (dir === null) return null;
           used += 1;
-          if (!point.options.includes(dir) && illegal === null) illegal = `frame ${f}: ${dir} is not a way out of (${point.tile.x},${point.tile.y})`;
+          if (illegal !== null) return dir;
+          if (!point.options.includes(dir)) illegal = `frame ${f}: ${dir} is not a way out of (${point.tile.x},${point.tile.y})`;
+          else if (point.escape && answered.has(point.key)) illegal = `frame ${f}: an escape question answered twice`;
+          else if (clock - (firstSeen.get(point.key) ?? clock) > MAX_ANSWER_SECONDS) illegal = `frame ${f}: an answer after more than ${MAX_ANSWER_SECONDS} s`;
+          if (point.escape) answered.add(point.key);
           return dir;
         },
       });
@@ -71,6 +102,7 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
       stats.afterStep(state, dt);
       if (!fruitBefore && state.fruit) r.fruitSpawned += 1;
       if (state.status === 'playing') r.survived += dt;
+      clock += dt;
     }
   } catch (err) {
     return fail(`the game could not be replayed: ${(err as Error).message}`);

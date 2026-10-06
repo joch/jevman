@@ -7,7 +7,7 @@
 // Your own model: --endpoint https://… plays Pac-Man through your HTTP endpoint (see CONTRIBUTING.md); with
 //   --submit submissions/<id> --name "My Model" --by <github-handle> [--url https://…] it plays the leaderboard's
 //   games and writes them as a submission to open a pull request with.
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { basename, dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -213,12 +213,14 @@ async function playMany(n: number, parallel: number, play: () => Promise<GameRes
 /** Writes the games as a submission folder, after checking each one replays the way CI will check it. */
 function writeSubmission(recordings: Recording[]): void {
   const dir = values.submit!;
-  mkdirSync(dir, { recursive: true });
   recordings.forEach((rec, i) => {
     const verdict = verifyGame(rec);
     if (!verdict.ok) fail(`game ${i + 1} does not replay: ${verdict.error}. Please open an issue: this is a jevman bug.`);
-    writeFileSync(join(dir, `game-${String(i + 1).padStart(2, '0')}.json.gz`), gzipSync(JSON.stringify(rec)));
   });
+  mkdirSync(dir, { recursive: true });
+  // A run replaces the folder's games: none of an earlier run may be left behind.
+  for (const f of readdirSync(dir)) if (/^game-\d+\.json\.gz$/.test(f)) rmSync(join(dir, f));
+  recordings.forEach((rec, i) => writeFileSync(join(dir, `game-${String(i + 1).padStart(2, '0')}.json.gz`), gzipSync(JSON.stringify(rec))));
   const manifest = {
     name: values.name,
     by: values.by,

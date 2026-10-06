@@ -37,7 +37,7 @@ function rowElement(r: LeaderboardRow): HTMLLIElement {
     const link = el('a', r.link.label, 'lb-watch');
     link.href = r.link.href;
     // A submitter's page is somewhere else entirely.
-    if (!r.link.href.startsWith('/')) Object.assign(link, { target: '_blank', rel: 'noopener nofollow' });
+    if (!r.link.href.startsWith('/')) Object.assign(link, { target: '_blank', rel: 'noopener noreferrer nofollow ugc' });
     li.append(link);
   }
   return li;
@@ -54,7 +54,7 @@ function renderCommunity(community: Community, top: number): void {
     return;
   }
   note.replaceChildren(
-    'Benchmarked by their makers on the same games and rules, then submitted by pull request. Every game was replayed to check its score, but we did not run these models ourselves: that the moves are the model\'s own, its latency and its cost are as reported. To add yours, ',
+    'Benchmarked by their makers on the same games and rules, then submitted by pull request. Every game was replayed to check its score, but we did not run these models ourselves: that the moves are the model\'s own, how often it fell back, its latency and its cost are as reported. To add yours, ',
     how,
     '.',
   );

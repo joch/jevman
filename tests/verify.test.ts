@@ -53,7 +53,7 @@ describe('verifyGame', () => {
   it('refuses steps longer than the bench ever takes', () => {
     const rec = copy();
     rec.frames[100] = 0.2;
-    expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/at most 0.05 s/) });
+    expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/a step must be 0.001 to 0.05 s/) });
   });
 
   it('refuses frames after game over and games cut short', () => {
@@ -65,6 +65,38 @@ describe('verifyGame', () => {
     shorter.frames.splice(-200);
     shorter.final.frames -= 200;
     expect(verifyGame(shorter).ok).toBe(false);
+  });
+
+  it('refuses moves the bench scheduler could never have made', () => {
+    // An escape question answered a second time while it is still open.
+    const twice = copy();
+    const escape = twice.decisions.find(([, key]) => key.startsWith('pacman~'));
+    if (escape) {
+      twice.decisions.push([escape[0] + 1, escape[1], escape[2]]);
+      twice.decisions.sort((a, b) => a[0] - b[0]);
+      expect(verifyGame(twice).ok).toBe(false);
+    }
+    // A model that took a whole minute, while the game waited: the bench would have fallen back long before.
+    const late = copy();
+    const i = late.decisions.findIndex(([, key]) => key.startsWith('pacman@'));
+    late.frames.splice(late.decisions[i][0], 0, ...Array(1300).fill(0.05));
+    for (const d of late.decisions) if (d[0] >= late.decisions[i][0]) d[0] += 1300;
+    late.final.frames = late.frames.length;
+    expect(verifyGame(late).ok).toBe(false);
+  });
+
+  it('refuses negative costs and latencies', () => {
+    const rec = copy();
+    rec.events.push([0, { type: 'call', actors: ['pacman'], latencyMs: 10, costUsd: -10 } as never]);
+    expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/negative/) });
+  });
+
+  it('refuses files far bigger than a game, quickly', () => {
+    const rec = copy();
+    rec.decisions = Array.from({ length: 200_000 }, () => [0, 'pacman@1,1', 'left']);
+    const t0 = performance.now();
+    expect(verifyGame(rec)).toMatchObject({ ok: false, error: expect.stringMatching(/more decisions/) });
+    expect(performance.now() - t0).toBeLessThan(100);
   });
 
   it('refuses malformed files instead of crashing', () => {
