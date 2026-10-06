@@ -2,15 +2,26 @@
 // recorded moves, with the ghosts on the scripted rule, must give the recorded game, or the submission is refused.
 // Pac-Man's moves must also be ones the bench's scheduler could have made: each escape question answered once while
 // it is open, and no answer later than a model call can take.
+import { createHash } from 'node:crypto';
 import type { Recording } from '../src/replay';
 import type { SchedulerEvent } from '../src/scheduler';
 import { createGame, decisionPoints, step } from '../src/sim';
 import { GameStats } from '../src/stats';
-import type { Dir } from '../src/types';
+import { GHOST_IDS, type Dir } from '../src/types';
 import { SUBMISSION_RULES, type GameResult, type SubmissionRules } from '../shared/leaderboard';
 import { emptyResult, finishResult, scriptedControls } from './game';
 
-export type Verdict = { ok: true; result: GameResult } | { ok: false; error: string };
+export type Verdict =
+  | {
+      ok: true;
+      result: GameResult;
+      /**
+       * Identifies the game played, not the file: where everyone was at each of Pac-Man's moves. Two recordings with
+       * the same fingerprint replay to the same game, however their step timings differ.
+       */
+      fingerprint: string;
+    }
+  | { ok: false; error: string };
 
 const DIRS = new Set<unknown>(['up', 'down', 'left', 'right']);
 
@@ -76,6 +87,9 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
   /** When each of Pac-Man's open questions was first seen, and the escape questions already answered (as the scheduler keeps them). */
   const firstSeen = new Map<string, number>();
   const answered = new Set<string>();
+  const fingerprint = createHash('sha256');
+  // To 1/100 tile: honest real-time games that make the same moves are still tens of milliseconds apart.
+  const at = (a: { tile: { x: number; y: number }; progress: number }) => [a.tile.x, a.tile.y, Math.round(a.progress * 100)];
   try {
     for (let f = 0; f < rec.frames.length; f++) {
       if (state.status === 'gameover') return fail(`frames go on after game over (frame ${f})`);
@@ -107,6 +121,7 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
           else if (point.escape && answered.has(point.key)) illegal = `frame ${f}: an escape question answered twice`;
           else if (clock - (firstSeen.get(point.key) ?? clock) > MAX_ANSWER_SECONDS) illegal = `frame ${f}: an answer after more than ${MAX_ANSWER_SECONDS} s`;
           if (point.escape) answered.add(point.key);
+          fingerprint.update(JSON.stringify([point.key, dir, at(s.pacman), ...GHOST_IDS.map((id) => [...at(s.ghosts[id]), s.ghosts[id].state])]));
           return dir;
         },
       });
@@ -126,5 +141,5 @@ export function verifyGame(rec: Recording, rules: SubmissionRules = SUBMISSION_R
   if (claimed?.score !== state.score || claimed.level !== state.level || claimed.lives !== state.lives || claimed.frames !== rec.frames.length) {
     return fail(`the replay ends at score ${state.score}, level ${state.level}, ${state.lives} lives; the recording claims score ${claimed?.score}, level ${claimed?.level}, ${claimed?.lives} lives`);
   }
-  return { ok: true, result: finishResult(r, stats, state) };
+  return { ok: true, result: finishResult(r, stats, state), fingerprint: fingerprint.digest('hex') };
 }

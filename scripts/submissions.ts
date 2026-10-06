@@ -3,7 +3,6 @@
 // Each submissions/<id>/ holds submission.json and game-NN.json.gz recordings written by bench --submit. Every game is
 // replayed; a submission on the current bench version that breaks a rule or does not replay fails the run (and CI).
 // Submissions recorded on an older bench version are left out with a note: their games were a different benchmark.
-import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -19,17 +18,6 @@ interface Manifest {
   url?: string;
   benchVersion: number;
   games: number;
-}
-
-/** Pac-Man's moves with the game time (ms) each was made at. */
-function trajectory(rec: Recording): [string, string, number][] {
-  const at: number[] = [];
-  let clock = 0;
-  for (const dt of rec.frames) {
-    at.push(Math.round(clock * 1000));
-    clock += dt;
-  }
-  return rec.decisions.filter(([, key]) => /^pacman[@~]/.test(key)).map(([f, key, dir]) => [key, dir, at[f]]);
 }
 
 /** A 300 s game gzips to well under 1 MB and unpacks to a few MB. */
@@ -74,11 +62,10 @@ export function checkSubmission(dir: string, id: string, rules: SubmissionRules 
     }
     const verdict = verifyGame(rec, rules);
     if (!verdict.ok) return { error: `${file}: ${verdict.error}` };
-    // The same game sent twice: the same moves at the same moments of the game, to the millisecond. Honest real-time
-    // games differ by more than that even when a deterministic model makes the same moves (about 20 ms apart).
-    const hash = createHash('sha256').update(JSON.stringify(trajectory(rec))).digest('hex');
-    if (seen.has(hash)) return { error: `${file} is the same game as ${seen.get(hash)}` };
-    seen.set(hash, file);
+    // The same game sent twice, however its timings were retimed.
+    const twin = seen.get(verdict.fingerprint);
+    if (twin) return { error: `${file} is the same game as ${twin}` };
+    seen.set(verdict.fingerprint, file);
     results.push(verdict.result);
   }
   const entry: CommunityEntry = {

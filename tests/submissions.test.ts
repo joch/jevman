@@ -27,6 +27,15 @@ function recordGame(dt: number): Recording {
   return recorder.finish(state, 'scripted');
 }
 // Different step timings make different games, as real-time runs do.
+/** The step that ends the opening "ready" pause. */
+function readyEnds(rec: Recording): number {
+  const s = createGame();
+  for (let f = 0; ; f++) {
+    step(s, rec.frames[f], { decide: () => null });
+    if (s.status === 'playing') return f;
+  }
+}
+
 const recorded = [1 / 60, 1 / 59, 1 / 61, 1 / 58].map(recordGame);
 
 /** A submission folder as bench --submit writes it, with any part overridden. */
@@ -64,12 +73,13 @@ describe('checkSubmission', () => {
 
   it('refuses the same game sent more than once, even with its pauses retimed', () => {
     expect(checkSubmission(folder({ same: true }), 'acme-pac', RULES)).toMatchObject({ error: expect.stringMatching(/game-02\.json\.gz is the same game as game-01/) });
-    // Shifting a little time between two frames of the "ready" pause changes the file, not the game.
+    // Retiming the "ready" pause changes the file, not the game: the step that ends it drops its overshoot.
     const retimed = folder({
       same: true,
       tamper: (rec) => {
         rec.frames[10] += 0.0001;
         rec.frames[11] -= 0.0001;
+        rec.frames[readyEnds(rec)] = 0.045;
       },
     });
     expect(checkSubmission(retimed, 'acme-pac', RULES)).toMatchObject({ error: expect.stringMatching(/is the same game as/) });
