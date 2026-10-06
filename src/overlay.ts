@@ -156,6 +156,8 @@ export function showPlay(
   const playLabel = () => (signedOut ? 'Play free' : sides.pacman === 'ai' ? 'Watch' : 'Play');
   /** Shows `sides` as chosen (set once the signed-in controls exist). */
   let render = () => {};
+  /** "Waking up …" while Play waits for the models; it outlasts any re-render. */
+  let busyNote: string | null = null;
 
   if (signedOut) {
     card.append(el('p', 'Sign in with Opper and pick a model to watch it play live. Calls bill your own Opper wallet, about $0.01 a game.', 'muted'));
@@ -219,7 +221,7 @@ export function showPlay(
           ghostSelect.value = c!.blinky;
         }
       }
-      label.textContent = playLabel();
+      label.textContent = busyNote ?? playLabel();
     };
     if (m) {
       for (const o of m.options) {
@@ -277,6 +279,7 @@ export function showPlay(
   const busy = (note: string | null) => {
     play.toggleAttribute('aria-disabled', note !== null);
     play.setAttribute('aria-busy', String(note !== null));
+    busyNote = note;
     label.textContent = note ?? playLabel();
     status.textContent = note ?? '';
   };
