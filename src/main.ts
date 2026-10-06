@@ -327,7 +327,7 @@ if (me.mode === 'none') {
         if (e.type === 'decision') thinking.add(e.decision, performance.now());
         stats.onSchedulerEvent(e);
         // A request still in flight at game over reports afterwards; keep the card's numbers complete.
-        if (gameOverShown && !overlayEl.hidden) showGameOver(overlayEl, stats.summary(state), restart, gameOverExtra);
+        if (gameOverShown && !overlayEl.hidden) showGameOver(overlayEl, stats.summary(state), playAgain, gameOverExtra);
       },
     });
   let scheduler = newScheduler(stats);
@@ -441,8 +441,8 @@ if (me.mode === 'none') {
     setMode({ ...liveMode, pacman: liveMode.pacman === 'ai' ? 'you' : 'ai' });
   };
   let restarting = false;
-  /** Restart / Play again (never skips the Play card): wake models that went cold on the game-over screen first. */
-  const restart = (): void => {
+  /** Play again on the game-over card: the same game again, waking models that went cold on that card first. */
+  const playAgain = (): void => {
     if (!started || restarting) return;
     restarting = true;
     void warming.warmAll(playedModels, () => {}).then((failed) => {
@@ -456,6 +456,14 @@ if (me.mode === 'none') {
       newGame();
     });
   };
+  /** Restart (the button, R): end this game and pick what to play next in the Play card. */
+  const restart = (): void => {
+    if (!started) return;
+    started = false; // nothing runs (or is billed) behind the card
+    paused = false;
+    pauseBtn.textContent = 'Pause';
+    openPlay();
+  };
   openPlay = () => {
     if (started || playCard) return;
     playCta.hidden = true;
@@ -464,6 +472,7 @@ if (me.mode === 'none') {
       onSelect: setMode,
       onPlay: () => play(),
       models: picking,
+      averages: board?.entries,
       onClose: demo ? () => ((playCard = null), closePlay()) : undefined,
     });
     overlayAction = playCard.action;
@@ -509,9 +518,9 @@ if (me.mode === 'none') {
     for (const cue of cuesBetween(heard, state)) sound.play(cue);
     if (state.status === 'gameover' && !gameOverShown) {
       gameOverShown = true;
-      overlayAction = restart;
+      overlayAction = playAgain;
       gameOverExtra = resultOf(state.score);
-      showGameOver(overlayEl, stats.summary(state), restart, gameOverExtra);
+      showGameOver(overlayEl, stats.summary(state), playAgain, gameOverExtra);
     }
   };
   const demoTick = (dt: number) => {

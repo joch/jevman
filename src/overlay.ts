@@ -90,13 +90,19 @@ export interface PlayCard {
 export const WATCH: Sides = { pacman: 'ai', ghosts: 'classic' };
 
 /** The other ways to play, offered smaller below watching. */
-export const OTHER_GAMES: { sides: Sides; title: string; text: string }[] = [
-  { sides: { pacman: 'you', ghosts: 'classic' }, title: 'Beat the AI', text: 'Free: you against the classic ghosts. See which AIs you beat.' },
-  { sides: { pacman: 'you', ghosts: 'ai' }, title: 'Play against AI ghosts', text: 'You steer Pac-Man (arrows, WASD or swipe); a model plays the ghosts.' },
-  { sides: { pacman: 'ai', ghosts: 'ai' }, title: 'AI vs AI', text: 'The picked model plays Pac-Man, another model the ghosts.' },
+export const OTHER_GAMES: { sides: Sides; title: string }[] = [
+  { sides: { pacman: 'you', ghosts: 'classic' }, title: 'Beat the AI' },
+  { sides: { pacman: 'you', ghosts: 'ai' }, title: 'Play against an AI' },
+  { sides: { pacman: 'ai', ghosts: 'ai' }, title: 'AI vs AI' },
 ];
 
 const sameSides = (a: Sides, b: Sides) => a.pacman === b.pacman && a.ghosts === b.ghosts;
+
+/** The dialog's heading for a choice of sides. */
+export const titleFor = (sides: Sides): string => (sameSides(sides, WATCH) ? 'Watch an AI play' : OTHER_GAMES.find((g) => sameSides(g.sides, sides))!.title);
+
+/** Which side the model chips pick: Pac-Man's model when the AI plays him, else the ghosts', else none. */
+export const chipsPick = (sides: Sides): 'pacman' | 'ghosts' | null => (sides.pacman === 'ai' ? 'pacman' : sides.ghosts === 'ai' ? 'ghosts' : null);
 
 function signInButton(me: Me, primary: boolean): HTMLButtonElement {
   const b = el('button', 'Sign in with Opper', primary ? 'primary' : 'signin');
@@ -111,13 +117,22 @@ function signInButton(me: Me, primary: boolean): HTMLButtonElement {
 
 /**
  * The card before a live game. Watching an AI play is the main thing: pick the model with one click, then Watch.
- * Playing yourself, AI ghosts and AI vs AI are offered smaller below. Signed out, watching live needs signing in, and
- * the free game (you against the classic ghosts) is the one thing that can be played.
+ * Playing yourself, against AI ghosts and AI vs AI are offered smaller below; the model chips always pick "the AI"
+ * of the chosen game. Signed out, watching live needs signing in, and the free game (you against the classic ghosts)
+ * is the one thing that can be played.
  */
 export function showPlay(
   root: HTMLElement,
   me: Me,
-  opts: { sides: Sides; onSelect: (sides: Sides) => void; onPlay: () => void; models?: ModelPicking; onClose?: () => void },
+  opts: {
+    sides: Sides;
+    onSelect: (sides: Sides) => void;
+    onPlay: () => void;
+    models?: ModelPicking;
+    /** Leaderboard averages per model, for "jev averages 3,181 points". */
+    averages?: { model: string; meanScore: number }[];
+    onClose?: () => void;
+  },
 ): PlayCard {
   const card = el('div', undefined, 'card wide play');
   if (opts.onClose) {
@@ -129,7 +144,8 @@ export function showPlay(
     card.append(close);
   }
   const signedOut = me.mode === 'none';
-  card.append(el('h2', 'Watch an AI play'));
+  const title = el('h2', 'Watch an AI play');
+  card.append(title);
   const play = el('button', undefined, signedOut ? 'secondary' : 'primary');
   const icon = el('span', '▶ ');
   icon.setAttribute('aria-hidden', 'true');
@@ -151,51 +167,66 @@ export function showPlay(
     const m = opts.models;
     const chips = el('div', undefined, 'chips');
     chips.setAttribute('role', 'radiogroup');
-    chips.setAttribute('aria-label', 'Model playing Pac-Man');
-    const ghostRow = el('label', undefined, 'model-row');
+    const line = el('p', undefined, 'muted describe');
     const others = el('div', undefined, 'others');
     others.setAttribute('role', 'radiogroup');
     others.setAttribute('aria-label', 'Other ways to play');
     const otherButtons = new Map<HTMLButtonElement, Sides>();
-    const describe = el('p', undefined, 'muted small describe');
+    const name = (id: string) => m?.options.find((o) => o.id === id)?.label ?? id;
+    const ghostsMixed = () => !!m && !GHOST_IDS.every((id) => m.choice()[id] === m.choice().blinky);
     const choose = (next: Sides) => {
       sides = next;
       render();
       opts.onSelect(next);
     };
+    // AI vs AI: the ghosts' model is picked in the sentence itself, so the card keeps its size.
+    const ghostSelect = m ? modelSelect(m, m.choice().blinky, (model) => (m.onChange(setGhosts(m.choice(), model)), render()), 'Model playing the ghosts') : null;
     render = () => {
-      const pacman = m?.choice().pacman;
-      for (const c of chips.querySelectorAll<HTMLButtonElement>('button')) c.setAttribute('aria-checked', String(sides.pacman === 'ai' && c.dataset.model === pacman));
-      chips.classList.toggle('off', sides.pacman !== 'ai');
-      for (const [b, s] of otherButtons) b.setAttribute('aria-checked', String(sameSides(s, sides)));
-      ghostRow.style.visibility = sides.ghosts === 'ai' ? 'visible' : 'hidden';
-      describe.textContent = sameSides(sides, WATCH) ? 'Against the classic arcade ghosts, the same game as on the leaderboard.' : (OTHER_GAMES.find((g) => sameSides(g.sides, sides))?.text ?? '');
+      const pick = chipsPick(sides);
+      const c = m?.choice();
+      const picked = !c || !pick ? null : pick === 'pacman' ? c.pacman : ghostsMixed() ? null : c.blinky;
+      title.textContent = titleFor(sides);
+      chips.setAttribute('aria-label', pick === 'ghosts' ? 'Model playing the ghosts' : 'Model playing Pac-Man');
+      for (const chip of chips.querySelectorAll<HTMLButtonElement>('button')) chip.setAttribute('aria-checked', String(chip.dataset.model === picked));
+      chips.classList.toggle('off', pick === null);
+      for (const [b, sd] of otherButtons) b.setAttribute('aria-checked', String(sameSides(sd, sides)));
+      if (sameSides(sides, WATCH)) {
+        const avg = opts.averages?.find((a) => a.model === c?.pacman);
+        line.textContent = avg
+          ? `${name(c!.pacman)} averages ${avg.meanScore.toLocaleString('en-US')} points against the classic ghosts on the leaderboard.`
+          : 'Against the classic arcade ghosts, the same game as on the leaderboard.';
+      } else if (sides.pacman === 'you' && sides.ghosts === 'classic') {
+        line.textContent = 'Free: you against the classic ghosts, the same game the AIs played. See which AIs you beat.';
+      } else if (sides.pacman === 'you') {
+        line.textContent = `You steer Pac-Man (arrows, WASD or swipe); ${ghostsMixed() ? 'your picks per ghost play' : `${name(c?.blinky ?? '')} plays`} the four ghosts.`;
+      } else if (ghostSelect) {
+        if (ghostsMixed() && !ghostSelect.querySelector('option[value=""]')) {
+          const mixed = new Option('per-ghost picks', '', true, true);
+          mixed.disabled = true;
+          ghostSelect.prepend(mixed);
+        }
+        line.replaceChildren(`Pac-Man: ${name(c!.pacman)} · Ghosts: `, ghostSelect);
+      }
       label.textContent = playLabel();
     };
     if (m) {
       for (const o of m.options) {
-        const c = el('button', o.label);
-        c.type = 'button';
-        c.setAttribute('role', 'radio');
-        c.dataset.model = o.id;
-        c.addEventListener('click', () => {
-          m.onChange({ ...m.choice(), pacman: o.id });
-          // Picking a model means watching it (or keeps AI vs AI), never playing yourself.
-          choose(sides.pacman === 'ai' ? sides : WATCH);
+        const chip = el('button', o.label);
+        chip.type = 'button';
+        chip.setAttribute('role', 'radio');
+        chip.dataset.model = o.id;
+        chip.addEventListener('click', () => {
+          const pick = chipsPick(sides);
+          if (pick === 'ghosts') m.onChange(setGhosts(m.choice(), o.id));
+          else m.onChange({ ...m.choice(), pacman: o.id });
+          // In Beat the AI there is no AI to pick: a model chip goes back to watching that model.
+          choose(pick === null ? WATCH : sides);
           play.focus({ preventScroll: true });
         });
-        chips.append(c);
+        chips.append(chip);
       }
-      const ghostSelect = modelSelect(m, m.choice().blinky, (model) => m.onChange(setGhosts(m.choice(), model)), 'Model playing the ghosts');
-      // Ghosts given different models on the panel cards: say so, rather than show Blinky's as everyone's.
-      if (!GHOST_IDS.every((id) => m.choice()[id] === m.choice().blinky)) {
-        const mixed = new Option('Per ghost (set on the cards)', '', true, true);
-        mixed.disabled = true;
-        ghostSelect.prepend(mixed);
-      }
-      ghostRow.append(el('span', 'The ghosts are played by'), ghostSelect);
     }
-    card.append(chips, describe, ghostRow, play, el('p', 'or press Space / Enter', 'muted small keys'));
+    card.append(chips, line, play);
     const more = el('div', undefined, 'more');
     more.append(el('h3', 'More ways to play'));
     for (const g of OTHER_GAMES) {

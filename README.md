@@ -2,7 +2,7 @@
 
 Pac-Man where the characters are driven by System One decision models: TypeSafe's jev
 (`typesafe/jev-1.13.0`, the default) and the others Opper serves, called through Opper or (jev only)
-straight from TypeSafe. The main thing is to **watch an AI play**: press Watch live, pick a model with one click
+straight from TypeSafe. The main thing is to **watch an AI play**: press Play, pick a model with one click
 (jev by default) and watch it play Pac-Man against the classic arcade ghosts. Below that are more ways to play:
 **Beat the AI** (free, no sign-in: you against the classic ghosts, the same game the models played for the
 leaderboard; game over tells you which AIs you beat, with a Share button and your personal best), **Play against AI
@@ -125,7 +125,7 @@ answers.
 ## Controls
 
 Arrows/WASD steer Pac-Man when you play him · `J` or the Pac-Man button hands him to the AI or back · `P` pause ·
-`R` restart · `M` sound on/off · the speed slider slows the game down. Space/Enter presses Watch (or Play). On a phone,
+`R` restart · `M` sound on/off · the speed slider slows the game down. Space/Enter presses Watch (or Play); Restart and `R` end the game and open the Play dialog, Play again replays the same setup. On a phone,
 swipe on the board or use the on-screen pad.
 
 ## Cost
