@@ -79,10 +79,11 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
  * - facts: the same per-route facts, no maze picture;
  * - rich: no maze picture; where each ghost is relative to Pac-Man, and per-route safety first (who wins the race to
  *   the next junction, how many ways on are clear), then food;
- * - local: rich plus an 11x11 picture of the maze around Pac-Man.
+ * - local: rich plus an 11x11 picture of the maze around Pac-Man;
+ * - threats: grid plus only rich's line on where each ghost is.
  */
-export type PromptStyle = 'grid' | 'facts' | 'rich' | 'local';
-export const PROMPT_STYLES: readonly PromptStyle[] = ['grid', 'facts', 'rich', 'local'];
+export type PromptStyle = 'grid' | 'facts' | 'rich' | 'local' | 'threats';
+export const PROMPT_STYLES: readonly PromptStyle[] = ['grid', 'facts', 'rich', 'local', 'threats'];
 
 const LEGEND =
   '# wall, - ghost-house door, . pellet, o power pellet, F fruit, P Pac-Man, B Blinky, K Pinky, I Inky, C Clyde (lowercase = frightened, edible), e eyes of an eaten ghost';
@@ -128,7 +129,7 @@ export function summarizeState(state: GameState, style: PromptStyle = 'grid'): R
   const { maze } = state;
   const pac = occupiedTile(state, state.pacman);
   const picture =
-    style === 'grid'
+    style === 'grid' || style === 'threats'
       ? { maze: drawMaze(state).map((r) => r.join('')), legend: LEGEND }
       : style === 'local'
         ? { around_pacman: localWindow(drawMaze(state), pac), around_pacman_note: 'Pac-Man (P) is at the centre; up is the top row.', legend: LEGEND }
@@ -213,9 +214,10 @@ export function instructionsFor(
         ? `You are Pac-Man. A power pellet is active for ${round1(state.frightLeft)} more seconds: frightened ghosts are worth 200, 400, 800 and 1600 points in a row. Hunt the nearest frightened ghost you can reach in time, but never run into a normal ghost (routes marked DANGER or BLOCKED). ${threatSummary(state)} ${fruit}${at}`
         : `You are Pac-Man. Clear the maze by eating every pellet without being caught; touching a non-frightened ghost costs a life. Safety first: avoid routes marked DANGER (a ghost is in that corridor) or BLOCKED (a ghost gets to the corridor's end no later than you), and prefer routes with more clear ways on past the next junction, so you cannot be cornered. Among safe routes, go where the food is. Power pellets make ghosts edible: take one when ghosts are closing in. ${threatSummary(state)} ${fruit}${at}`;
     }
+    const threats = style === 'threats' ? `${threatSummary(state)} ` : '';
     return state.frightLeft > 0
-      ? `You are Pac-Man. A power pellet is active for ${round1(state.frightLeft)} more seconds: frightened ghosts (lowercase letters) are worth 200, 400, 800 and 1600 points in a row. Hunt the nearest frightened ghost if you can reach it in time, but never run into a normal ghost. ${fruit}${at}`
-      : `You are Pac-Man. Clear the maze by eating every pellet while staying away from the ghosts; touching a non-frightened ghost costs a life. Power pellets (o) make ghosts frightened and edible, so take one when ghosts are closing in. Never pick a route marked DANGER or TRAP unless every route is; prefer routes where ghosts are moving away. ${fruit}${at}`;
+      ? `You are Pac-Man. A power pellet is active for ${round1(state.frightLeft)} more seconds: frightened ghosts (lowercase letters) are worth 200, 400, 800 and 1600 points in a row. Hunt the nearest frightened ghost if you can reach it in time, but never run into a normal ghost. ${threats}${fruit}${at}`
+      : `You are Pac-Man. Clear the maze by eating every pellet while staying away from the ghosts; touching a non-frightened ghost costs a life. Power pellets (o) make ghosts frightened and edible, so take one when ghosts are closing in. Never pick a route marked DANGER or TRAP unless every route is; prefer routes where ghosts are moving away. ${threats}${fruit}${at}`;
   }
   const ghost = state.ghosts[point.actor];
   if (ghost.state === 'frightened') {

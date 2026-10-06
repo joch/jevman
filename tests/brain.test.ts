@@ -187,3 +187,18 @@ describe('prompt styles', () => {
     expect(buildRequest(s, q, 'rich').questions.blinky).toEqual(buildRequest(s, q, 'grid').questions.blinky);
   });
 });
+
+describe('threats prompt style', () => {
+  it('is the grid prompt plus where each ghost is', () => {
+    const s = createGame();
+    s.mode = 'chase';
+    Object.assign(s.ghosts.blinky, { state: 'normal', tile: { x: 17, y: 23 }, dir: 'left', progress: 0 });
+    const q = [pending(s, 'pacman')];
+    const grid = buildRequest(s, q, 'grid');
+    const threats = buildRequest(s, q, 'threats');
+    expect(threats.state).toEqual(grid.state);
+    expect(threats.questions.pacman.criteria).toEqual(grid.questions.pacman.criteria);
+    expect(threats.questions.pacman.instructions).toMatch(/Blinky 4 steps away, behind you, closing in/);
+    expect(grid.questions.pacman.instructions).not.toMatch(/Ghosts now/);
+  });
+});
