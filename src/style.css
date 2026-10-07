@@ -12,8 +12,9 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); }
 .page { width: fit-content; max-width: 100%; margin: 0 auto; padding: 16px; }
-/* The app bar: full width, on top of the page, the same on every page. */
-.appbar { position: sticky; top: 0; z-index: 20; background: rgba(20, 20, 31, 0.92); backdrop-filter: blur(8px); border-bottom: 1px solid #22223a; }
+/* The app bar: full width, the same on every page. It scrolls away with the page: pinned, it would cover the board
+   on a phone (where it takes two rows) and the decision panel whenever it wraps. */
+.appbar { background: #14141f; border-bottom: 1px solid #22223a; }
 .appbar-inner { max-width: 1100px; margin: 0 auto; padding: 8px 16px; min-height: 56px; display: flex; align-items: center; gap: 8px 28px; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand h1 { margin: 0; font-size: 19px; letter-spacing: 0.02em; }
@@ -52,7 +53,7 @@ button:hover { border-color: var(--accent); }
 .help { color: var(--muted); font-size: 13px; margin: 0; }
 .source { color: var(--muted); font-size: 13px; margin: 0; }
 .source a { color: inherit; }
-#panel { background: var(--panel); border-radius: 8px; padding: 12px 14px; max-height: calc(100vh - 88px); overflow: auto; position: sticky; top: 72px; }
+#panel { background: var(--panel); border-radius: 8px; padding: 12px 14px; max-height: calc(100vh - 32px); overflow: auto; position: sticky; top: 16px; }
 #panel h2 { margin: 0 0 2px; font-size: 16px; }
 #panel .explain { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
 #panel h2 .caption { font-size: 11px; font-weight: 500; color: var(--muted); border: 1px solid currentColor; border-radius: 4px; padding: 1px 5px; margin-left: 6px; vertical-align: middle; text-transform: uppercase; letter-spacing: 0.04em; }
