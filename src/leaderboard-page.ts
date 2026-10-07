@@ -26,7 +26,7 @@ function rowElement(r: LeaderboardRow): HTMLLIElement {
   const fill = el('span', undefined, 'lb-fill');
   fill.style.width = `${r.barPercent}%`;
   bar.append(fill);
-  // One plain line (and the watch link) under the bar; the rest of the numbers fold away.
+  // One plain line (and the watch link) under the bar, then the rest of the numbers.
   const line = el('div', undefined, 'lb-line');
   line.append(el('span', r.summary, 'lb-summary'));
   if (r.link) {
@@ -36,16 +36,13 @@ function rowElement(r: LeaderboardRow): HTMLLIElement {
     if (!r.link.href.startsWith('/')) Object.assign(link, { target: '_blank', rel: 'noopener noreferrer nofollow ugc' });
     line.append(link);
   }
-  const more = el('details', undefined, 'lb-more');
-  more.append(el('summary', 'More stats'));
   const stats = el('dl', undefined, 'lb-stats');
   for (const [k, v] of r.stats) {
     const stat = el('div', undefined, 'lb-stat');
     stat.append(el('dt', k), el('dd', v));
     stats.append(stat);
   }
-  more.append(stats);
-  li.append(head, bar, line, more);
+  li.append(head, bar, line, stats);
   return li;
 }
 

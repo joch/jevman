@@ -20,7 +20,7 @@ describe('leaderboardRows', () => {
     expect(rows[1].badges).toContain('Survives longest');
     expect(rows[2].badges).toEqual(['Fastest', 'Cheapest']);
     expect(rows[0].summary).toBe('Survives 54 s · thinks in 0.30 s · $0.020 a game');
-    expect(rows[0].stats).toContainEqual(['Moves left to the backup rule', '4.0%']);
+    expect(rows[0].stats).toContainEqual(['Backup-rule moves', '4.0%']);
     expect(rows[0].maker).toBe('Cloudflare');
     expect(rows[0].link).toEqual({ href: '/?pacman=opper%2Fclef', label: 'Watch it play →' });
     expect(rows[0].scoreLabel).toBe('3,200 points');

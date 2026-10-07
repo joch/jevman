@@ -14,7 +14,7 @@ export interface LeaderboardRow {
   badges: string[];
   /** The plain one-liner under the bar: how long it lasts, how fast it thinks, what a game costs. */
   summary: string;
-  /** Everything else, behind "More stats". */
+  /** The rest of the numbers, under that line. */
   stats: [string, string][];
   /** Ours: opens the game with this model playing Pac-Man. Self-reported: the submitter's page, if any. */
   link: { href: string; label: string } | null;
@@ -43,7 +43,7 @@ const statsOf = (e: LeaderboardEntry): [string, string][] => [
   ['Pellets eaten per life', String(e.pelletsPerLife)],
   ['Ghosts eaten per game', String(e.meanGhostsEaten)],
   ['Fruit eaten', e.fruitEaten],
-  ['Moves left to the backup rule', `${(e.fallbackRate * 100).toFixed(1)}%`],
+  ['Backup-rule moves', `${(e.fallbackRate * 100).toFixed(1)}%`],
   ['Games played', String(e.games)],
 ];
 
