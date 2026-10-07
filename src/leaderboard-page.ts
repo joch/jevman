@@ -20,11 +20,12 @@ function rowElement(r: LeaderboardRow): HTMLLIElement {
   head.append(who);
   const badges = el('div', undefined, 'lb-badges');
   for (const b of r.badges) badges.append(el('span', b, b === 'Self-reported' ? 'lb-badge lb-self' : 'lb-badge'));
-  head.append(badges);
-  const bar = el('div', undefined, 'lb-bar');
+  head.append(badges, el('span', r.scoreLabel, 'lb-score'));
+  // A thin line for the score, full colour only for the leaders, so the numbers lead and the bars only hint.
+  const bar = el('div', undefined, r.rank === 1 ? 'lb-bar lb-lead' : 'lb-bar');
   const fill = el('span', undefined, 'lb-fill');
   fill.style.width = `${r.barPercent}%`;
-  bar.append(fill, el('span', r.scoreLabel, 'lb-score'));
+  bar.append(fill);
   // One plain line (and the watch link) under the bar; the rest of the numbers fold away.
   const line = el('div', undefined, 'lb-line');
   line.append(el('span', r.summary, 'lb-summary'));
