@@ -20,8 +20,8 @@
     <meta name="twitter:image" content="https://jevman.apps.chadda.se/og-leaderboard.png" />
   </head>
   <body>
-    <div class="page lb-page">
-      <header class="site">
+    <header class="appbar">
+      <div class="appbar-inner">
         <a class="brand" href="/">
           <span class="logo" aria-hidden="true"></span>
           <div>
@@ -29,8 +29,17 @@
             <p>Watch AI play Pac-Man, or try to beat it</p>
           </div>
         </a>
-        <a class="button primary-link" href="/">Play jevman</a>
-      </header>
+        <nav class="tabs" aria-label="Site">
+          <a href="/">Play</a>
+          <a href="/leaderboard" aria-current="page">Leaderboard</a>
+        </nav>
+        <div class="appbar-end">
+          <a class="gh" href="https://github.com/joch/jevman" target="_blank" rel="noopener">GitHub ↗</a>
+          <a class="button primary-link" href="/">Play jevman</a>
+        </div>
+      </div>
+    </header>
+    <div class="page lb-page">
       <main class="lb">
         <h2 class="lb-title">Which AI plays Pac-Man best?</h2>
         <p class="lb-verdict" id="verdict"></p>
