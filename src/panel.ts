@@ -42,7 +42,9 @@ export class Panel {
     const explain = opts.playedBy
       ? `${opts.playedBy} is playing this recorded game as Pac-Man. The bars show the odds it gave each way at its next junction; the brightest is the way it chose.`
       : 'The bars show the odds the AI gave each way at its next junction; the brightest is the way it chose.';
-    root.innerHTML = `<h2>AI decisions</h2><p class="explain">${explain}</p><div class="banner" role="alert" hidden></div><div class="note" role="status" hidden></div><details class="totals"><summary></summary><div class="grid"></div></details><div class="cards"></div><h3>Decision log</h3><ol class="log"></ol>`;
+    root.innerHTML = `<h2>AI decisions</h2><p class="explain"></p><div class="banner" role="alert" hidden></div><div class="note" role="status" hidden></div><details class="totals"><summary></summary><div class="grid"></div></details><div class="cards"></div><h3>Decision log</h3><ol class="log"></ol>`;
+    // The model name comes from a recording file: set as text, never as HTML.
+    root.querySelector<HTMLElement>('.explain')!.textContent = explain;
     if (opts.caption) {
       const caption = document.createElement('span');
       caption.className = 'caption';
@@ -58,9 +60,10 @@ export class Panel {
       el.className = 'card';
       el.style.setProperty('--actor', COLORS[id]);
       el.innerHTML =
-        `<header><span class="name">${ACTOR_NAMES[id]}${id === 'pacman' && opts.playedBy ? ` · ${opts.playedBy}` : ''}</span><span class="status"></span></header>` +
+        `<header><span class="name">${ACTOR_NAMES[id]}</span><span class="status"></span></header>` +
         DIRS.map((d) => `<div class="bar" data-dir="${d}"><span class="arrow">${ARROWS[d]}</span><span class="track"><span class="fill"></span></span><span class="pct">–</span></div>`).join('') +
         `<footer class="meta">no decision yet</footer>`;
+      if (id === 'pacman' && opts.playedBy) el.querySelector('.name')!.textContent = `${ACTOR_NAMES[id]} · ${opts.playedBy}`;
       cards.append(el);
       const bars = Object.fromEntries(
         DIRS.map((d) => {
