@@ -75,7 +75,7 @@ function render(board: Leaderboard, community: Community): void {
   const skipped = (board.skipped ?? []).map((s) => `${s.model} could not play: ${s.reason}`);
   $('method').replaceChildren(
     ...[
-      `Each model played ${gamesPerModel} games. A game lasts until Pac-Man loses his three lives, or ${Math.round(maxSeconds / 60)} minutes.`,
+      `Each model played ${gamesPerModel} games. A game lasts until Pac-Man loses his three lives, or ${maxSeconds % 60 === 0 ? `${maxSeconds / 60} minutes` : `${maxSeconds} seconds`}.`,
       'The AI plays Pac-Man. The ghosts follow the classic arcade rules, the same for every model.',
       'Every move is the AI\'s own. It plays in real time: if it takes more than 2 seconds to decide, a simple backup rule moves for it.',
       'Scores vary from game to game, so the ± shows the margin of error. Models within it of each other are tied.',
