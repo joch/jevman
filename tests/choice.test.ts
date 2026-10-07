@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { initialChoice, modelOptions, requestModel, setGhosts } from '../src/choice';
 
-const all = ['typesafe/jev-1.13.0', 'opper/clef', 'opper/clef-flash', 'opper/kev-4b', 'berget/convaiinnovations/laya'];
+const all = ['typesafe/jev-1.13.0', 'opper/clef', 'opper/clef-flash', 'opper/kev-4b', 'berget/convaiinnovations/laya', 'openai/gpt-6-luna-decisions'];
 
 describe('model choice', () => {
   it('offers the models the key can use, plus an unlisted server default', () => {
-    expect(modelOptions({ defaultModel: 'typesafe/jev-1.13.0', models: all }).map((o) => o.label)).toEqual(['jev 1.13', 'Clef', 'Clef Flash', 'Kev 4B', 'Laya']);
+    expect(modelOptions({ defaultModel: 'typesafe/jev-1.13.0', models: all }).map((o) => o.label)).toEqual(['jev 1.13', 'Clef', 'Clef Flash', 'Kev 4B', 'Laya', 'GPT-6 Luna']);
     expect(modelOptions({ defaultModel: 'acme/zed', models: ['typesafe/jev-1.13.0'] })).toEqual([
       { id: 'acme/zed', label: 'acme/zed (server default)' },
       { id: 'typesafe/jev-1.13.0', label: 'jev 1.13' },

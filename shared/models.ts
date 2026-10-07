@@ -8,6 +8,7 @@ export const DECISION_MODELS = [
   { id: 'opper/clef-flash', name: 'Clef Flash', maker: 'Cloudflare' },
   { id: 'opper/kev-4b', name: 'Kev 4B', maker: 'Jared Palmer' },
   { id: 'berget/convaiinnovations/laya', name: 'Laya', maker: 'ConvAI Innovations' },
+  { id: 'openai/gpt-6-luna-decisions', name: 'GPT-6 Luna', maker: 'OpenAI' },
 ] as const;
 
 export type ModelId = (typeof DECISION_MODELS)[number]['id'];

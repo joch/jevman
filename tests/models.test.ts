@@ -12,7 +12,7 @@ const sentModel = (f: ReturnType<typeof ok>) => JSON.parse((f.mock.calls[0][1] a
 
 describe('decision models', () => {
   it('lists the System One models Opper serves, jev first and default', () => {
-    expect(DECISION_MODELS.map((m) => m.id)).toEqual(['typesafe/jev-1.13.0', 'opper/clef', 'opper/clef-flash', 'opper/kev-4b', 'berget/convaiinnovations/laya']);
+    expect(DECISION_MODELS.map((m) => m.id)).toEqual(['typesafe/jev-1.13.0', 'opper/clef', 'opper/clef-flash', 'opper/kev-4b', 'berget/convaiinnovations/laya', 'openai/gpt-6-luna-decisions']);
     expect(DEFAULT_MODEL).toBe('typesafe/jev-1.13.0');
     expect(isModelId('opper/kev-4b')).toBe(true);
     expect(isModelId('openai/gpt-5')).toBe(false);

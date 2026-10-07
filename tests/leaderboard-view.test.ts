@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { communityRows, leaderboardRows, topScore } from '../src/leaderboard-view';
+import { communityRows, leaderboardRows, topScore, verdict } from '../src/leaderboard-view';
 import type { CommunityEntry, Leaderboard, LeaderboardEntry } from '../shared/leaderboard';
 
 const entry = (over: Partial<LeaderboardEntry>): LeaderboardEntry => ({
@@ -19,9 +19,10 @@ describe('leaderboardRows', () => {
     expect(rows[0].badges).toContain('Most points');
     expect(rows[1].badges).toContain('Survives longest');
     expect(rows[2].badges).toEqual(['Fastest', 'Cheapest']);
-    expect(rows[0].stats).toContainEqual(['Cost per game', '$0.020']);
+    expect(rows[0].summary).toBe('Survives 54 s · thinks in 0.30 s · $0.020 a game');
+    expect(rows[0].stats).toContainEqual(['Moves left to the backup rule', '4.0%']);
     expect(rows[0].maker).toBe('Cloudflare');
-    expect(rows[0].link).toEqual({ href: '/?pacman=opper%2Fclef', label: 'Watch Clef play →' });
+    expect(rows[0].link).toEqual({ href: '/?pacman=opper%2Fclef', label: 'Watch it play →' });
     expect(rows[0].scoreLabel).toBe('3,200 points');
   });
 
@@ -76,5 +77,12 @@ describe('communityRows', () => {
     expect(rows[0].maker).toBe('submitted by @acme');
     expect(rows[0].link).toEqual({ href: 'https://acme.example/pac', label: 'About Acme Pac ↗' });
     expect(rows[1].link).toBeNull();
+  });
+});
+
+describe('verdict', () => {
+  it('names the winner and the lead, or calls a tie', () => {
+    expect(verdict(board([entry({ name: 'jev 1.13', meanScore: 3000, scoreStdError: 50 }), entry({ model: 'opper/clef', name: 'Clef', meanScore: 2500, scoreStdError: 50 })]))).toBe('jev 1.13 plays best, 500 points ahead of Clef on average.');
+    expect(verdict(board([entry({ name: 'jev 1.13', meanScore: 3000, scoreStdError: 300 }), entry({ model: 'opper/clef', name: 'Clef', meanScore: 2900, scoreStdError: 300 })]))).toBe('jev 1.13 and Clef share the top spot: their scores are too close to call.');
   });
 });
