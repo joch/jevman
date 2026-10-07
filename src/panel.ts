@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL, modelName } from '../shared/models';
 import { ACTOR_NAMES, type Decision } from './brain';
 import { GHOST_COLORS } from './render';
 import type { SchedulerEvent } from './scheduler';
@@ -186,6 +187,18 @@ export class Panel {
     for (const [id, card] of this.cards) if (card.model) card.model.value = choice[id];
   }
 
+  /** The model that answered, as listed (TypeSafe's own id for jev reads as jev). */
+  private calledModel(d: Decision): string | undefined {
+    return d.model === 'jev-1.13.0' ? DEFAULT_MODEL : d.model;
+  }
+
+  /** Whether the answer came from another model than the card's dropdown shows. */
+  private otherThanShown(d: Decision): boolean {
+    const shown = this.cards.get(d.actor)?.model;
+    const called = this.calledModel(d);
+    return !!shown && !shown.hidden && !!called && called !== shown.value;
+  }
+
   private showDecision(e: Extract<SchedulerEvent, { type: 'decision' }>): void {
     const d = e.decision;
     this.totals.decisions += 1;
@@ -193,8 +206,9 @@ export class Panel {
     this.drawCard(
       d,
       d.source === 'jev'
-        // The model is named at the top of the card (its title on a recording, its dropdown live).
-        ? `confidence ${d.confidence === null ? '?' : d.confidence.toFixed(2)} · ${e.latencyMs ?? '?'} ms`
+        // The model is named at the top of the card (its title on a recording, its dropdown live). Only while a newly
+        // picked model is still waking up, and the old one answers, does the footer say who did.
+        ? `${this.otherThanShown(d) ? `${modelName(this.calledModel(d)!)} · ` : ''}confidence ${d.confidence === null ? '?' : d.confidence.toFixed(2)} · ${e.latencyMs ?? '?'} ms`
         : `FALLBACK (${d.reason}) · greedy rule, not the model`,
       d.source === 'fallback',
     );
