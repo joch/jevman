@@ -122,9 +122,9 @@ let tick: (dt: number) => void = () => {};
 let demo: DemoPlayer | null = null;
 const LIVE_CONTROLS = [toggleBtn, restartBtn, speedIn];
 function startDemo(r: NonNullable<typeof rec>): void {
-  demo = new DemoPlayer(r, { onLoop: () => (panel = new Panel(panelEl, { caption: DEMO_CAPTION })) });
+  demo = new DemoPlayer(r, { onLoop: () => (panel = new Panel(panelEl, { caption: DEMO_CAPTION, playedBy: modelName(r.model) })) });
   state = demo.state;
-  panel = new Panel(panelEl, { caption: DEMO_CAPTION });
+  panel = new Panel(panelEl, { caption: DEMO_CAPTION, playedBy: modelName(r.model) });
   // Controls that only mean something in a live game stay out of the way until one starts.
   for (const control of LIVE_CONTROLS) (control.closest('label') ?? control).hidden = true;
   help.textContent = 'Recorded game · press Play (or Space) to play live';
