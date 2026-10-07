@@ -1,4 +1,3 @@
-import { modelName } from '../shared/models';
 import { ACTOR_NAMES, type Decision } from './brain';
 import { GHOST_COLORS } from './render';
 import type { SchedulerEvent } from './scheduler';
@@ -194,7 +193,8 @@ export class Panel {
     this.drawCard(
       d,
       d.source === 'jev'
-        ? `${d.model ? modelName(d.model) : 'jev'} · confidence ${d.confidence === null ? '?' : d.confidence.toFixed(2)} · ${e.latencyMs ?? '?'} ms`
+        // The model is named at the top of the card (its title on a recording, its dropdown live).
+        ? `confidence ${d.confidence === null ? '?' : d.confidence.toFixed(2)} · ${e.latencyMs ?? '?'} ms`
         : `FALLBACK (${d.reason}) · greedy rule, not the model`,
       d.source === 'fallback',
     );
