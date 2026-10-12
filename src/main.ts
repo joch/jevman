@@ -150,7 +150,7 @@ const boardLoaded = fetch('/leaderboard.json')
   .then((r) => (r.ok ? (r.json() as Promise<Leaderboard>) : null))
   .then((b) => void (board = b))
   .catch(() => {});
-const SHARE_URL = 'https://jevman.apps.chadda.se';
+const SHARE_URL = 'https://jevman.chadda.se';
 const BEST_KEY = 'jevman.best';
 const readBest = (): number => {
   try {

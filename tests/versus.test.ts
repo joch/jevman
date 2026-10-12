@@ -21,8 +21,8 @@ describe('versus the AIs', () => {
   });
 
   it('writes a short share text with the link', () => {
-    expect(shareText(versus(board, 2900), 'https://jevman.apps.chadda.se')).toBe(
-      'I scored 2,900 at jevman 🟡 and beat 3 of 5 AIs at Pac-Man\n✅ Clef Flash · Kev 4B · Laya\n❌ jev 1.13 · Clef\nCan you beat the AI? https://jevman.apps.chadda.se',
+    expect(shareText(versus(board, 2900), 'https://jevman.chadda.se')).toBe(
+      'I scored 2,900 at jevman 🟡 and beat 3 of 5 AIs at Pac-Man\n✅ Clef Flash · Kev 4B · Laya\n❌ jev 1.13 · Clef\nCan you beat the AI? https://jevman.chadda.se',
     );
   });
 });

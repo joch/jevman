@@ -4,7 +4,7 @@ Issues and pull requests are welcome. Before opening a pull request, run `npm ru
 
 ## Benchmark your own model
 
-The [leaderboard](https://jevman.apps.chadda.se/leaderboard) has two parts:
+The [leaderboard](https://jevman.chadda.se/leaderboard) has two parts:
 
 - **Our runs.** We play the System One models Opper serves ourselves. If your model is on Opper (or another API we
   can call), open an issue or a pull request adding it to [`shared/models.ts`](shared/models.ts), and we'll run it.
