@@ -18,6 +18,16 @@ could not answer (timeout, error or invalid answer; see
 
 Source: <https://github.com/joch/jevman>
 
+Public app: <https://jevman.chadda.se>. The former `jevman.apps.chadda.se`
+address redirects here, preserving paths and query strings.
+
+## Visit analytics
+
+Cloudflare automatically injects Web Analytics on the proxied public hostname;
+the app does not embed a beacon. The shared `chadda.se` registration includes
+all regions. In Web Analytics, filter **Host** to `jevman.chadda.se` for this
+app's visits and pageviews. Do not add a second manual beacon.
+
 ## Run
 
 Requires Node ≥ 22.18, which runs the TypeScript server directly. Developed on Node 26; the Docker image uses Node 24.
@@ -139,7 +149,7 @@ hour**; with the AI on both sides, about the two together. Lowering the speed ma
 
 ## Benchmark your own model
 
-Any model can join the [leaderboard](https://jevman.apps.chadda.se/leaderboard) as **self-reported**. Put it behind an
+Any model can join the [leaderboard](https://jevman.chadda.se/leaderboard) as **self-reported**. Put it behind an
 HTTP endpoint that answers jevman's questions (copy [`scripts/example-endpoint.ts`](scripts/example-endpoint.ts)),
 then:
 
