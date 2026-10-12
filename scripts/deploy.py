@@ -40,6 +40,8 @@ def main():
         'X-GitHub-Delivery': str(uuid.uuid4()), 'X-Hub-Signature-256': 'sha256=' + signature,
     })
     opener = urllib.request.build_opener(NoRedirect())
+    # Identify this machine client: Cloudflare challenges Python's generic UA.
+    opener.addheaders = [('User-Agent', 'JevmanDeploy/1.0 (+https://github.com/joch/jevman)')]
     with opener.open(request, timeout=30) as response:
         result = json.load(response)
     if not isinstance(result, list):
