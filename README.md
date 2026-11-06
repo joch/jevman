@@ -26,10 +26,10 @@ address redirects here, preserving paths and query strings.
 [GitHub Actions](.github/workflows/deploy.yml) tests each change and checks the
 revision baked into the production image. With the repository variable
 `DOKPLOY_PUBLISH` set to `true`, successful pushes to `main` publish a
-smoke-tested Linux amd64 image to the private `ghcr.io/joch/jevman-deploy`
+smoke-tested Linux amd64 image to the public `ghcr.io/joch/jevman-deploy`
 package. The workflow verifies the registry digest before promoting it to
-`:main`. The host uses its own read-only registry credentials and deploys by
-digest.
+`:main`. The host deploys by digest. Opper credentials and the session
+signing key are supplied only at runtime.
 
 Coolify delivery runs while `COOLIFY_APP_UUID` is set. Remove that variable
 after verifying Dokploy delivery and the public route. Restore it if rolling

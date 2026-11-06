@@ -58,7 +58,7 @@ jobs:
           image_id=$(docker image inspect --format '{{.Id}}' jevman:release)
           python3 scripts/smoke-image.py "$image_id"
           printf '%s\n' "$image_id" > "$RUNNER_TEMP/jevman-release.image"
-      - name: Publish the smoke-tested image to private GHCR
+      - name: Publish the smoke-tested Jevman image
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/publish-image.sh "$RUNNER_TEMP/jevman-release.image"

@@ -35,17 +35,16 @@ if [[ ! "$config_digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
   exit 1
 fi
 
-# GitHub creates new container packages as private. Reject an existing public
-# or internal package before publishing any bytes.
-if ! package_response=$(gh api --include "$package" 2>/dev/null); then
-  if [[ ! "${package_response%%$'\n'*}" =~ ^HTTP/[^[:space:]]+[[:space:]]404[[:space:]] ]]; then
-    echo 'Could not verify the registry package visibility' >&2
+# Publish only to the existing public package. Deployment credentials are
+# supplied at runtime and never passed to the image build.
+check_package_visibility() {
+  if [[ "$(gh api "$package" --jq .visibility)" != public ]]; then
+    echo 'Expected the existing public Jevman registry package' >&2
     exit 1
   fi
-elif [[ "$(gh api "$package" --jq .visibility)" != private ]]; then
-  echo 'The registry package must be private' >&2
-  exit 1
-fi
+}
+
+check_package_visibility
 
 export DOCKER_CONFIG
 DOCKER_CONFIG=$(mktemp -d "$RUNNER_TEMP/jevman-registry.XXXXXX")
@@ -84,10 +83,7 @@ if ! jq -e --arg id "$image_id" --arg config "$config_digest" --arg digest "$dig
   exit 1
 fi
 
-if [[ "$(gh api "$package" --jq .visibility)" != private ]]; then
-  echo 'The registry package must be private before advancing the channel' >&2
-  exit 1
-fi
+check_package_visibility
 check_main_revision
 
 docker buildx imagetools create --prefer-index=false --tag "$repository:main" "$repository@$digest"
