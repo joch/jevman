@@ -21,6 +21,24 @@ Source: <https://github.com/joch/jevman>
 Public app: <https://jevman.chadda.se>. The former `jevman.apps.chadda.se`
 address redirects here, preserving paths and query strings.
 
+## Production delivery
+
+[GitHub Actions](.github/workflows/deploy.yml) tests each change and checks the
+revision baked into the production image. With the repository variable
+`DOKPLOY_PUBLISH` set to `true`, successful pushes to `main` publish a
+smoke-tested Linux amd64 image to the private `ghcr.io/joch/jevman-deploy`
+package. The workflow verifies the registry digest before promoting it to
+`:main`. The host uses its own read-only registry credentials and deploys by
+digest.
+
+Coolify delivery runs while `COOLIFY_APP_UUID` is set. Remove that variable
+after verifying Dokploy delivery and the public route. Restore it if rolling
+back to Coolify.
+
+Keep the existing Opper credentials, `SESSION_SECRET`, and canonical
+`https://jevman.chadda.se/auth/callback` in the host's runtime configuration to
+preserve active sessions. The app needs no persistent server volume.
+
 ## Visit analytics
 
 Cloudflare automatically injects Web Analytics on the proxied public hostname;

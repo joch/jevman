@@ -9,8 +9,7 @@ import urllib.request
 
 sha = os.environ['GITHUB_SHA']
 container = subprocess.check_output([
-    'docker', 'run', '-d', '--publish', '127.0.0.1::3000',
-    '--env', 'SOURCE_COMMIT=' + sha, sys.argv[1],
+    'docker', 'run', '-d', '--publish', '127.0.0.1::3000', sys.argv[1],
 ], text=True).strip()
 try:
     port = json.loads(subprocess.check_output(['docker', 'inspect', container]))[0]['NetworkSettings']['Ports']['3000/tcp'][0]['HostPort']
