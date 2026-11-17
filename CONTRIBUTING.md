@@ -34,6 +34,13 @@ the smoke-tested image when `DOKPLOY_PUBLISH=true`; the existing production
 release puller handles delivery. After a dependency release, verify the running
 revision and public readiness, retaining the previous release for recovery.
 
+After publication, `verify-production` waits up to ten minutes for the exact
+public revision. It checks health, the home page, leaderboard and its data,
+the signed-out account response, and the legacy host redirect. A persistent
+failure makes the release workflow fail and reports the last failing check.
+Use the published digest in the Actions summary to inspect the corresponding
+Dokploy deployment and running task when diagnosing a failure.
+
 The workflow also retains a legacy Coolify step gated on a non-empty
 `COOLIFY_APP_UUID`. A read-only repository-variable check on 2026-11-17 found that
 variable absent and `DOKPLOY_PUBLISH=true`, so the Coolify step is currently
