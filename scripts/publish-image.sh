@@ -91,3 +91,6 @@ if [[ "$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$repo
   echo 'The registry channel does not point to the verified image digest' >&2
   exit 1
 fi
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+fi
