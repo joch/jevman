@@ -2,6 +2,43 @@
 
 Issues and pull requests are welcome. Before opening a pull request, run `npm run typecheck` and `npm test`.
 
+## Dependency updates
+
+[Dependabot](.github/dependabot.yml) checks the root npm manifest/lockfile,
+Dockerfile and GitHub Actions every Saturday at 06:00 Europe/Stockholm, ahead of
+the 08:00 maintenance review. Each ecosystem permits up to five open version
+update PRs and uses a three-day cooldown. npm development and production
+patch/minor updates have separate groups; the production group is ready if
+runtime packages are added (the manifest currently has only devDependencies).
+Docker and Actions patch/minor updates are grouped when Dependabot can classify
+their versions. Major updates remain individual PRs. Inspect the actual version
+behind image digests and action SHAs; a group label does not establish low risk.
+Security-update settings are unchanged; the version-update schedule, cooldown
+and five-PR limit do not delay security PRs. See the
+[GitHub options reference](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference).
+
+Review every dependency PR's release notes, manifest/lockfile diff and immutable
+image/action pins. Require `test-and-deploy` on the current revision: typecheck,
+unit tests, Docker build and `scripts/smoke-image.py`. The smoke check exercises
+readiness/revision, static assets, unauthenticated API behavior and graceful
+shutdown without making a paid model call. Reproduce failures before merging;
+major, authentication, session and other sensitive changes need a separate
+compatibility assessment. Obtain Codex clearance for the revision being merged
+and the maintainer's lifecycle authorization. No auto-merge is configured here.
+
+The current `Protect main` ruleset requires an up-to-date PR branch, the
+`test-and-deploy` status, resolved review threads and squash merging, with no
+bypass actors. Those repository settings are separate from this configuration.
+PR runs do not deploy or publish images. A successful push to main can publish
+the smoke-tested image when `DOKPLOY_PUBLISH=true`; the existing production
+release puller handles delivery. After a dependency release, verify the running
+revision and public readiness, retaining the previous release for recovery.
+
+The workflow also retains a legacy Coolify step gated on a non-empty
+`COOLIFY_APP_UUID`. A read-only repository-variable check on 2026-11-17 found that
+variable absent and `DOKPLOY_PUBLISH=true`, so the Coolify step is currently
+inactive. Recheck those variables before changing deployment ownership.
+
 ## Benchmark your own model
 
 The [leaderboard](https://jevman.chadda.se/leaderboard) has two parts:
