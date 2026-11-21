@@ -48,7 +48,7 @@ app's visits and pageviews. Do not add a second manual beacon.
 
 ## Run
 
-Requires Node ≥ 22.18, which runs the TypeScript server directly. Developed on Node 26; the Docker image uses Node 24.
+Requires Node ≥ 22.18, which runs the TypeScript server directly. Developed on Node 26; the Docker image uses Node 26.
 
 ```bash
 npm install
