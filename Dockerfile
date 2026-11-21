@@ -1,5 +1,5 @@
 # Build the static client with the full toolchain, then run the server on a slim Node image.
-FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS build
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -13,7 +13,7 @@ COPY submissions ./submissions
 # Replays every submitted game; a submission that does not check out fails the build.
 RUN node --import tsx scripts/submissions.ts && npx vite build
 
-FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+FROM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5
 ARG SOURCE_COMMIT=local
 ENV NODE_ENV=production \
     PORT=3000 \
